@@ -562,6 +562,10 @@ public class MediaCodecHelper {
                 }
                 if (tryNumber < 5) {
                     videoFormat.setInteger("vendor.qti-ext-dec-low-latency.enable", 1);
+                    // Latency-wise, software fencing is the most important flag for latest Snapdragons
+                    videoFormat.setInteger("vendor.qti-ext-output-sw-fence-enable.value", 1); //Snapdragon 8 Gen 2
+                    videoFormat.setInteger("vendor.qti-ext-output-fence.enable", 1); // Snapdragon 8 Gen 3 and Elite
+                    videoFormat.setInteger("vendor.qti-ext-output-fence.fence_type", 1); // Snapdragon 8 Gen 3 and Elite / 0 = none, 1 = sw, 2 = hw, 3 = hybrid. Best option = 1
                     setNewOption = true;
                 }
             }
