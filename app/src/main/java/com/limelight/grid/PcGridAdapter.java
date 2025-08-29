@@ -49,7 +49,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
     }
 
     @Override
-    public void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, PcView.ComputerObject obj) {
+    public void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, ImageView settingsIndicator, PcView.ComputerObject obj) {
         imgView.setImageResource(R.drawable.ic_computer);
         if (obj.details.state == ComputerDetails.State.ONLINE) {
             imgView.setAlpha(1.0f);
@@ -88,6 +88,11 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
         }
         else {
             overlayView.setVisibility(View.GONE);
+        }
+
+        // Hide settings indicator for PC items (not applicable)
+        if (settingsIndicator != null) {
+            settingsIndicator.setVisibility(View.GONE);
         }
     }
 }

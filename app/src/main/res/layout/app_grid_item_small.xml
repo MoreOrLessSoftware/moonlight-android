@@ -26,4 +26,14 @@
         android:gravity="center"
         android:textSize="14sp">
     </TextView>
+    <ImageView
+        android:id="@+id/settings_indicator"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="6dp"
+        android:src="@drawable/ic_tool_red"
+        android:visibility="gone">
+    </ImageView>
 </RelativeLayout>

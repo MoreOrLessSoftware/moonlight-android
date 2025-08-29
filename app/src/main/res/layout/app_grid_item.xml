@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="150dp"
-    android:layout_height="200dp"
+    android:layout_width="180dp"
+    android:layout_height="230dp"
     android:padding="10dp">
     <ImageView
         android:id="@+id/grid_image"
         android:cropToPadding="false"
         android:scaleType="fitXY"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="@drawable/rounded_image_mask"
+        android:clipToOutline="true">
     </ImageView>
     <ImageView
         android:id="@+id/grid_overlay"
@@ -26,4 +28,14 @@
         android:gravity="center"
         android:textSize="18sp">
     </TextView>
+    <ImageView
+        android:id="@+id/settings_indicator"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="8dp"
+        android:src="@drawable/ic_tool_red"
+        android:visibility="gone">
+    </ImageView>
 </RelativeLayout>
