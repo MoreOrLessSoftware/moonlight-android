@@ -15,6 +15,7 @@ import com.limelight.grid.assets.DiskAssetLoader;
 import com.limelight.grid.assets.MemoryAssetLoader;
 import com.limelight.grid.assets.NetworkAssetLoader;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.preferences.AppPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import java.util.ArrayList;
@@ -161,7 +162,7 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     }
 
     @Override
-    public void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, AppView.AppObject obj) {
+    public void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, ImageView settingsIndicator, AppView.AppObject obj) {
         // Let the cached asset loader handle it
         loader.populateImageView(obj.app, imgView, txtView);
 
@@ -172,6 +173,16 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         }
         else {
             overlayView.setVisibility(View.GONE);
+        }
+
+        // Show settings indicator if app has custom settings (use global settings is false)
+        if (settingsIndicator != null) {
+            AppPreferences.AppSettings appSettings = AppPreferences.getAppSettings(context, obj.app.getAppId());
+            if (!appSettings.useGlobalSettings) {
+                settingsIndicator.setVisibility(View.VISIBLE);
+            } else {
+                settingsIndicator.setVisibility(View.GONE);
+            }
         }
 
         if (obj.isHidden) {

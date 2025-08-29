@@ -1,0 +1,195 @@
+package com.limelight.preferences;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+public class AppPreferences {
+    private static final String APP_PREFERENCES_FILE = "AppPreferences";
+    private static final String GLOBAL_DEFAULTS_KEY = "_global_defaults";
+
+    public static class AppSettings {
+        public String resolution;
+        public String fps;
+        public String framePacing;
+        public String bitrate;
+        public boolean useGlobalSettings;
+
+        public AppSettings() {
+            this.useGlobalSettings = true;
+        }
+
+        public AppSettings(String resolution, String fps, String framePacing, String bitrate, boolean useGlobalSettings) {
+            this.resolution = resolution;
+            this.fps = fps;
+            this.framePacing = framePacing;
+            this.bitrate = bitrate;
+            this.useGlobalSettings = useGlobalSettings;
+        }
+
+        public JSONObject toJson() throws JSONException {
+            JSONObject json = new JSONObject();
+            json.put("resolution", resolution);
+            json.put("fps", fps);
+            json.put("framePacing", framePacing);
+            json.put("bitrate", bitrate);
+            json.put("useGlobalSettings", useGlobalSettings);
+            return json;
+        }
+
+        public static AppSettings fromJson(JSONObject json) throws JSONException {
+            return new AppSettings(
+                json.optString("resolution", null),
+                json.optString("fps", null),
+                json.optString("framePacing", null),
+                json.optString("bitrate", null),
+                json.optBoolean("useGlobalSettings", true)
+            );
+        }
+    }
+
+    public static AppSettings getAppSettings(Context context, int appId) {
+        SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        String jsonString = prefs.getString(String.valueOf(appId), null);
+        
+        if (jsonString == null) {
+            return new AppSettings();
+        }
+        
+        try {
+            JSONObject json = new JSONObject(jsonString);
+            return AppSettings.fromJson(json);
+        } catch (JSONException e) {
+            return new AppSettings();
+        }
+    }
+
+    public static void saveAppSettings(Context context, int appId, AppSettings settings) {
+        SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        try {
+            JSONObject json = settings.toJson();
+            prefs.edit().putString(String.valueOf(appId), json.toString()).apply();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void saveGlobalDefaults(Context context, AppSettings globalDefaults) {
+        SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        try {
+            JSONObject json = globalDefaults.toJson();
+            prefs.edit().putString(GLOBAL_DEFAULTS_KEY, json.toString()).apply();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static AppSettings getGlobalDefaults(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        String jsonString = prefs.getString(GLOBAL_DEFAULTS_KEY, null);
+        
+        if (jsonString == null) {
+            PreferenceConfiguration globalConfig = PreferenceConfiguration.readPreferences(context);
+            return new AppSettings(
+                globalConfig.width + "x" + globalConfig.height,
+                String.valueOf(globalConfig.fps),
+                getFramePacingString(globalConfig.framePacing),
+                String.valueOf(globalConfig.bitrate),
+                false
+            );
+        }
+        
+        try {
+            JSONObject json = new JSONObject(jsonString);
+            return AppSettings.fromJson(json);
+        } catch (JSONException e) {
+            PreferenceConfiguration globalConfig = PreferenceConfiguration.readPreferences(context);
+            return new AppSettings(
+                globalConfig.width + "x" + globalConfig.height,
+                String.valueOf(globalConfig.fps),
+                getFramePacingString(globalConfig.framePacing),
+                String.valueOf(globalConfig.bitrate),
+                false
+            );
+        }
+    }
+
+    private static String getFramePacingString(int framePacing) {
+        switch (framePacing) {
+            case PreferenceConfiguration.FRAME_PACING_MIN_LATENCY:
+                return "latency";
+            case PreferenceConfiguration.FRAME_PACING_BALANCED:
+                return "balanced";
+            case PreferenceConfiguration.FRAME_PACING_CAP_FPS:
+                return "cap-fps";
+            case PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS:
+                return "smoothness";
+            default:
+                return "latency";
+        }
+    }
+
+    private static int getFramePacingValue(String framePacingString) {
+        if (framePacingString == null) {
+            return PreferenceConfiguration.FRAME_PACING_MIN_LATENCY;
+        }
+        switch (framePacingString) {
+            case "latency":
+                return PreferenceConfiguration.FRAME_PACING_MIN_LATENCY;
+            case "balanced":
+                return PreferenceConfiguration.FRAME_PACING_BALANCED;
+            case "cap-fps":
+                return PreferenceConfiguration.FRAME_PACING_CAP_FPS;
+            case "smoothness":
+                return PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS;
+            default:
+                return PreferenceConfiguration.FRAME_PACING_MIN_LATENCY;
+        }
+    }
+
+    public static PreferenceConfiguration getEffectivePreferences(Context context, int appId) {
+        AppSettings appSettings = getAppSettings(context, appId);
+        
+        if (appSettings.useGlobalSettings) {
+            return PreferenceConfiguration.readPreferences(context);
+        }
+        
+        PreferenceConfiguration config = PreferenceConfiguration.readPreferences(context);
+        
+        if (appSettings.resolution != null) {
+            String[] parts = appSettings.resolution.split("x");
+            if (parts.length == 2) {
+                try {
+                    config.width = Integer.parseInt(parts[0]);
+                    config.height = Integer.parseInt(parts[1]);
+                } catch (NumberFormatException e) {
+                    // Keep global settings
+                }
+            }
+        }
+        
+        if (appSettings.fps != null) {
+            try {
+                config.fps = Integer.parseInt(appSettings.fps);
+            } catch (NumberFormatException e) {
+                // Keep global settings
+            }
+        }
+        
+        if (appSettings.framePacing != null) {
+            config.framePacing = getFramePacingValue(appSettings.framePacing);
+        }
+        
+        if (appSettings.bitrate != null) {
+            try {
+                config.bitrate = Integer.parseInt(appSettings.bitrate);
+            } catch (NumberFormatException e) {
+                // Keep global settings
+            }
+        }
+        
+        return config;
+    }
+}

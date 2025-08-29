@@ -54,7 +54,7 @@ public abstract class GenericGridAdapter<T> extends BaseAdapter {
         return i;
     }
 
-    public abstract void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, T obj);
+    public abstract void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, ImageView settingsIndicator, T obj);
 
     @Override
     public View getView(int i, View convertView, ViewGroup viewGroup) {
@@ -66,8 +66,9 @@ public abstract class GenericGridAdapter<T> extends BaseAdapter {
         ImageView overlayView = convertView.findViewById(R.id.grid_overlay);
         TextView txtView = convertView.findViewById(R.id.grid_text);
         ProgressBar prgView = convertView.findViewById(R.id.grid_spinner);
+        ImageView settingsIndicator = convertView.findViewById(R.id.settings_indicator);
 
-        populateView(convertView, imgView, prgView, txtView, overlayView, itemList.get(i));
+        populateView(convertView, imgView, prgView, txtView, overlayView, settingsIndicator, itemList.get(i));
 
         return convertView;
     }

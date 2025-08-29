@@ -27,6 +27,7 @@ import com.limelight.nvstream.input.ControllerPacket;
 import com.limelight.nvstream.input.KeyboardPacket;
 import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.nvstream.jni.MoonBridge;
+import com.limelight.preferences.AppPreferences;
 import com.limelight.preferences.GlPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.GameGestures;
@@ -215,8 +216,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         spinner = SpinnerDialog.displayDialog(this, getResources().getString(R.string.conn_establishing_title),
                 getResources().getString(R.string.conn_establishing_msg), true);
 
-        // Read the stream preferences
-        prefConfig = PreferenceConfiguration.readPreferences(this);
+        // Get the app ID
+        int appId = Game.this.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID);
+
+        // Read the stream preferences (per-app if configured, otherwise global)
+        prefConfig = AppPreferences.getEffectivePreferences(this, appId);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
         // Enter landscape unless we're on a square screen
@@ -313,7 +317,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         String host = Game.this.getIntent().getStringExtra(EXTRA_HOST);
         int port = Game.this.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT);
         int httpsPort = Game.this.getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0); // 0 is treated as unknown
-        int appId = Game.this.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID);
         String uniqueId = Game.this.getIntent().getStringExtra(EXTRA_UNIQUEID);
         boolean appSupportsHdr = Game.this.getIntent().getBooleanExtra(EXTRA_APP_HDR, false);
         byte[] derCertData = Game.this.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT);
