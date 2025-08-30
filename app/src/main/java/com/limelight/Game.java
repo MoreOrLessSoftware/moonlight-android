@@ -2227,7 +2227,33 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     conn.stop();
                 }
             }.start();
+
+            // Quit the running app if requested
+            if (controllerHandler.pendingApplicationQuit) {
+                controllerHandler.pendingApplicationQuit = false;
+                this.doQuit();
+            }
         }
+    }
+
+    private void doQuit() {
+        String host = Game.this.getIntent().getStringExtra(EXTRA_HOST);
+        int port = Game.this.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT);
+        int httpsPort = Game.this.getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0); // 0 is treated as unknown
+        String uniqueId = Game.this.getIntent().getStringExtra(EXTRA_UNIQUEID);
+        byte[] derCertData = Game.this.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT);
+
+        X509Certificate serverCert = null;
+        try {
+            if (derCertData != null) {
+                serverCert = (X509Certificate) CertificateFactory.getInstance("X.509")
+                        .generateCertificate(new ByteArrayInputStream(derCertData));
+            }
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        }
+
+        ServerHelper.doQuit(this, new ComputerDetails.AddressTuple(host, port), httpsPort, serverCert, this.appName, uniqueId, null);
     }
 
     @Override

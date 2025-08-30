@@ -44,6 +44,7 @@ import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.GameGestures;
+import com.limelight.utils.ServerHelper;
 import com.limelight.utils.Vector2d;
 
 import org.cgutman.shieldcontrollerextensions.SceChargingState;
@@ -127,6 +128,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     private final PreferenceConfiguration prefConfig;
     private short currentControllers, initialControllers;
+
+    public boolean pendingApplicationQuit = false;
 
     public ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig) {
         this.activityContext = activityContext;
@@ -2729,6 +2732,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             // Wait for the combo to lift and then finish the activity
             context.pendingExit = true;
         }
+        // LB+RB+Down+Right is the quit (session + host app) combo
+        if (context.inputMap == (ControllerPacket.LB_FLAG | ControllerPacket.RB_FLAG |
+                                 ControllerPacket.DOWN_FLAG | ControllerPacket.RIGHT_FLAG)) {
+            // Wait for the combo to lift and then finish the activity
+            context.pendingExit = true;
+
+            // Also indicate that the user wants to quit the streaming app
+            this.pendingApplicationQuit = true;
+        }
 
         // Start+LB acts like select for controllers with one button
         if (!context.hasSelect) {
@@ -2987,6 +2999,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         public boolean ignoreBack;
         public boolean hasJoystickAxes;
         public boolean pendingExit;
+        public boolean pendingQuit;
         public boolean isDualShockStandaloneTouchpad;
 
         public int emulatingButtonFlags = 0;
