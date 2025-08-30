@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 
 public class ServerHelper {
     public static final String CONNECTION_TEST_SERVER = "android.conntest.moonlight-stream.org";
@@ -80,6 +81,7 @@ public class ServerHelper {
             Toast.makeText(parent, parent.getResources().getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show();
             return;
         }
+        
         parent.startActivity(createStartIntent(parent, app, computer, managerBinder));
     }
 
@@ -120,19 +122,38 @@ public class ServerHelper {
                               final NvApp app,
                               final ComputerManagerService.ComputerManagerBinder managerBinder,
                               final Runnable onComplete) {
-        Toast.makeText(parent, parent.getResources().getString(R.string.applist_quit_app) + " " + app.getAppName() + "...", Toast.LENGTH_SHORT).show();
+        try {
+            doQuit(parent, ServerHelper.getCurrentAddressFromComputer(computer), computer.httpsPort,
+                    computer.serverCert, app.getAppName(), managerBinder.getUniqueId(), onComplete);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        }
+    }
+
+    public static void doQuit(final Activity parent,
+                              final ComputerDetails.AddressTuple computerAddress,
+                              final int httpsPort,
+                              final X509Certificate certificate,
+                              final String appNameForNotifications,
+                              final String uniqueId,
+                              final Runnable onComplete) {
+        Toast.makeText(parent, parent.getResources().getString(R.string.applist_quit_app) + " " + appNameForNotifications + "...", Toast.LENGTH_SHORT).show();
         new Thread(new Runnable() {
             @Override
             public void run() {
                 NvHTTP httpConn;
                 String message;
                 try {
-                    httpConn = new NvHTTP(ServerHelper.getCurrentAddressFromComputer(computer), computer.httpsPort,
-                            managerBinder.getUniqueId(), computer.serverCert, PlatformBinding.getCryptoProvider(parent));
+                    httpConn = new NvHTTP(computerAddress, httpsPort,
+                            uniqueId, certificate, PlatformBinding.getCryptoProvider(parent));
                     if (httpConn.quitApp()) {
-                        message = parent.getResources().getString(R.string.applist_quit_success) + " " + app.getAppName();
+                        message = parent.getResources().getString(R.string.applist_quit_success) + " " + appNameForNotifications;
                     } else {
-                        message = parent.getResources().getString(R.string.applist_quit_fail) + " " + app.getAppName();
+                        message = parent.getResources().getString(R.string.applist_quit_fail) + " " + appNameForNotifications;
                     }
                 } catch (HostHttpResponseException e) {
                     if (e.getErrorCode() == 599) {
