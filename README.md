@@ -1,22 +1,29 @@
 # Moonlight Android
 
-[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/232a8tadrrn8jv0k/branch/master?svg=true)](https://ci.appveyor.com/project/cgutman/moonlight-android/branch/master)
-[![Translation Status](https://hosted.weblate.org/widgets/moonlight/-/moonlight-android/svg-badge.svg)](https://hosted.weblate.org/projects/moonlight/moonlight-android/)
+[Moonlight for Android](https://moonlight-stream.org) is an open source client for  [Sunshine](https://github.com/LizardByte/Sunshine).
 
-[Moonlight for Android](https://moonlight-stream.org) is an open source client for NVIDIA GameStream and [Sunshine](https://github.com/LizardByte/Sunshine).
+This fork aims to build upon the original Android client with some new features and some existing features, fixes and optimizations from [Artemis](https://github.com/ClassicOldSong/moonlight-android) and other developers.
 
-Moonlight for Android will allow you to stream your full collection of games from your Windows PC to your Android device,
-whether in your own home or over the internet.
 
-Moonlight also has a [PC client](https://github.com/moonlight-stream/moonlight-qt) and [iOS/tvOS client](https://github.com/moonlight-stream/moonlight-ios).
+No release apks will be provided for the time being, so the target audience for this fork is other developers looking to incorporate added functionality into their own builds.
 
-You can follow development on our [Discord server](https://moonlight-stream.org/discord) and help translate Moonlight into your language on [Weblate](https://hosted.weblate.org/projects/moonlight/moonlight-android/).
+## New Features
 
-## Downloads
-* [Google Play Store](https://play.google.com/store/apps/details?id=com.limelight)
-* [Amazon App Store](https://www.amazon.com/gp/product/B00JK4MFN2)
-* [F-Droid](https://f-droid.org/packages/com.limelight)
-* [APK](https://github.com/moonlight-stream/moonlight-android/releases)
+### Per-app settings overrides
+
+Each app can now have it's own resolution, FPS, bitrate and frame pacing settings:
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/quPzQCCLMXA/0.jpg)](https://www.youtube.com/watch?v=quPzQCCLMXA)
+
+### New gamepad button chord for quitting host app
+
+To end the session AND quit the app on the host machine, use a new button chord (made with macros in mind):
+
+```LB``` + ```RB``` + ```D-pad right``` + ```D-pad down```
+
+## Features and Improvements Merged from Artemis
+
+- Ultra low latency mode with Snapdragon (8 Gen 2+) latency improvements
 
 ## Building
 * Install Android Studio and the Android NDK
