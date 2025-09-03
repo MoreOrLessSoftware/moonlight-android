@@ -13,7 +13,7 @@ No release apks will be provided for the time being, so the target audience for 
 
 Each app can now have it's own resolution, FPS, bitrate and frame pacing settings:
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/quPzQCCLMXA/0.jpg)](https://www.youtube.com/watch?v=quPzQCCLMXA)
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/AYPQj0LOsxk/0.jpg)](https://youtu.be/AYPQj0LOsxk)
 
 ### New gamepad button chord for quitting host app
 
