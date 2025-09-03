@@ -234,18 +234,10 @@ public class AppStreamSettings extends Activity {
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
 
             useGlobalPref.setChecked(currentSettings.useGlobalSettings);
-            if (currentSettings.resolution != null) {
-                resolutionPref.setValue(currentSettings.resolution);
-            }
-            if (currentSettings.fps != null) {
-                fpsPref.setValue(currentSettings.fps);
-            }
-            if (currentSettings.bitrate != null) {
-                bitratePref.setProgress(Integer.parseInt(currentSettings.bitrate));
-            }
-            if (currentSettings.framePacing != null) {
-                framePacingPref.setValue(currentSettings.framePacing);
-            }
+            resolutionPref.setValue(currentSettings.resolution);
+            fpsPref.setValue(currentSettings.fps);
+            bitratePref.setProgress(currentSettings.bitrate == null ? 0 : Integer.parseInt(currentSettings.bitrate));
+            framePacingPref.setValue(currentSettings.framePacing);
 
             // Setup resolution preference with custom option
             setupResolutionPreference(resolutionPref);
