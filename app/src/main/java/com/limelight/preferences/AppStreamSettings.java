@@ -170,7 +170,6 @@ public class AppStreamSettings extends Activity {
             final int appId = activity.appId;
 
             AppPreferences.AppSettings currentSettings = AppPreferences.getAppSettings(getActivity(), appId);
-            AppPreferences.AppSettings globalDefaults = AppPreferences.getGlobalDefaults(getActivity());
 
             CheckBoxPreference useGlobalPref = (CheckBoxPreference) findPreference("checkbox_use_global_settings");
             Preference resolutionPref = findPreference("pref_app_resolution");
@@ -260,9 +259,14 @@ public class AppStreamSettings extends Activity {
             useGlobalPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override
                 public boolean onPreferenceChange(Preference preference, Object newValue) {
-                    boolean useGlobal = (Boolean) newValue;
-                    updatePreferenceStates(useGlobal);
-                    saveSettings();
+                    new Handler().post(new Runnable() {
+                        @Override
+                        public void run() {
+                            boolean useGlobal = (Boolean) newValue;
+                            updatePreferenceStates(useGlobal);
+                            saveSettings();
+                        }
+                    });
                     return true;
                 }
             });
