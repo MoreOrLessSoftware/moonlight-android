@@ -12,16 +12,16 @@ public class AppPreferences {
 
     public static class AppSettings {
         public String resolution;
-        public String fps;
+        public int fps;
         public String framePacing;
-        public String bitrate;
+        public int bitrate;
         public boolean useGlobalSettings;
 
         public AppSettings() {
             this.useGlobalSettings = true;
         }
 
-        public AppSettings(String resolution, String fps, String framePacing, String bitrate, boolean useGlobalSettings) {
+        public AppSettings(String resolution, int fps, String framePacing, int bitrate, boolean useGlobalSettings) {
             this.resolution = resolution;
             this.fps = fps;
             this.framePacing = framePacing;
@@ -42,9 +42,9 @@ public class AppPreferences {
         public static AppSettings fromJson(JSONObject json) throws JSONException {
             return new AppSettings(
                 json.optString("resolution", null),
-                json.optString("fps", null),
+                json.optInt("fps", 0),
                 json.optString("framePacing", null),
-                json.optString("bitrate", null),
+                json.optInt("bitrate", 0),
                 json.optBoolean("useGlobalSettings", true)
             );
         }
@@ -94,9 +94,9 @@ public class AppPreferences {
             PreferenceConfiguration globalConfig = PreferenceConfiguration.readPreferences(context);
             return new AppSettings(
                 globalConfig.width + "x" + globalConfig.height,
-                String.valueOf(globalConfig.fps),
+                globalConfig.fps,
                 getFramePacingString(globalConfig.framePacing),
-                String.valueOf(globalConfig.bitrate),
+                globalConfig.bitrate,
                 false
             );
         }
@@ -108,9 +108,9 @@ public class AppPreferences {
             PreferenceConfiguration globalConfig = PreferenceConfiguration.readPreferences(context);
             return new AppSettings(
                 globalConfig.width + "x" + globalConfig.height,
-                String.valueOf(globalConfig.fps),
+                globalConfig.fps,
                 getFramePacingString(globalConfig.framePacing),
-                String.valueOf(globalConfig.bitrate),
+                globalConfig.bitrate,
                 false
             );
         }
@@ -170,9 +170,9 @@ public class AppPreferences {
             }
         }
         
-        if (appSettings.fps != null) {
+        if (appSettings.fps > 0) {
             try {
-                config.fps = Integer.parseInt(appSettings.fps);
+                config.fps = appSettings.fps;
             } catch (NumberFormatException e) {
                 // Keep global settings
             }
@@ -182,9 +182,9 @@ public class AppPreferences {
             config.framePacing = getFramePacingValue(appSettings.framePacing);
         }
         
-        if (appSettings.bitrate != null) {
+        if (appSettings.bitrate > 0) {
             try {
-                config.bitrate = Integer.parseInt(appSettings.bitrate);
+                config.bitrate = appSettings.bitrate;
             } catch (NumberFormatException e) {
                 // Keep global settings
             }

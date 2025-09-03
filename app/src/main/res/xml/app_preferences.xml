@@ -8,45 +8,31 @@
         android:summary="Use the global stream settings for this app"
         android:defaultValue="true" />
 
-    <PreferenceCategory android:title="App-Specific Settings">
-        <ListPreference
-            android:key="list_app_resolution"
+    <PreferenceCategory 
+        android:key="category_app_specific"
+        android:title="App-Specific Settings">
+        <Preference
+            android:key="pref_app_resolution"
             android:title="@string/title_resolution_list"
-            android:summary="@string/summary_resolution_list"
-            android:entries="@array/resolution_names"
-            android:entryValues="@array/resolution_values" />
-        <ListPreference
-            android:key="list_app_fps"
+            android:summary="@string/summary_resolution_list" />
+        <EditTextPreference
+            android:key="text_app_fps"
             android:title="@string/title_fps_list"
             android:summary="@string/summary_fps_list"
-            android:entries="@array/fps_names"
-            android:entryValues="@array/fps_values" />
-        <com.limelight.preferences.SeekBarPreference
-            android:key="seekbar_app_bitrate_kbps"
-            android:dialogMessage="@string/summary_seekbar_bitrate"
-            seekbar:min="0"
-            android:max="150000"
-            seekbar:step="500"
-            seekbar:keyStep="1000"
-            seekbar:divisor="1000"
+            android:inputType="number"
+            android:dialogMessage="Enter FPS value" />
+        <EditTextPreference
+            android:key="text_app_bitrate_kbps"
+            android:title="@string/title_seekbar_bitrate"
             android:summary="@string/summary_seekbar_bitrate"
-            android:text="@string/suffix_seekbar_bitrate_mbps"
-            android:title="@string/title_seekbar_bitrate" />
+            android:inputType="number"
+            android:dialogMessage="Enter bitrate in Mbps (e.g. 50)" />
         <ListPreference
             android:key="list_app_frame_pacing"
             android:title="@string/title_frame_pacing"
             android:entries="@array/video_frame_pacing_names"
             android:entryValues="@array/video_frame_pacing_values"
             android:summary="@string/summary_frame_pacing" />
-    </PreferenceCategory>
-
-    <PreferenceCategory android:title="">
-        <Preference
-            android:key="button_save_cancel"
-            android:title=""
-            android:summary=""
-            android:layout="@layout/save_cancel_buttons"
-            android:selectable="false" />
     </PreferenceCategory>
 
 </PreferenceScreen>
