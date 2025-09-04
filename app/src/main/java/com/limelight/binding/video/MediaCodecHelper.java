@@ -40,6 +40,7 @@ public class MediaCodecHelper {
     private static final List<String> refFrameInvalidationHevcPrefixes;
     private static final List<String> useFourSlicesPrefixes;
     private static final List<String> qualcommDecoderPrefixes;
+    private static final List<String> mtkDecoderPrefixes;
     private static final List<String> kirinDecoderPrefixes;
     private static final List<String> exynosDecoderPrefixes;
     private static final List<String> amlogicDecoderPrefixes;
@@ -231,6 +232,13 @@ public class MediaCodecHelper {
     }
 
     static {
+        mtkDecoderPrefixes = new LinkedList<>();
+
+        mtkDecoderPrefixes.add("omx.mtk");
+        mtkDecoderPrefixes.add("c2.mtk");
+    }
+
+    static {
         kirinDecoderPrefixes = new LinkedList<>();
 
         kirinDecoderPrefixes.add("omx.hisi");
@@ -372,6 +380,11 @@ public class MediaCodecHelper {
                 refFrameInvalidationHevcPrefixes.add("omx.qcom");
                 refFrameInvalidationAvcPrefixes.add("c2.qti");
                 refFrameInvalidationHevcPrefixes.add("c2.qti");
+
+                refFrameInvalidationAvcPrefixes.add("c2.mtk");
+                refFrameInvalidationHevcPrefixes.add("c2.mtk");
+                refFrameInvalidationAvcPrefixes.add("omx.mtk");
+                refFrameInvalidationHevcPrefixes.add("omx.mtk");
             }
 
             // Qualcomm's early HEVC decoders break hard on our HEVC stream. The best check to
@@ -488,8 +501,12 @@ public class MediaCodecHelper {
         // NB: Even on Android 10, this optimization still provides significant
         // performance gains on Pixel 2.
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                isDecoderInList(qualcommDecoderPrefixes, decoderName) &&
-                !isAdreno620;
+                (
+                    isDecoderInList(qualcommDecoderPrefixes, decoderName) ||
+                            isDecoderInList(refFrameInvalidationHevcPrefixes, decoderName) ||
+                            isDecoderInList(refFrameInvalidationAvcPrefixes, decoderName)
+
+                ) && !isAdreno620;
     }
 
     public static boolean setDecoderLowLatencyOptions(MediaFormat videoFormat, MediaCodecInfo decoderInfo, boolean ultraLowLatency, int tryNumber) {
@@ -566,6 +583,52 @@ public class MediaCodecHelper {
                     videoFormat.setInteger("vendor.qti-ext-output-sw-fence-enable.value", 1); //Snapdragon 8 Gen 2
                     videoFormat.setInteger("vendor.qti-ext-output-fence.enable", 1); // Snapdragon 8 Gen 3 and Elite
                     videoFormat.setInteger("vendor.qti-ext-output-fence.fence_type", 1); // Snapdragon 8 Gen 3 and Elite / 0 = none, 1 = sw, 2 = hw, 3 = hybrid. Best option = 1
+                    setNewOption = true;
+                }
+            }
+            else if (isDecoderInList(mtkDecoderPrefixes, decoderInfo.getName())) {
+                //derflacco
+                if (ultraLowLatency) {
+                    {
+                        // If the decoder supports LowLatency, we can assume it's a recent mtk cpu with decent decoding capability
+                        boolean supportsLowLatency = decoderInfo.getName().toLowerCase().contains("low_latency")
+                                || decoderInfo.getName().toLowerCase().contains("c2.mtk");
+
+                        if (supportsLowLatency) {
+                            // Aggressive profile for MTK low-latency decoders
+                            safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode", 2);           // Stronger CPU boost for decoder threads
+                            safeSet(videoFormat, "vendor.mtk.ext.dolby.vision.cpu-boost", 1);    // Extra CPU boost when Dolby Vision paths are used
+                            safeSet(videoFormat, "vendor.mtk.vdec.buffer.fetch.timeout.ms", 2);  // Internal buffer-fetch timeout (ms); lower can cut stalls
+                            safeSet(videoFormat, "vendor.mtk.vdec.bq.guard.interval.time", 2);   // Guard interval for decoder buffer queue; smaller = tighter pacing
+                            safeSet(videoFormat, "vendor.mtk.vdec.input.max.queue.depth", 2);    // Max input queue depth; lower = less pipeline buffering
+                            safeSet(videoFormat, "vendor.mtk.vdec.output.max.queue.depth", 2);   // Max output queue depth; lower = lower display latency
+                            safeSet(videoFormat, "vendor.mtk.vdec.disable-idle", 1);             // Keep decoder from idling to avoid clock drop/sleep
+                            safeSet(videoFormat, "vendor.mtk.vdec.low-latency.mode", 1);         // Enable decoder low-latency path
+                            safeSet(videoFormat, "vendor.mtk.vdec.preload.frame.count", 0);      // Preload 0 frames; no prebuffering for latency
+                            safeSet(videoFormat, "vendor.mtk.vdec.ultra-low-latency", 0);        // Toggle ultra-low-latency path (0=off, 1=on)
+                            safeSet(videoFormat, "vendor.mtk.vdec.nvop.skip", 1);                // Skip NVOP/no-op frames to reduce overhead
+                            safeSet(videoFormat, "vendor.mtk.vdec.skip.mode", 0);                // Frame-skip policy (0=off/conservative)
+                            safeSet(videoFormat, "vendor.mtk.vdec.frame-drop.policy", 0);        // Frame-drop policy (0=default/no forced drops)
+                            safeSet(videoFormat, "vendor.mtk.vdec.parser.boost", 1);             // Boost bitstream parser workload
+                            safeSet(videoFormat, "vendor.mtk.vdec.dvfs.mode", 1);                // DVFS bias toward performance
+                            safeSet(videoFormat, "vendor.mtk.vdec.vsync.adjust.enable", 0);      // Disable decoder vsync pacing/adjust to avoid interference
+
+                            // Conservative profile for MTK decoders without low-latency support (e.g., G99 , Dimensity 7200)
+
+                            safeSet(videoFormat, "vendor.mtk.vdec.buffer.fetch.timeout.ms", 4);  // Slightly longer fetch timeout for stability
+                            safeSet(videoFormat, "vendor.mtk.vdec.bq.guard.interval.time", 4);   // Wider guard interval; reduce contention
+                            safeSet(videoFormat, "vendor.mtk.vdec.input.max.queue.depth", 4);    // Deeper input queue; smoother under load
+                            safeSet(videoFormat, "vendor.mtk.vdec.output.max.queue.depth", 4);   // Deeper output queue; fewer underruns
+                            safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode", 1);           // Mild CPU boost
+                            safeSet(videoFormat, "vendor.mtk.vdec.parser.boost", 1);             // Keep parser boosted even in conservative mode
+                            safeSet(videoFormat, "vendor.mtk.vdec.vsync.adjust.enable", 0);      // Keep vsync adjust off
+                            safeSet(videoFormat, "vendor.mtk.vdec.nvop.skip", 1);                // Skip NVOP frames
+                            safeSet(videoFormat, "vendor.mtk.vdec.disable-idle", 1);             // Prevent idle to avoid wake-up penalties
+                            safeSet(videoFormat, "vendor.mtk.vdec.drop.nonref.frame", 1);        // Allow dropping non-reference frames under stress
+                            safeSet(videoFormat, "vendor.mtk.vdec.skip.mode", 1);                // Light/controlled frame skipping enabled
+                            safeSet(videoFormat, "vendor.mtk.vdec.preload.frame.count", 0);      // No preloaded frames
+                        }
+                    }
                     setNewOption = true;
                 }
             }
@@ -1017,5 +1080,39 @@ public class MediaCodecHelper {
         }
         
         return false;
+    }
+
+    // --- Helpers to safely set vendor-specific flags without crashing ---
+
+    private static void safeSet(MediaFormat format, String key, int value) {
+        try {
+            format.setInteger(key, value);
+        } catch (Throwable ignored) {
+            // key not supported, ignore
+        }
+    }
+
+    private static void safeSet(MediaFormat format, String key, boolean value) {
+        try {
+            format.setInteger(key, value ? 1 : 0);
+        } catch (Throwable ignored) {
+            // key not supported, ignore
+        }
+    }
+
+    private static void safeSet(MediaFormat format, String key, long value) {
+        try {
+            format.setLong(key, value);
+        } catch (Throwable ignored) {
+            // key not supported, ignore
+        }
+    }
+
+    private static void safeSet(MediaFormat format, String key, String value) {
+        try {
+            format.setString(key, value);
+        } catch (Throwable ignored) {
+            // key not supported, ignore
+        }
     }
 }

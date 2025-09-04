@@ -303,5 +303,5 @@
 
     <!-- New strings -->
     <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (experimental)</string>
-    <string name="summary_checkbox_ultra_low_latency">Only effective for SD8Gen2/8(s)Gen3/8Elite.</string>
+    <string name="summary_checkbox_ultra_low_latency">Only effective for SD8Gen2/8(s)Gen3/8Elite and MTK devices.</string>
 </resources>
