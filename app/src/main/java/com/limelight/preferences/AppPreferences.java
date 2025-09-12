@@ -15,17 +15,21 @@ public class AppPreferences {
         public int fps;
         public String framePacing;
         public int bitrate;
+        public double actualDisplayRefreshRate;
+        public boolean enablePerfOverlay;
         public boolean useGlobalSettings;
 
         public AppSettings() {
             this.useGlobalSettings = true;
         }
 
-        public AppSettings(String resolution, int fps, String framePacing, int bitrate, boolean useGlobalSettings) {
+        public AppSettings(String resolution, int fps, String framePacing, int bitrate, double actualDisplayRefreshRate, boolean enablePerfOverlay, boolean useGlobalSettings) {
             this.resolution = resolution;
             this.fps = fps;
             this.framePacing = framePacing;
             this.bitrate = bitrate;
+            this.actualDisplayRefreshRate = actualDisplayRefreshRate;
+            this.enablePerfOverlay = enablePerfOverlay;
             this.useGlobalSettings = useGlobalSettings;
         }
 
@@ -35,6 +39,8 @@ public class AppPreferences {
             json.put("fps", fps);
             json.put("framePacing", framePacing);
             json.put("bitrate", bitrate);
+            json.put("actualDisplayRefreshRate", actualDisplayRefreshRate);
+            json.put("enablePerfOverlay", enablePerfOverlay);
             json.put("useGlobalSettings", useGlobalSettings);
             return json;
         }
@@ -45,6 +51,8 @@ public class AppPreferences {
                 json.optInt("fps", 0),
                 json.optString("framePacing", null),
                 json.optInt("bitrate", 0),
+                json.optDouble("actualDisplayRefreshRate", 0),
+                json.optBoolean("enablePerfOverlay", false),
                 json.optBoolean("useGlobalSettings", true)
             );
         }
@@ -73,61 +81,6 @@ public class AppPreferences {
             prefs.edit().putString(String.valueOf(appId), json.toString()).apply();
         } catch (JSONException e) {
             e.printStackTrace();
-        }
-    }
-
-    public static void saveGlobalDefaults(Context context, AppSettings globalDefaults) {
-        SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
-        try {
-            JSONObject json = globalDefaults.toJson();
-            prefs.edit().putString(GLOBAL_DEFAULTS_KEY, json.toString()).apply();
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static AppSettings getGlobalDefaults(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
-        String jsonString = prefs.getString(GLOBAL_DEFAULTS_KEY, null);
-        
-        if (jsonString == null) {
-            PreferenceConfiguration globalConfig = PreferenceConfiguration.readPreferences(context);
-            return new AppSettings(
-                globalConfig.width + "x" + globalConfig.height,
-                globalConfig.fps,
-                getFramePacingString(globalConfig.framePacing),
-                globalConfig.bitrate,
-                false
-            );
-        }
-        
-        try {
-            JSONObject json = new JSONObject(jsonString);
-            return AppSettings.fromJson(json);
-        } catch (JSONException e) {
-            PreferenceConfiguration globalConfig = PreferenceConfiguration.readPreferences(context);
-            return new AppSettings(
-                globalConfig.width + "x" + globalConfig.height,
-                globalConfig.fps,
-                getFramePacingString(globalConfig.framePacing),
-                globalConfig.bitrate,
-                false
-            );
-        }
-    }
-
-    private static String getFramePacingString(int framePacing) {
-        switch (framePacing) {
-            case PreferenceConfiguration.FRAME_PACING_MIN_LATENCY:
-                return "latency";
-            case PreferenceConfiguration.FRAME_PACING_BALANCED:
-                return "balanced";
-            case PreferenceConfiguration.FRAME_PACING_CAP_FPS:
-                return "cap-fps";
-            case PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS:
-                return "smoothness";
-            default:
-                return "latency";
         }
     }
 
@@ -171,11 +124,7 @@ public class AppPreferences {
         }
         
         if (appSettings.fps > 0) {
-            try {
-                config.fps = appSettings.fps;
-            } catch (NumberFormatException e) {
-                // Keep global settings
-            }
+            config.fps = appSettings.fps;
         }
         
         if (appSettings.framePacing != null) {
@@ -183,12 +132,14 @@ public class AppPreferences {
         }
         
         if (appSettings.bitrate > 0) {
-            try {
-                config.bitrate = appSettings.bitrate;
-            } catch (NumberFormatException e) {
-                // Keep global settings
-            }
+            config.bitrate = appSettings.bitrate;
         }
+
+        if (appSettings.actualDisplayRefreshRate > 0) {
+            config.actualDisplayRefreshRate = (float) appSettings.actualDisplayRefreshRate;
+        }
+
+        config.enablePerfOverlay = appSettings.enablePerfOverlay;;
         
         return config;
     }
