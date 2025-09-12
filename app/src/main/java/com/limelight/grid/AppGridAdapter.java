@@ -177,7 +177,8 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
 
         // Show settings indicator if app has custom settings (use global settings is false)
         if (settingsIndicator != null) {
-            AppPreferences.AppSettings appSettings = AppPreferences.getAppSettings(context, obj.app.getAppId());
+            String appKey = this.computer.uuid + ":" + obj.app.getAppId();
+            AppPreferences.AppSettings appSettings = AppPreferences.getAppSettings(context, appKey);
             if (!appSettings.useGlobalSettings) {
                 settingsIndicator.setVisibility(View.VISIBLE);
             } else {

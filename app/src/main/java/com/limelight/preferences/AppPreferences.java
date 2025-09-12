@@ -58,9 +58,9 @@ public class AppPreferences {
         }
     }
 
-    public static AppSettings getAppSettings(Context context, int appId) {
+    public static AppSettings getAppSettings(Context context, String appKey) {
         SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
-        String jsonString = prefs.getString(String.valueOf(appId), null);
+        String jsonString = prefs.getString(appKey, null);
         
         if (jsonString == null) {
             return new AppSettings();
@@ -74,11 +74,11 @@ public class AppPreferences {
         }
     }
 
-    public static void saveAppSettings(Context context, int appId, AppSettings settings) {
+    public static void saveAppSettings(Context context, String appKey, AppSettings settings) {
         SharedPreferences prefs = context.getSharedPreferences(APP_PREFERENCES_FILE, Context.MODE_PRIVATE);
         try {
             JSONObject json = settings.toJson();
-            prefs.edit().putString(String.valueOf(appId), json.toString()).apply();
+            prefs.edit().putString(appKey, json.toString()).apply();
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -102,8 +102,8 @@ public class AppPreferences {
         }
     }
 
-    public static PreferenceConfiguration getEffectivePreferences(Context context, int appId) {
-        AppSettings appSettings = getAppSettings(context, appId);
+    public static PreferenceConfiguration getEffectivePreferences(Context context, String appKey) {
+        AppSettings appSettings = getAppSettings(context, appKey);
         
         if (appSettings.useGlobalSettings) {
             return PreferenceConfiguration.readPreferences(context);
