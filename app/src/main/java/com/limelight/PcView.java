@@ -22,6 +22,7 @@ import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.preferences.StreamSettings;
 import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
+import com.limelight.ui.QuickLaunchView;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.HelpLauncher;
 import com.limelight.utils.ServerHelper;
@@ -50,6 +51,7 @@ import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 import android.widget.AdapterView.AdapterContextMenuInfo;
@@ -59,12 +61,14 @@ import org.xmlpull.v1.XmlPullParserException;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class PcView extends Activity implements AdapterFragmentCallbacks {
+public class PcView extends Activity implements AdapterFragmentCallbacks, QuickLaunchView.QuickLaunchCallback {
     private RelativeLayout noPcFoundLayout;
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
+    private QuickLaunchView quickLaunchView;
+    
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder binder) {
             final ComputerManagerService.ComputerManagerBinder localBinder =
@@ -171,6 +175,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         getFragmentManager().beginTransaction()
             .replace(R.id.pcFragmentContainer, new AdapterFragment())
             .commitAllowingStateLoss();
+
+        // Initialize Quick Launch component
+        LinearLayout quickLaunchSection = findViewById(R.id.quickLaunchSection);
+        LinearLayout quickLaunchContainer = findViewById(R.id.quickLaunchContainer);
+        quickLaunchView = new QuickLaunchView(this, quickLaunchSection, quickLaunchContainer, this);
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
         if (pcGridAdapter.getCount() == 0) {
@@ -308,6 +317,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
         inForeground = true;
         startComputerUpdates();
+        
+        // Notify QuickLaunchView of resume
+        if (quickLaunchView != null) {
+            quickLaunchView.onResume();
+        }
     }
 
     @Override
@@ -316,6 +330,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
         inForeground = false;
         stopComputerUpdates(false);
+        
+        // Notify QuickLaunchView of pause
+        if (quickLaunchView != null) {
+            quickLaunchView.onPause();
+        }
     }
 
     @Override
@@ -327,6 +346,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
     @Override
     public void onCreateContextMenu(ContextMenu menu, View v, ContextMenuInfo menuInfo) {
+        // Handle Quick Launch button context menu
+        if (quickLaunchView != null && quickLaunchView.onCreateContextMenu(menu, v, menuInfo)) {
+            return;
+        }
+        
         stopComputerUpdates(false);
 
         // Call superclass
@@ -602,6 +626,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
     @Override
     public boolean onContextItemSelected(MenuItem item) {
+        // Handle Quick Launch context menu items
+        if (quickLaunchView != null && quickLaunchView.onContextItemSelected(item)) {
+            return true;
+        }
+        
         AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
         final ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(info.position);
         switch (item.getItemId()) {
@@ -768,6 +797,12 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         });
         UiHelper.applyStatusBarPadding(listView);
         registerForContextMenu(listView);
+    }
+    
+    // QuickLaunchCallback implementation
+    @Override
+    public ComputerManagerService.ComputerManagerBinder getManagerBinder() {
+        return managerBinder;
     }
 
     public static class ComputerObject {

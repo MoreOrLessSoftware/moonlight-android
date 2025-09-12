@@ -15,6 +15,7 @@ import com.limelight.nvstream.http.PairingManager;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
+import com.limelight.utils.QuickLaunchManager;
 import com.limelight.utils.CacheHelper;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ServerHelper;
@@ -53,6 +54,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
     private AppGridAdapter appGridAdapter;
     private String uuidString;
     private ShortcutHelper shortcutHelper;
+    private QuickLaunchManager quickLaunchManager;
 
     private ComputerDetails computer;
     private ComputerManagerService.ApplistPoller poller;
@@ -71,6 +73,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
     private final static int CREATE_SHORTCUT_ID = 6;
     private final static int HIDE_APP_ID = 7;
     private final static int APP_SETTINGS_ID = 8;
+    private final static int ADD_QUICK_LAUNCH_ID = 9;
     
     private final static int REQUEST_APP_SETTINGS = 1001;
 
@@ -291,6 +294,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         inForeground = true;
 
         shortcutHelper = new ShortcutHelper(this);
+        quickLaunchManager = new QuickLaunchManager(this);
 
         UiHelper.setLocale(this);
 
@@ -431,6 +435,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         menu.add(Menu.NONE, VIEW_DETAILS_ID, 4, getResources().getString(R.string.applist_menu_details));
         menu.add(Menu.NONE, APP_SETTINGS_ID, 5, "App Settings");
+        menu.add(Menu.NONE, ADD_QUICK_LAUNCH_ID, 6, getResources().getString(R.string.applist_menu_add_quick_launch));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Only add an option to create shortcut if box art is loaded
@@ -521,6 +526,10 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
                 if (!shortcutHelper.createPinnedGameShortcut(computer, app.app, appBits)) {
                     Toast.makeText(AppView.this, getResources().getString(R.string.unable_to_pin_shortcut), Toast.LENGTH_LONG).show();
                 }
+                return true;
+
+            case ADD_QUICK_LAUNCH_ID:
+                addToQuickLaunch(computer, app.app);
                 return true;
 
             default:
@@ -666,6 +675,11 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         UiHelper.applyStatusBarPadding(listView);
         registerForContextMenu(listView);
         listView.requestFocus();
+    }
+
+    private void addToQuickLaunch(ComputerDetails computer, NvApp app) {
+        quickLaunchManager.addQuickLaunchItem(computer, app);
+        Toast.makeText(this, getResources().getString(R.string.quick_launch_added), Toast.LENGTH_SHORT).show();
     }
 
     public static class AppObject {

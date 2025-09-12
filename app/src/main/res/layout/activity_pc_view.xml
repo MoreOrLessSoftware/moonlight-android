@@ -5,12 +5,22 @@
     android:layout_height="match_parent"
     tools:context=".PcView" >
 
+    <!-- Quick Launch Section -->
+    <include layout="@layout/quick_launch_section"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/settingsButton"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" />
+
     <RelativeLayout
         android:id="@+id/pcFragmentContainer"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:layout_below="@+id/settingsButton"
+        android:layout_below="@+id/quickLaunchSection"
         android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
         android:layout_alignParentRight="true"
