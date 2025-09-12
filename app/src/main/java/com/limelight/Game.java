@@ -219,8 +219,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Get the app ID
         int appId = Game.this.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID);
 
+        // Get the computer ID
+        String computerId = Game.this.getIntent().getStringExtra(EXTRA_PC_UUID);
+
         // Read the stream preferences (per-app if configured, otherwise global)
-        prefConfig = AppPreferences.getEffectivePreferences(this, appId);
+        String appKey = computerId + ":" + appId;
+        prefConfig = AppPreferences.getEffectivePreferences(this, appKey);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
         // Enter landscape unless we're on a square screen

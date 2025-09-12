@@ -21,20 +21,20 @@ import com.limelight.R;
 import com.limelight.utils.UiHelper;
 
 public class AppStreamSettings extends Activity {
-    public static final String EXTRA_APP_ID = "AppId";
+    public static final String EXTRA_APP_KEY = "AppKey";
     public static final String EXTRA_APP_NAME = "AppName";
 
-    private int appId;
+    private String appKey;
     private String appName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        appId = getIntent().getIntExtra(EXTRA_APP_ID, -1);
+        appKey = getIntent().getStringExtra(EXTRA_APP_KEY);
         appName = getIntent().getStringExtra(EXTRA_APP_NAME);
 
-        if (appId == -1 || appName == null) {
+        if (appKey == null || appName == null) {
             finish();
             return;
         }
@@ -167,9 +167,8 @@ public class AppStreamSettings extends Activity {
             addPreferencesFromResource(R.xml.app_preferences);
 
             AppStreamSettings activity = (AppStreamSettings) getActivity();
-            final int appId = activity.appId;
 
-            AppPreferences.AppSettings currentSettings = AppPreferences.getAppSettings(getActivity(), appId);
+            AppPreferences.AppSettings currentSettings = AppPreferences.getAppSettings(getActivity(), activity.appKey);
 
             CheckBoxPreference useGlobalPref = (CheckBoxPreference) findPreference("checkbox_use_global_settings");
             Preference resolutionPref = findPreference("pref_app_resolution");
@@ -423,7 +422,7 @@ public class AppStreamSettings extends Activity {
                 useGlobalPref.isChecked()
             );
 
-            AppPreferences.saveAppSettings(getActivity(), activity.appId, settings);
+            AppPreferences.saveAppSettings(getActivity(), activity.appKey, settings);
         }
     }
 }

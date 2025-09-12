@@ -503,7 +503,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
             case APP_SETTINGS_ID:
                 Intent settingsIntent = new Intent(AppView.this, com.limelight.preferences.AppStreamSettings.class);
-                settingsIntent.putExtra(com.limelight.preferences.AppStreamSettings.EXTRA_APP_ID, app.app.getAppId());
+                settingsIntent.putExtra(com.limelight.preferences.AppStreamSettings.EXTRA_APP_KEY, computer.uuid + ":" + app.app.getAppId());
                 settingsIntent.putExtra(com.limelight.preferences.AppStreamSettings.EXTRA_APP_NAME, app.app.getAppName());
                 startActivityForResult(settingsIntent, REQUEST_APP_SETTINGS);
                 return true;
