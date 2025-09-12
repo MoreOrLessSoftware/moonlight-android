@@ -175,6 +175,8 @@ public class AppStreamSettings extends Activity {
             Preference resolutionPref = findPreference("pref_app_resolution");
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
+            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_actual_display_refresh_rate");
+            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_enable_perf_overlay");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
 
             useGlobalPref.setChecked(currentSettings.useGlobalSettings);
@@ -250,6 +252,34 @@ public class AppStreamSettings extends Activity {
                     return true;
                 }
             });
+
+            actualDisplayRefreshRatePref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                @Override
+                public boolean onPreferenceChange(Preference preference, Object newValue) {
+                    new Handler().post(new Runnable() {
+                        @Override
+                        public void run() {
+                            updatePreferenceSummaries();
+                            saveSettings();
+                        }
+                    });
+                    return true;
+                }
+            });
+
+            enablePerfOverlayPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                @Override
+                public boolean onPreferenceChange(Preference preference, Object newValue) {
+                    new Handler().post(new Runnable() {
+                        @Override
+                        public void run() {
+                            updatePreferenceSummaries();
+                            saveSettings();
+                        }
+                    });
+                    return true;
+                }
+            });
             
             // Set current values as summaries
             updatePreferenceSummaries();
@@ -278,6 +308,8 @@ public class AppStreamSettings extends Activity {
             findPreference("text_app_fps").setEnabled(!useGlobal);
             findPreference("text_app_bitrate_kbps").setEnabled(!useGlobal);
             findPreference("list_app_frame_pacing").setEnabled(!useGlobal);
+            findPreference("text_actual_display_refresh_rate").setEnabled(!useGlobal);
+            findPreference("checkbox_enable_perf_overlay").setEnabled(!useGlobal);
         }
         
         private void updatePreferenceSummaries() {
@@ -285,6 +317,7 @@ public class AppStreamSettings extends Activity {
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
+            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_actual_display_refresh_rate");
             
             // Set resolution summary
             if (currentResolution != null && !currentResolution.isEmpty()) {
@@ -323,6 +356,14 @@ public class AppStreamSettings extends Activity {
             } else {
                 framePacingPref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
             }
+
+            // Set actual display refresh rate summary
+            String actualDisplayRefreshRate = actualDisplayRefreshRatePref.getText();
+            if (actualDisplayRefreshRate != null && !actualDisplayRefreshRate.isEmpty() && !actualDisplayRefreshRate.equals("0")) {
+                actualDisplayRefreshRatePref.setSummary(actualDisplayRefreshRate + "Hz");
+            } else {
+                actualDisplayRefreshRatePref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
+            }
         }
 
         public void saveSettings() {
@@ -334,6 +375,8 @@ public class AppStreamSettings extends Activity {
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
+            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_actual_display_refresh_rate");
+            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_enable_perf_overlay");
 
             int fps = 0;
             String fpsText = fpsPref.getText();
@@ -360,12 +403,23 @@ public class AppStreamSettings extends Activity {
             if (framePacingValue != null && framePacingValue.isEmpty()) {
                 framePacingValue = null;
             }
-            
+
+            double actualDisplayRefreshRate = 0;
+            String actualDisplayRefreshRateText = actualDisplayRefreshRatePref.getText();
+            if (actualDisplayRefreshRateText != null && !actualDisplayRefreshRateText.isEmpty()) {
+                try {
+                    actualDisplayRefreshRate = Double.parseDouble(actualDisplayRefreshRateText);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+
             AppPreferences.AppSettings settings = new AppPreferences.AppSettings(
                 currentResolution,
                 fps,
                 framePacingValue,
                 bitrateKbps,
+                actualDisplayRefreshRate,
+                enablePerfOverlayPref.isChecked(),
                 useGlobalPref.isChecked()
             );
 
