@@ -124,6 +124,7 @@
     <string name="applist_menu_scut">Create Shortcut</string>
     <string name="applist_menu_tv_channel">Add to Channel</string>
     <string name="applist_menu_hide_app">Hide App</string>
+    <string name="applist_menu_add_quick_launch">Add Quick Launch</string>
     <string name="applist_refresh_title">App List</string>
     <string name="applist_refresh_msg">Refreshing apps…</string>
     <string name="applist_refresh_error_title">Error</string>
@@ -304,4 +305,15 @@
     <!-- New strings -->
     <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (experimental)</string>
     <string name="summary_checkbox_ultra_low_latency">Only effective for SD8Gen2/8(s)Gen3/8Elite and MTK devices.</string>
+    
+    <!-- Quick Launch strings -->
+    <string name="quick_launch_section_title">Quick Launch</string>
+    <string name="quick_launch_added">Added to Quick Launch</string>
+    <string name="quick_launch_removed">Removed from Quick Launch</string>
+    <string name="quick_launch_error">Error with Quick Launch</string>
+    <string name="quick_launch_rename">Rename</string>
+    <string name="quick_launch_delete">Remove from Quick Launch</string>
+    <string name="quick_launch_rename_title">Rename Quick Launch</string>
+    <string name="quick_launch_rename_message">Enter a new name for this Quick Launch item:</string>
+    <string name="quick_launch_renamed">Quick Launch renamed</string>
 </resources>
