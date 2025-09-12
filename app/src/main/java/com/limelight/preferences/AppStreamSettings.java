@@ -178,20 +178,22 @@ public class AppStreamSettings extends Activity {
             CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_enable_perf_overlay");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
 
-            useGlobalPref.setChecked(currentSettings.useGlobalSettings);
+            // Initialize fields
             currentResolution = currentSettings.resolution;
+            useGlobalPref.setChecked(currentSettings.useGlobalSettings);
             fpsPref.setText(currentSettings.fps > 0 ? String.valueOf(currentSettings.fps) : "");
-            
-            // Convert bitrate from kbps to Mbps for display
-            if (currentSettings.bitrate > 0) {
-                int bitrateMbps = currentSettings.bitrate / 1000;
-                bitratePref.setText(String.valueOf(bitrateMbps));
-            } else {
-                bitratePref.setText(null);
-            }
-            
-            // Set up frame pacing preference with default option
+            bitratePref.setText(currentSettings.bitrate > 0 ? String.valueOf(currentSettings.bitrate / 1000) : "");
+            actualDisplayRefreshRatePref.setText(currentSettings.actualDisplayRefreshRate > 0 ? String.valueOf(currentSettings.actualDisplayRefreshRate) : "");
             setupFramePacingPreference(framePacingPref, currentSettings.framePacing);
+
+            updatePreferenceSummaries();
+            updatePreferenceStates(useGlobalPref.isChecked());
+
+            // Set the app-specific category title with the app name
+            PreferenceCategory appCategory = (PreferenceCategory) findPreference("category_app_specific");
+            if (appCategory != null) {
+                appCategory.setTitle(activity.appName + " Settings");
+            }
 
             // Set up resolution preference click handler
             resolutionPref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
@@ -201,12 +203,6 @@ public class AppStreamSettings extends Activity {
                     return true;
                 }
             });
-            
-            // Set the app-specific category title with the app name
-            PreferenceCategory appCategory = (PreferenceCategory) findPreference("category_app_specific");
-            if (appCategory != null) {
-                appCategory.setTitle(activity.appName + " Settings");
-            }
             
             // Add listeners for FPS and Frame Pacing to update summaries
             fpsPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
@@ -279,11 +275,6 @@ public class AppStreamSettings extends Activity {
                     return true;
                 }
             });
-            
-            // Set current values as summaries
-            updatePreferenceSummaries();
-            
-            updatePreferenceStates(useGlobalPref.isChecked());
 
             useGlobalPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override
@@ -299,7 +290,6 @@ public class AppStreamSettings extends Activity {
                     return true;
                 }
             });
-
         }
 
         private void updatePreferenceStates(boolean useGlobal) {
