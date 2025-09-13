@@ -542,7 +542,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         videoDecoder.configure(format, renderSurface, null, 0);
 
-        float surfaceRefreshRate = prefs.actualDisplayRefreshRate > 0 ? prefs.actualDisplayRefreshRate : this.refreshRate;
+        float surfaceRefreshRate = this.refreshRate;
+        if (prefs.actualDisplayRefreshRate != null && !prefs.actualDisplayRefreshRate.isBlank()) {
+            float actualDisplayRefreshRateFloat = Float.parseFloat(prefs.actualDisplayRefreshRate);
+            if (actualDisplayRefreshRateFloat > 0) {
+                surfaceRefreshRate = actualDisplayRefreshRateFloat;
+            }
+        }
         try { applySurfaceFrameRate(renderSurface, surfaceRefreshRate); } catch (Throwable ignored) {};
 
         configuredFormat = format;
