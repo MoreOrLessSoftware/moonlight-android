@@ -185,6 +185,7 @@ public class AppStreamSettings extends Activity {
             bitratePref.setText(currentSettings.bitrate > 0 ? String.valueOf(currentSettings.bitrate / 1000) : "");
             actualDisplayRefreshRatePref.setText(currentSettings.actualDisplayRefreshRate > 0 ? String.valueOf(currentSettings.actualDisplayRefreshRate) : "");
             setupFramePacingPreference(framePacingPref, currentSettings.framePacing);
+            enablePerfOverlayPref.setChecked(currentSettings.enablePerfOverlay);
 
             updatePreferenceSummaries();
             updatePreferenceStates(useGlobalPref.isChecked());
