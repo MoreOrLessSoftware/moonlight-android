@@ -303,6 +303,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     public void onDestroy() {
         super.onDestroy();
 
+        // Notify QuickLaunchView of destroy
+        if (quickLaunchView != null) {
+            quickLaunchView.onDestroy();
+        }
+
         if (managerBinder != null) {
             unbindService(serviceConnection);
         }

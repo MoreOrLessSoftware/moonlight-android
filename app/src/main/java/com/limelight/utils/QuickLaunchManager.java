@@ -126,15 +126,20 @@ public class QuickLaunchManager {
         
         return "";
     }
-    
-    /**
-     * Check if an item exists in Quick Launch by key
-     */
-    public boolean hasQuickLaunchItem(String key) {
-        return preferences.contains(key);
+
+    public String getOriginalName(String key) {
+        String value = preferences.getString(key, "");
+
+        if (!value.isEmpty()) {
+            String[] valueParts = value.split("\\|");
+            if (valueParts.length >= 2) {
+                return valueParts[1]; // Fallback to original name
+            }
+        }
+
+        return "";
     }
-    
-    
+
     private String createUniqueKey(String computerUuid, int appId) {
         // Add a timestamp to make the key unique and allow duplicates
         long timestamp = System.currentTimeMillis();

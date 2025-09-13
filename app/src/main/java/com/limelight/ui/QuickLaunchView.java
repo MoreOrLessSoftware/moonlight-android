@@ -20,6 +20,7 @@ import com.limelight.R;
 import com.limelight.computers.ComputerManagerService;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.nvstream.http.NvApp;
+import com.limelight.preferences.AppStreamSettings;
 import com.limelight.utils.QuickLaunchManager;
 import com.limelight.utils.ServerHelper;
 
@@ -27,7 +28,8 @@ import java.util.List;
 
 public class QuickLaunchView {
     private static final int QUICK_LAUNCH_RENAME_ID = 1001;
-    private static final int QUICK_LAUNCH_DELETE_ID = 1002;
+    private static final int QUICK_LAUNCH_SETTINGS_ID = 1002;
+    private static final int QUICK_LAUNCH_DELETE_ID = 1003;
     
     public interface QuickLaunchCallback {
         ComputerManagerService.ComputerManagerBinder getManagerBinder();
@@ -82,7 +84,8 @@ public class QuickLaunchView {
             
             menu.setHeaderTitle("Quick Launch Options");
             menu.add(Menu.NONE, QUICK_LAUNCH_RENAME_ID, 1, activity.getString(R.string.quick_launch_rename));
-            menu.add(Menu.NONE, QUICK_LAUNCH_DELETE_ID, 2, activity.getString(R.string.quick_launch_delete));
+            menu.add(Menu.NONE, QUICK_LAUNCH_SETTINGS_ID, 2, activity.getString(R.string.quick_launch_settings));
+            menu.add(Menu.NONE, QUICK_LAUNCH_DELETE_ID, 3, activity.getString(R.string.quick_launch_delete));
             return true;
         }
         return false;
@@ -95,6 +98,10 @@ public class QuickLaunchView {
         switch (item.getItemId()) {
             case QUICK_LAUNCH_RENAME_ID:
                 showRenameQuickLaunchDialog(contextMenuQuickLaunchKey);
+                return true;
+                
+            case QUICK_LAUNCH_SETTINGS_ID:
+                openQuickLaunchSettings(contextMenuQuickLaunchKey);
                 return true;
                 
             case QUICK_LAUNCH_DELETE_ID:
@@ -124,6 +131,17 @@ public class QuickLaunchView {
      * Unregister broadcast receiver
      */
     public void onPause() {
+        unregisterReceiver();
+    }
+    
+    /**
+     * Cleanup on destroy
+     */
+    public void onDestroy() {
+        unregisterReceiver();
+    }
+    
+    private void unregisterReceiver() {
         if (receiverRegistered) {
             try {
                 activity.unregisterReceiver(quickLaunchUpdateReceiver);
@@ -179,7 +197,7 @@ public class QuickLaunchView {
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                launchQuickLaunchApp(item.computerUuid, item.appId);
+                launchQuickLaunchApp(item);
             }
         });
         
@@ -189,7 +207,7 @@ public class QuickLaunchView {
         return button;
     }
     
-    private void launchQuickLaunchApp(String computerUuid, int appId) {
+    private void launchQuickLaunchApp(QuickLaunchManager.QuickLaunchItem item) {
         ComputerManagerService.ComputerManagerBinder managerBinder = callback.getManagerBinder();
         if (managerBinder == null) {
             Toast.makeText(activity, "Computer manager not ready", Toast.LENGTH_SHORT).show();
@@ -197,27 +215,49 @@ public class QuickLaunchView {
         }
         
         // Find the computer by UUID
-        ComputerDetails computer = managerBinder.getComputer(computerUuid);
+        ComputerDetails computer = managerBinder.getComputer(item.computerUuid);
         if (computer == null) {
             Toast.makeText(activity, "PC not found", Toast.LENGTH_SHORT).show();
             return;
         }
         
         // Create NvApp object with the appId
-        NvApp app = new NvApp("Quick Launch App", appId, false);
+        NvApp app = new NvApp(item.originalAppName, item.appId, false);
         
-        // Use ServerHelper to launch the app
-        ServerHelper.doStart(activity, app, computer, managerBinder);
+        // Use ServerHelper to launch the app with the Quick Launch key
+        ServerHelper.doStart(activity, app, computer, managerBinder, item.key);
+    }
+    
+    private void openQuickLaunchSettings(String key) {
+        // Get the Quick Launch item details
+        List<QuickLaunchManager.QuickLaunchItem> items = quickLaunchManager.getAllQuickLaunchItems();
+        QuickLaunchManager.QuickLaunchItem targetItem = null;
+        
+        for (QuickLaunchManager.QuickLaunchItem item : items) {
+            if (item.key.equals(key)) {
+                targetItem = item;
+                break;
+            }
+        }
+        
+        if (targetItem != null) {
+            // Open AppStreamSettings with the Quick Launch key
+            Intent settingsIntent = new Intent(activity, AppStreamSettings.class);
+            settingsIntent.putExtra(AppStreamSettings.EXTRA_APP_KEY, key);
+            settingsIntent.putExtra(AppStreamSettings.EXTRA_APP_NAME, "Quick Launch: " + targetItem.getDisplayName());
+            activity.startActivity(settingsIntent);
+        }
     }
     
     private void showRenameQuickLaunchDialog(final String key) {
         // Get current custom name from the key
         String currentCustomName = quickLaunchManager.getCustomName(key);
+        String originalName = quickLaunchManager.getOriginalName(key);
         
         // Create the input dialog
         AlertDialog.Builder builder = new AlertDialog.Builder(activity);
         builder.setTitle(activity.getString(R.string.quick_launch_rename_title));
-        builder.setMessage(activity.getString(R.string.quick_launch_rename_message));
+        builder.setMessage("Display name for " + originalName + ":");
         
         final EditText input = new EditText(activity);
         input.setInputType(InputType.TYPE_CLASS_TEXT);

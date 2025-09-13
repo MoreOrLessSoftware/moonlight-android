@@ -312,6 +312,7 @@
     <string name="quick_launch_removed">Removed from Quick Launch</string>
     <string name="quick_launch_error">Error with Quick Launch</string>
     <string name="quick_launch_rename">Rename</string>
+    <string name="quick_launch_settings">App Settings Override</string>
     <string name="quick_launch_delete">Remove from Quick Launch</string>
     <string name="quick_launch_rename_title">Rename Quick Launch</string>
     <string name="quick_launch_rename_message">Enter a new name for this Quick Launch item:</string>
