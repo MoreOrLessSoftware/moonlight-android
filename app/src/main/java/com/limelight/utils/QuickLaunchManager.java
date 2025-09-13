@@ -13,6 +13,13 @@ public class QuickLaunchManager {
     public static final String QUICK_LAUNCH_PREF_FILENAME = "QuickLaunch";
     public static final String QUICK_LAUNCH_UPDATE_ACTION = "com.limelight.QUICK_LAUNCH_UPDATED";
     
+    public interface RunningStatusListener {
+        void onRunningStatusChanged(int runningAppId);
+    }
+    
+    private RunningStatusListener runningStatusListener;
+    private int currentRunningAppId = 0;
+    
     public static class QuickLaunchItem {
         public final String key;
         public final String computerUuid;
@@ -42,6 +49,27 @@ public class QuickLaunchManager {
     public QuickLaunchManager(Context context) {
         this.context = context.getApplicationContext();
         this.preferences = context.getSharedPreferences(QUICK_LAUNCH_PREF_FILENAME, Context.MODE_PRIVATE);
+    }
+    
+    public void setRunningStatusListener(RunningStatusListener listener) {
+        this.runningStatusListener = listener;
+    }
+    
+    public void updateRunningAppId(int runningAppId) {
+        if (this.currentRunningAppId != runningAppId) {
+            this.currentRunningAppId = runningAppId;
+            if (runningStatusListener != null) {
+                runningStatusListener.onRunningStatusChanged(runningAppId);
+            }
+        }
+    }
+    
+    public int getCurrentRunningAppId() {
+        return currentRunningAppId;
+    }
+    
+    public boolean isAppRunning(int appId) {
+        return currentRunningAppId == appId && currentRunningAppId != 0;
     }
     
     /**

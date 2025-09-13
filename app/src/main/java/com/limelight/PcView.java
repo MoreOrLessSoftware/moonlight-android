@@ -773,6 +773,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
         // Notify the view that the data has changed
         pcGridAdapter.notifyDataSetChanged();
+        
+        // Update Quick Launch running status
+        if (quickLaunchView != null) {
+            quickLaunchView.updateRunningStatus(details.runningGameId);
+        }
     }
 
     @Override
