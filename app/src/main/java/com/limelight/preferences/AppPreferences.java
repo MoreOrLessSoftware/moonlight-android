@@ -146,7 +146,7 @@ public class AppPreferences {
         }
 
         if (appSettings.actualDisplayRefreshRate > 0) {
-            config.actualDisplayRefreshRate = (float) appSettings.actualDisplayRefreshRate;
+            config.actualDisplayRefreshRate = String.valueOf(appSettings.actualDisplayRefreshRate);
         }
 
         config.enablePerfOverlay = appSettings.enablePerfOverlay;;

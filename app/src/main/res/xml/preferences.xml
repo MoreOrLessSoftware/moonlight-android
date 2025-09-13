@@ -242,7 +242,7 @@
             android:summary="@string/summary_checkbox_reduce_refresh_rate"
             android:defaultValue="false" />
         <EditTextPreference
-            android:key="edittext_actual_display_refresh_rate"
+            android:key="text_actual_display_refresh_rate"
             android:title="Actual display refresh rate"
             android:summary="The actual refresh rate of the display connected to your device, in case it is not the same even number as the FPS. Host should have the same refresh rate or frame rate cap for best smoothness. Leave as '0' for same as stream FPS"
             android:inputType="numberDecimal"
