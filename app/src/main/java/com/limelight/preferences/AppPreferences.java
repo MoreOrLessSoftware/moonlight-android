@@ -103,7 +103,17 @@ public class AppPreferences {
     }
 
     public static PreferenceConfiguration getEffectivePreferences(Context context, String appKey) {
-        AppSettings appSettings = getAppSettings(context, appKey);
+        return getEffectivePreferences(context, appKey, null);
+    }
+
+    public static PreferenceConfiguration getEffectivePreferences(Context context, String appKey, String appKey2) {
+        AppSettings appSettings = null;
+        if (appKey2 != null) {
+            appSettings = getAppSettings(context, appKey2);
+        }
+        if (appSettings == null || appSettings.useGlobalSettings) {
+            appSettings = getAppSettings(context, appKey);
+        }
         
         if (appSettings.useGlobalSettings) {
             return PreferenceConfiguration.readPreferences(context);

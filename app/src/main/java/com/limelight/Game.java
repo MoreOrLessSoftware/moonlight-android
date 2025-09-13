@@ -181,6 +181,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public static final String EXTRA_PC_NAME = "PcName";
     public static final String EXTRA_APP_HDR = "HDR";
     public static final String EXTRA_SERVER_CERT = "ServerCert";
+    public static final String EXTRA_QUICK_LAUNCH_APP_KEY = "QuickLaunchAppKey";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -224,7 +225,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // Read the stream preferences (per-app if configured, otherwise global)
         String appKey = computerId + ":" + appId;
-        prefConfig = AppPreferences.getEffectivePreferences(this, appKey);
+        String quickLaunchAppKey = Game.this.getIntent().getStringExtra(EXTRA_QUICK_LAUNCH_APP_KEY);
+        prefConfig = AppPreferences.getEffectivePreferences(this, appKey, quickLaunchAppKey);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
         // Enter landscape unless we're on a square screen
