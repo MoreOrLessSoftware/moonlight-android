@@ -174,8 +174,8 @@ public class AppStreamSettings extends Activity {
             Preference resolutionPref = findPreference("pref_app_resolution");
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
-            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_actual_display_refresh_rate");
-            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_enable_perf_overlay");
+            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
+            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_app_enable_perf_overlay");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
 
             // Initialize fields
@@ -298,8 +298,8 @@ public class AppStreamSettings extends Activity {
             findPreference("text_app_fps").setEnabled(!useGlobal);
             findPreference("text_app_bitrate_kbps").setEnabled(!useGlobal);
             findPreference("list_app_frame_pacing").setEnabled(!useGlobal);
-            findPreference("text_actual_display_refresh_rate").setEnabled(!useGlobal);
-            findPreference("checkbox_enable_perf_overlay").setEnabled(!useGlobal);
+            findPreference("text_app_actual_display_refresh_rate").setEnabled(!useGlobal);
+            findPreference("checkbox_app_enable_perf_overlay").setEnabled(!useGlobal);
         }
         
         private void updatePreferenceSummaries() {
@@ -307,7 +307,7 @@ public class AppStreamSettings extends Activity {
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
-            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_actual_display_refresh_rate");
+            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
             
             // Set resolution summary
             if (currentResolution != null && !currentResolution.isEmpty()) {
@@ -365,8 +365,8 @@ public class AppStreamSettings extends Activity {
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
-            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_actual_display_refresh_rate");
-            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_enable_perf_overlay");
+            EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
+            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_app_enable_perf_overlay");
 
             int fps = 0;
             String fpsText = fpsPref.getText();
