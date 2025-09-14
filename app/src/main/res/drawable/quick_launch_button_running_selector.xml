@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- Focused state while running - green with white border -->
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <stroke android:width="2dp" android:color="#FFFFFF" />
+            <solid android:color="#FF4CAF50" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    
+    <!-- Pressed state while running - darker green -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#FF388E3C" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    
+    <!-- Default running state - green -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF4CAF50" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    
+</selector>

@@ -41,6 +41,10 @@ public class QuickLaunchManager {
         public String getDisplayName() {
             return customName;
         }
+
+        public String getDisplayNameLong() {
+            return customName + (!customName.equals(originalAppName) ? " (" + originalAppName + ")" : "");
+        }
     }
     
     private final Context context;

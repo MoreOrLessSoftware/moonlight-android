@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.graphics.Color;
 import android.text.InputType;
 import android.view.ContextMenu;
@@ -96,7 +97,7 @@ public class QuickLaunchView {
             // Get the app ID for this Quick Launch item
             QuickLaunchManager.QuickLaunchItem item = getQuickLaunchItemByKey(key);
             if (item != null) {
-                menu.setHeaderTitle(item.getDisplayName());
+                menu.setHeaderTitle(item.getDisplayNameLong());
                 
                 // Add quit option if this app is running
                 if (quickLaunchManager.isAppRunning(item.appId)) {
@@ -144,7 +145,13 @@ public class QuickLaunchView {
     public void onResume() {
         if (!receiverRegistered) {
             IntentFilter filter = new IntentFilter(QuickLaunchManager.QUICK_LAUNCH_UPDATE_ACTION);
-            activity.registerReceiver(quickLaunchUpdateReceiver, filter);
+            
+            // For API 34+, we need to specify RECEIVER_NOT_EXPORTED for internal broadcasts
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                activity.registerReceiver(quickLaunchUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                activity.registerReceiver(quickLaunchUpdateReceiver, filter);
+            }
             receiverRegistered = true;
         }
         
@@ -272,7 +279,7 @@ public class QuickLaunchView {
             // Open AppStreamSettings with the Quick Launch key
             Intent settingsIntent = new Intent(activity, AppStreamSettings.class);
             settingsIntent.putExtra(AppStreamSettings.EXTRA_APP_KEY, key);
-            settingsIntent.putExtra(AppStreamSettings.EXTRA_APP_NAME, "Quick Launch: " + targetItem.getDisplayName());
+            settingsIntent.putExtra(AppStreamSettings.EXTRA_APP_NAME, "Quick Launch: " + targetItem.getDisplayNameLong());
             activity.startActivity(settingsIntent);
         }
     }
@@ -330,12 +337,12 @@ public class QuickLaunchView {
     
     private void updateButtonColor(Button button, QuickLaunchManager.QuickLaunchItem item) {
         if (quickLaunchManager.isAppRunning(item.appId)) {
-            // Set green background for running apps
-            button.setBackgroundColor(Color.GREEN);
+            // Set green background selector for running apps
+            button.setBackgroundResource(R.drawable.quick_launch_button_running_selector);
             button.setTextColor(Color.BLACK);
         } else {
-            // Reset to default button appearance
-            button.setBackgroundColor(Color.DKGRAY);
+            // Set default selector with focus states
+            button.setBackgroundResource(R.drawable.quick_launch_button_selector);
             button.setTextColor(Color.WHITE);
         }
     }
