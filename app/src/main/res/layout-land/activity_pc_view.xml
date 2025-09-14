@@ -7,13 +7,23 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context=".PcView" >
 
+    <!-- Quick Launch Section -->
+    <include layout="@layout/quick_launch_section"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_toRightOf="@+id/settingsButton"
+        android:layout_toEndOf="@+id/settingsButton"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" />
+
     <RelativeLayout
         android:id="@+id/pcFragmentContainer"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:layout_alignParentBottom="true"
-        android:layout_alignParentTop="true"
+        android:layout_below="@+id/quickLaunchSection"
         android:layout_toRightOf="@+id/settingsButton"
         android:layout_toEndOf="@+id/settingsButton">
 

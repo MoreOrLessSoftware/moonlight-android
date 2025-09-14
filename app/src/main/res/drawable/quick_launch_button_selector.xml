@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- Focused state - white border with slight transparency -->
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <stroke android:width="2dp" android:color="#FFFFFF" />
+            <solid android:color="#33FFFFFF" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    
+    <!-- Pressed state - darker background -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#66FFFFFF" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    
+    <!-- Default state - transparent -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1AFFFFFF" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    
+</selector>
