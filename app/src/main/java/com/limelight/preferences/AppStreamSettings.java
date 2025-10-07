@@ -175,6 +175,7 @@ public class AppStreamSettings extends Activity {
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
+            CheckBoxPreference enableHdrPref = (CheckBoxPreference) findPreference("checkbox_app_enable_hdr");
             CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_app_enable_perf_overlay");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
 
@@ -185,6 +186,7 @@ public class AppStreamSettings extends Activity {
             bitratePref.setText(currentSettings.bitrate > 0 ? String.valueOf(currentSettings.bitrate / 1000) : "");
             actualDisplayRefreshRatePref.setText(currentSettings.actualDisplayRefreshRate > 0 ? String.valueOf(currentSettings.actualDisplayRefreshRate) : "");
             setupFramePacingPreference(framePacingPref, currentSettings.framePacing);
+            enableHdrPref.setChecked(currentSettings.enableHdr);
             enablePerfOverlayPref.setChecked(currentSettings.enablePerfOverlay);
 
             updatePreferenceSummaries();
@@ -263,6 +265,20 @@ public class AppStreamSettings extends Activity {
                 }
             });
 
+            enableHdrPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                @Override
+                public boolean onPreferenceChange(Preference preference, Object newValue) {
+                    new Handler().post(new Runnable() {
+                        @Override
+                        public void run() {
+                            updatePreferenceSummaries();
+                            saveSettings();
+                        }
+                    });
+                    return true;
+                }
+            });
+
             enablePerfOverlayPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override
                 public boolean onPreferenceChange(Preference preference, Object newValue) {
@@ -299,6 +315,7 @@ public class AppStreamSettings extends Activity {
             findPreference("text_app_bitrate_kbps").setEnabled(!useGlobal);
             findPreference("list_app_frame_pacing").setEnabled(!useGlobal);
             findPreference("text_app_actual_display_refresh_rate").setEnabled(!useGlobal);
+            findPreference("checkbox_app_enable_hdr").setEnabled(!useGlobal);
             findPreference("checkbox_app_enable_perf_overlay").setEnabled(!useGlobal);
         }
         
@@ -366,6 +383,7 @@ public class AppStreamSettings extends Activity {
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
             EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
+            CheckBoxPreference enableHdrPref = (CheckBoxPreference) findPreference("checkbox_app_enable_hdr");
             CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_app_enable_perf_overlay");
 
             int fps = 0;
@@ -409,6 +427,7 @@ public class AppStreamSettings extends Activity {
                 framePacingValue,
                 bitrateKbps,
                 actualDisplayRefreshRate,
+                enableHdrPref.isChecked(),
                 enablePerfOverlayPref.isChecked(),
                 useGlobalPref.isChecked()
             );
