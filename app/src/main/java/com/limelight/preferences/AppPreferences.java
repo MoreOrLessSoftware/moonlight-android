@@ -8,7 +8,6 @@ import org.json.JSONObject;
 
 public class AppPreferences {
     private static final String APP_PREFERENCES_FILE = "AppPreferences";
-    private static final String GLOBAL_DEFAULTS_KEY = "_global_defaults";
 
     public static class AppSettings {
         public String resolution;
@@ -16,6 +15,7 @@ public class AppPreferences {
         public String framePacing;
         public int bitrate;
         public double actualDisplayRefreshRate;
+        public boolean enableHdr;
         public boolean enablePerfOverlay;
         public boolean useGlobalSettings;
 
@@ -23,12 +23,13 @@ public class AppPreferences {
             this.useGlobalSettings = true;
         }
 
-        public AppSettings(String resolution, int fps, String framePacing, int bitrate, double actualDisplayRefreshRate, boolean enablePerfOverlay, boolean useGlobalSettings) {
+        public AppSettings(String resolution, int fps, String framePacing, int bitrate, double actualDisplayRefreshRate, boolean enableHdr, boolean enablePerfOverlay, boolean useGlobalSettings) {
             this.resolution = resolution;
             this.fps = fps;
             this.framePacing = framePacing;
             this.bitrate = bitrate;
             this.actualDisplayRefreshRate = actualDisplayRefreshRate;
+            this.enableHdr = enableHdr;
             this.enablePerfOverlay = enablePerfOverlay;
             this.useGlobalSettings = useGlobalSettings;
         }
@@ -40,6 +41,7 @@ public class AppPreferences {
             json.put("framePacing", framePacing);
             json.put("bitrate", bitrate);
             json.put("actualDisplayRefreshRate", actualDisplayRefreshRate);
+            json.put("enableHdr", enableHdr);
             json.put("enablePerfOverlay", enablePerfOverlay);
             json.put("useGlobalSettings", useGlobalSettings);
             return json;
@@ -52,6 +54,7 @@ public class AppPreferences {
                 json.optString("framePacing", null),
                 json.optInt("bitrate", 0),
                 json.optDouble("actualDisplayRefreshRate", 0),
+                json.optBoolean("enableHdr", false),
                 json.optBoolean("enablePerfOverlay", false),
                 json.optBoolean("useGlobalSettings", true)
             );
@@ -148,6 +151,8 @@ public class AppPreferences {
         if (appSettings.actualDisplayRefreshRate > 0) {
             config.actualDisplayRefreshRate = String.valueOf(appSettings.actualDisplayRefreshRate);
         }
+
+        config.enableHdr = appSettings.enableHdr;
 
         config.enablePerfOverlay = appSettings.enablePerfOverlay;;
         
