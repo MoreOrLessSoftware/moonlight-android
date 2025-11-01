@@ -31,7 +31,7 @@ To end the session AND quit the app on the host machine, use a new button chord 
 
 ### Ultra low latency flags for Exynos
 
-Tried some new flags for Exynos decoder:
+Tried some [new flags for the Exynos decoder](https://github.com/MoreOrLessSoftware/moonlight-android/commit/77cd72c427dff7250b8e10b007d1ece2db9f7ddb):
 
 ```
 videoFormat.setInteger("vendor.rtc-ext-dec-output-queue-depth.value", 2); // Minimal queue depth for lower latency
