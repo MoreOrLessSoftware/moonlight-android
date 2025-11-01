@@ -9,6 +9,14 @@ No release apks will be provided for the time being, so the target audience for 
 
 ## New Features
 
+### Quick Launch Apps
+
+You can create shortcuts to specific Sunshine apps and apply custom streaming settings (like resolution, framerate, bitrate, etc) to each shortcut. The same app can be configured to multiple shortcuts:
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/3kc8VEu1x7k/0.jpg)](https://youtu.be/3kc8VEu1x7k)
+
+> Still a work in progress. On some devices the list of Quick Launch apps might not refresh after adding or removing one until you re-open the app.
+
 ### Per-app settings overrides
 
 Each app can now have it's own resolution, FPS, bitrate and frame pacing settings:
