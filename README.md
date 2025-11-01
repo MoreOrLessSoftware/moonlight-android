@@ -21,6 +21,17 @@ To end the session AND quit the app on the host machine, use a new button chord 
 
 ```LB``` + ```RB``` + ```D-pad right``` + ```D-pad down```
 
+### Ultra low latency flags for Exynos
+
+Tried some new flags for Exynos decoder:
+
+```
+videoFormat.setInteger("vendor.rtc-ext-dec-output-queue-depth.value", 2); // Minimal queue depth for lower latency
+videoFormat.setInteger("vendor.sec-dec-output.delay", 0); // Minimal output delay
+```
+
+These seem to reduce latency by a couple ms on my Pixel 7a and also actual rendering latency by 1 or 2 frames in my tests. To use, enable the "Ultra Low Latency" setting and I would suggest Balanced frame pacing.
+
 ## Features and Improvements Merged from Artemis
 
 - Ultra low latency mode with Snapdragon (8 Gen 2+) latency improvements
