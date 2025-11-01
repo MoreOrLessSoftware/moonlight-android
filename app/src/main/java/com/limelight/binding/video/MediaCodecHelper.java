@@ -643,8 +643,10 @@ public class MediaCodecHelper {
             }
             else if (isDecoderInList(exynosDecoderPrefixes, decoderInfo.getName())) {
                 if (tryNumber < 4) {
-                    // Exynos low latency option for H.264 decoder
+                    // Exynos low latency options for H.264 and HEVC decoders
                     videoFormat.setInteger("vendor.rtc-ext-dec-low-latency.enable", 1);
+                    videoFormat.setInteger("vendor.rtc-ext-dec-output-queue-depth.value", 2); // Minimal queue depth for lower latency
+                    videoFormat.setInteger("vendor.sec-dec-output.delay", 0); // Minimal output delay
                     setNewOption = true;
                 }
             }
