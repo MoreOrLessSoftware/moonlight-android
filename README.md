@@ -33,7 +33,7 @@ To end the session AND quit the app on the host machine, use a new button chord 
 
 Tried some [new flags for the Exynos decoder](https://github.com/MoreOrLessSoftware/moonlight-android/commit/77cd72c427dff7250b8e10b007d1ece2db9f7ddb):
 
-```
+```java
 videoFormat.setInteger("vendor.rtc-ext-dec-output-queue-depth.value", 2); // Minimal queue depth for lower latency
 videoFormat.setInteger("vendor.sec-dec-output.delay", 0); // Minimal output delay
 ```
