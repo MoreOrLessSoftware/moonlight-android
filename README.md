@@ -42,7 +42,7 @@ These seem to reduce latency by a couple ms on my Pixel 7a and also actual rende
 
 ## Features and Improvements Merged from Artemis
 
-- Ultra low latency mode with Snapdragon (8 Gen 2+) latency improvements
+- Ultra low latency mode with Snapdragon (8 Gen 2+) and MediaTek (MTK) latency improvements
 
 ## Building
 * Install Android Studio and the Android NDK
