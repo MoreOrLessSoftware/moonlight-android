@@ -4,32 +4,30 @@
 
 This fork aims to build upon the original Android client with some new features and some existing features, fixes and optimizations from [Artemis](https://github.com/ClassicOldSong/moonlight-android) and other developers.
 
-
-No release apks will be provided for the time being, so the target audience for this fork is other developers looking to incorporate added functionality into their own builds.
-
 ## New Features
 
-### Quick Launch Apps
+### 1. Quick Launch Apps
 
-You can create shortcuts to specific Sunshine apps and apply custom streaming settings (like resolution, framerate, bitrate, etc) to each shortcut. The same app can be configured to multiple shortcuts:
+You can create shortcuts to specific Sunshine apps and apply custom streaming settings (like resolution, FPS, bitrate, etc) to each shortcut. The same app can be configured to multiple shortcuts:
 
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/3kc8VEu1x7k/0.jpg)](https://youtu.be/3kc8VEu1x7k)
 
-> Still a work in progress. On some devices the list of Quick Launch apps might not refresh after adding or removing one until you re-open the app.
+> [!NOTE]
+> Quick Launch apps is still a work in progress. On some devices the list of Quick Launch apps might not refresh after adding or removing one until you re-open the app.
 
-### Per-app settings overrides
+### 2. Per-app settings overrides
 
-Each app can now have it's own resolution, FPS, bitrate and frame pacing settings:
+Each app can now have it's own settings for resolution, FPS, bitrate, frame pacing, etc:
 
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/AYPQj0LOsxk/0.jpg)](https://youtu.be/AYPQj0LOsxk)
 
-### New gamepad button chord for quitting host app
+### 3. New gamepad button chord for quitting host app
 
 To end the session AND quit the app on the host machine, use a new button chord (made with macros in mind):
 
 ```LB``` + ```RB``` + ```D-pad right``` + ```D-pad down```
 
-### Ultra low latency flags for Exynos
+### 4. Ultra low latency flags for Exynos
 
 Tried some [new flags for the Exynos decoder](https://github.com/MoreOrLessSoftware/moonlight-android/commit/77cd72c427dff7250b8e10b007d1ece2db9f7ddb):
 
