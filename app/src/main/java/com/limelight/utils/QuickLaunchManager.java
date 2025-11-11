@@ -125,20 +125,120 @@ public class QuickLaunchManager {
     }
     
     /**
-     * Get all Quick Launch items
+     * Get all Quick Launch items sorted by their keys (which include timestamps)
      */
     public List<QuickLaunchItem> getAllQuickLaunchItems() {
         List<QuickLaunchItem> items = new ArrayList<>();
         Map<String, ?> allItems = preferences.getAll();
-        
+
         for (Map.Entry<String, ?> entry : allItems.entrySet()) {
             QuickLaunchItem item = parseQuickLaunchItem(entry.getKey(), (String) entry.getValue());
             if (item != null) {
                 items.add(item);
             }
         }
-        
+
+        // Sort by the timestamp in the key to maintain order
+        items.sort((a, b) -> {
+            // Extract timestamps from keys
+            String[] aParts = a.key.split(":");
+            String[] bParts = b.key.split(":");
+            if (aParts.length >= 3 && bParts.length >= 3) {
+                try {
+                    long aTimestamp = Long.parseLong(aParts[2]);
+                    long bTimestamp = Long.parseLong(bParts[2]);
+                    return Long.compare(aTimestamp, bTimestamp);
+                } catch (NumberFormatException e) {
+                    // Fallback to string comparison if parsing fails
+                    return a.key.compareTo(b.key);
+                }
+            }
+            return a.key.compareTo(b.key);
+        });
+
         return items;
+    }
+
+    /**
+     * Move a Quick Launch item left (earlier in the list)
+     */
+    public boolean moveQuickLaunchItemLeft(String key) {
+        List<QuickLaunchItem> items = getAllQuickLaunchItems();
+        int index = -1;
+
+        // Find the item's current position
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).key.equals(key)) {
+                index = i;
+                break;
+            }
+        }
+
+        // Can't move left if it's already first or not found
+        if (index <= 0) {
+            return false;
+        }
+
+        // Swap with the previous item by recreating their keys with swapped timestamps
+        QuickLaunchItem currentItem = items.get(index);
+        QuickLaunchItem previousItem = items.get(index - 1);
+
+        swapItemPositions(currentItem, previousItem);
+        return true;
+    }
+
+    /**
+     * Move a Quick Launch item right (later in the list)
+     */
+    public boolean moveQuickLaunchItemRight(String key) {
+        List<QuickLaunchItem> items = getAllQuickLaunchItems();
+        int index = -1;
+
+        // Find the item's current position
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).key.equals(key)) {
+                index = i;
+                break;
+            }
+        }
+
+        // Can't move right if it's already last or not found
+        if (index < 0 || index >= items.size() - 1) {
+            return false;
+        }
+
+        // Swap with the next item by recreating their keys with swapped timestamps
+        QuickLaunchItem currentItem = items.get(index);
+        QuickLaunchItem nextItem = items.get(index + 1);
+
+        swapItemPositions(currentItem, nextItem);
+        return true;
+    }
+
+    private void swapItemPositions(QuickLaunchItem item1, QuickLaunchItem item2) {
+        // Get the values before removing
+        String value1 = preferences.getString(item1.key, "");
+        String value2 = preferences.getString(item2.key, "");
+
+        // Parse the keys to extract timestamps
+        String[] key1Parts = item1.key.split(":");
+        String[] key2Parts = item2.key.split(":");
+
+        if (key1Parts.length >= 3 && key2Parts.length >= 3) {
+            // Create new keys with swapped timestamps
+            String newKey1 = key1Parts[0] + ":" + key1Parts[1] + ":" + key2Parts[2];
+            String newKey2 = key2Parts[0] + ":" + key2Parts[1] + ":" + key1Parts[2];
+
+            // Do everything in a single transaction
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.remove(item1.key);
+            editor.remove(item2.key);
+            editor.putString(newKey1, value1);
+            editor.putString(newKey2, value2);
+            editor.apply();
+
+            notifyUpdate();
+        }
     }
     
     /**
