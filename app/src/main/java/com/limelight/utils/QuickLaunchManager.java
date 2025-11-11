@@ -309,6 +309,8 @@ public class QuickLaunchManager {
     
     private void notifyUpdate() {
         Intent updateIntent = new Intent(QUICK_LAUNCH_UPDATE_ACTION);
+        // Make it an explicit broadcast by setting the package to avoid restrictions on newer Android versions
+        updateIntent.setPackage(context.getPackageName());
         context.sendBroadcast(updateIntent);
     }
 }
