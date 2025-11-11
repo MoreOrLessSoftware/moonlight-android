@@ -12,11 +12,12 @@ import java.util.Map;
 public class QuickLaunchManager {
     public static final String QUICK_LAUNCH_PREF_FILENAME = "QuickLaunch";
     public static final String QUICK_LAUNCH_UPDATE_ACTION = "com.limelight.QUICK_LAUNCH_UPDATED";
-    
+    private static final String SORT_ORDER_KEY = "_sort_order";
+
     public interface RunningStatusListener {
         void onRunningStatusChanged(int runningAppId);
     }
-    
+
     private RunningStatusListener runningStatusListener;
     private int currentRunningAppId = 0;
     
@@ -82,11 +83,16 @@ public class QuickLaunchManager {
     public void addQuickLaunchItem(ComputerDetails computer, NvApp app) {
         String key = createUniqueKey(computer.uuid, app.getAppId());
         String value = createValue(computer.name, app.getAppName(), app.getAppName());
-        
+
+        // Add to the end of the sort order
+        List<String> sortOrder = getSortOrder();
+        sortOrder.add(key);
+        saveSortOrder(sortOrder);
+
         preferences.edit()
                 .putString(key, value)
                 .apply();
-                
+
         notifyUpdate();
     }
     
@@ -94,10 +100,15 @@ public class QuickLaunchManager {
      * Remove a specific Quick Launch item by its unique key
      */
     public void removeQuickLaunchItem(String key) {
+        // Remove from sort order
+        List<String> sortOrder = getSortOrder();
+        sortOrder.remove(key);
+        saveSortOrder(sortOrder);
+
         preferences.edit()
                 .remove(key)
                 .apply();
-                
+
         notifyUpdate();
     }
     
@@ -125,36 +136,42 @@ public class QuickLaunchManager {
     }
     
     /**
-     * Get all Quick Launch items sorted by their keys (which include timestamps)
+     * Get all Quick Launch items sorted by the saved sort order
      */
     public List<QuickLaunchItem> getAllQuickLaunchItems() {
-        List<QuickLaunchItem> items = new ArrayList<>();
         Map<String, ?> allItems = preferences.getAll();
+        List<String> sortOrder = getSortOrder();
 
+        // Build a map of key -> item for quick lookup
+        Map<String, QuickLaunchItem> itemMap = new java.util.HashMap<>();
         for (Map.Entry<String, ?> entry : allItems.entrySet()) {
+            if (entry.getKey().equals(SORT_ORDER_KEY)) continue; // Skip sort order entry
             QuickLaunchItem item = parseQuickLaunchItem(entry.getKey(), (String) entry.getValue());
             if (item != null) {
-                items.add(item);
+                itemMap.put(item.key, item);
             }
         }
 
-        // Sort by the timestamp in the key to maintain order
-        items.sort((a, b) -> {
-            // Extract timestamps from keys
-            String[] aParts = a.key.split(":");
-            String[] bParts = b.key.split(":");
-            if (aParts.length >= 3 && bParts.length >= 3) {
-                try {
-                    long aTimestamp = Long.parseLong(aParts[2]);
-                    long bTimestamp = Long.parseLong(bParts[2]);
-                    return Long.compare(aTimestamp, bTimestamp);
-                } catch (NumberFormatException e) {
-                    // Fallback to string comparison if parsing fails
-                    return a.key.compareTo(b.key);
-                }
+        // Build result list in sort order
+        List<QuickLaunchItem> items = new ArrayList<>();
+        for (String key : sortOrder) {
+            QuickLaunchItem item = itemMap.get(key);
+            if (item != null) {
+                items.add(item);
+                itemMap.remove(key); // Remove so we can detect orphaned items
             }
-            return a.key.compareTo(b.key);
-        });
+        }
+
+        // Add any items not in sort order (orphaned items from old data) at the end
+        for (QuickLaunchItem orphanedItem : itemMap.values()) {
+            items.add(orphanedItem);
+            sortOrder.add(orphanedItem.key); // Add to sort order for future
+        }
+
+        // Save updated sort order if we found orphaned items
+        if (!itemMap.isEmpty()) {
+            saveSortOrder(sortOrder);
+        }
 
         return items;
     }
@@ -163,27 +180,21 @@ public class QuickLaunchManager {
      * Move a Quick Launch item left (earlier in the list)
      */
     public boolean moveQuickLaunchItemLeft(String key) {
-        List<QuickLaunchItem> items = getAllQuickLaunchItems();
-        int index = -1;
-
-        // Find the item's current position
-        for (int i = 0; i < items.size(); i++) {
-            if (items.get(i).key.equals(key)) {
-                index = i;
-                break;
-            }
-        }
+        List<String> sortOrder = getSortOrder();
+        int index = sortOrder.indexOf(key);
 
         // Can't move left if it's already first or not found
         if (index <= 0) {
             return false;
         }
 
-        // Swap with the previous item by recreating their keys with swapped timestamps
-        QuickLaunchItem currentItem = items.get(index);
-        QuickLaunchItem previousItem = items.get(index - 1);
+        // Swap with previous item in sort order
+        String temp = sortOrder.get(index - 1);
+        sortOrder.set(index - 1, sortOrder.get(index));
+        sortOrder.set(index, temp);
 
-        swapItemPositions(currentItem, previousItem);
+        saveSortOrder(sortOrder);
+        notifyUpdate();
         return true;
     }
 
@@ -191,54 +202,22 @@ public class QuickLaunchManager {
      * Move a Quick Launch item right (later in the list)
      */
     public boolean moveQuickLaunchItemRight(String key) {
-        List<QuickLaunchItem> items = getAllQuickLaunchItems();
-        int index = -1;
-
-        // Find the item's current position
-        for (int i = 0; i < items.size(); i++) {
-            if (items.get(i).key.equals(key)) {
-                index = i;
-                break;
-            }
-        }
+        List<String> sortOrder = getSortOrder();
+        int index = sortOrder.indexOf(key);
 
         // Can't move right if it's already last or not found
-        if (index < 0 || index >= items.size() - 1) {
+        if (index < 0 || index >= sortOrder.size() - 1) {
             return false;
         }
 
-        // Swap with the next item by recreating their keys with swapped timestamps
-        QuickLaunchItem currentItem = items.get(index);
-        QuickLaunchItem nextItem = items.get(index + 1);
+        // Swap with next item in sort order
+        String temp = sortOrder.get(index + 1);
+        sortOrder.set(index + 1, sortOrder.get(index));
+        sortOrder.set(index, temp);
 
-        swapItemPositions(currentItem, nextItem);
+        saveSortOrder(sortOrder);
+        notifyUpdate();
         return true;
-    }
-
-    private void swapItemPositions(QuickLaunchItem item1, QuickLaunchItem item2) {
-        // Get the values before removing
-        String value1 = preferences.getString(item1.key, "");
-        String value2 = preferences.getString(item2.key, "");
-
-        // Parse the keys to extract timestamps
-        String[] key1Parts = item1.key.split(":");
-        String[] key2Parts = item2.key.split(":");
-
-        if (key1Parts.length >= 3 && key2Parts.length >= 3) {
-            // Create new keys with swapped timestamps
-            String newKey1 = key1Parts[0] + ":" + key1Parts[1] + ":" + key2Parts[2];
-            String newKey2 = key2Parts[0] + ":" + key2Parts[1] + ":" + key1Parts[2];
-
-            // Do everything in a single transaction
-            SharedPreferences.Editor editor = preferences.edit();
-            editor.remove(item1.key);
-            editor.remove(item2.key);
-            editor.putString(newKey1, value1);
-            editor.putString(newKey2, value2);
-            editor.apply();
-
-            notifyUpdate();
-        }
     }
     
     /**
@@ -307,6 +286,36 @@ public class QuickLaunchManager {
         return new QuickLaunchItem(key, computerUuid, appId, computerName, originalAppName, customName);
     }
     
+    private List<String> getSortOrder() {
+        String sortOrderString = preferences.getString(SORT_ORDER_KEY, "");
+        List<String> sortOrder = new ArrayList<>();
+
+        if (!sortOrderString.isEmpty()) {
+            String[] keys = sortOrderString.split(",");
+            for (String key : keys) {
+                if (!key.isEmpty()) {
+                    sortOrder.add(key);
+                }
+            }
+        }
+
+        return sortOrder;
+    }
+
+    private void saveSortOrder(List<String> sortOrder) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < sortOrder.size(); i++) {
+            if (i > 0) {
+                sb.append(",");
+            }
+            sb.append(sortOrder.get(i));
+        }
+
+        preferences.edit()
+                .putString(SORT_ORDER_KEY, sb.toString())
+                .apply();
+    }
+
     private void notifyUpdate() {
         Intent updateIntent = new Intent(QUICK_LAUNCH_UPDATE_ACTION);
         // Make it an explicit broadcast by setting the package to avoid restrictions on newer Android versions
