@@ -152,6 +152,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private View brightnessSliderContainer;
     private Handler brightnessSliderHandler = new Handler();
     private Runnable hideBrightnessSliderRunnable;
+    private boolean brightnessSliderInitialized = false;
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
@@ -1122,6 +1123,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (connectedToUsbDriverService) {
             // Unbind from the discovery service
             unbindService(usbDriverServiceConnection);
+        }
+
+        // Clean up brightness slider handler callbacks
+        if (brightnessSliderHandler != null && hideBrightnessSliderRunnable != null) {
+            brightnessSliderHandler.removeCallbacks(hideBrightnessSliderRunnable);
         }
 
         // Destroy the capture provider
@@ -2267,7 +2273,25 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             if (event.getX() < touchZoneWidth) {
                 // Show the brightness slider
-                brightnessSliderContainer.setVisibility(View.VISIBLE);
+                if (brightnessSliderContainer.getVisibility() != View.VISIBLE) {
+                    brightnessSliderContainer.setVisibility(View.VISIBLE);
+
+                    // Set SeekBar width to match container height (only need to do this once)
+                    if (!brightnessSliderInitialized) {
+                        brightnessSliderContainer.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                int containerHeight = brightnessSliderContainer.getHeight();
+                                if (containerHeight > 0) {
+                                    android.view.ViewGroup.LayoutParams params = brightnessSlider.getLayoutParams();
+                                    params.width = containerHeight;
+                                    brightnessSlider.setLayoutParams(params);
+                                    brightnessSliderInitialized = true;
+                                }
+                            }
+                        });
+                    }
+                }
 
                 // Cancel any pending hide operations
                 brightnessSliderHandler.removeCallbacks(hideBrightnessSliderRunnable);
