@@ -34,6 +34,8 @@ public class QuickLaunchView {
     private static final int QUICK_LAUNCH_SETTINGS_ID = 1002;
     private static final int QUICK_LAUNCH_DELETE_ID = 1003;
     private static final int QUICK_LAUNCH_QUIT_ID = 1004;
+    private static final int QUICK_LAUNCH_MOVE_LEFT_ID = 1005;
+    private static final int QUICK_LAUNCH_MOVE_RIGHT_ID = 1006;
     
     public interface QuickLaunchCallback {
         ComputerManagerService.ComputerManagerBinder getManagerBinder();
@@ -103,10 +105,12 @@ public class QuickLaunchView {
                 if (quickLaunchManager.isAppRunning(item.appId)) {
                     menu.add(Menu.NONE, QUICK_LAUNCH_QUIT_ID, 1, activity.getString(R.string.applist_menu_quit));
                 }
-                
+
                 menu.add(Menu.NONE, QUICK_LAUNCH_RENAME_ID, 2, activity.getString(R.string.quick_launch_rename));
                 menu.add(Menu.NONE, QUICK_LAUNCH_SETTINGS_ID, 3, activity.getString(R.string.quick_launch_settings));
-                menu.add(Menu.NONE, QUICK_LAUNCH_DELETE_ID, 4, activity.getString(R.string.quick_launch_delete));
+                menu.add(Menu.NONE, QUICK_LAUNCH_MOVE_LEFT_ID, 4, activity.getString(R.string.quick_launch_move_left));
+                menu.add(Menu.NONE, QUICK_LAUNCH_MOVE_RIGHT_ID, 5, activity.getString(R.string.quick_launch_move_right));
+                menu.add(Menu.NONE, QUICK_LAUNCH_DELETE_ID, 6, activity.getString(R.string.quick_launch_delete));
             }
             return true;
         }
@@ -121,19 +125,27 @@ public class QuickLaunchView {
             case QUICK_LAUNCH_QUIT_ID:
                 quitQuickLaunchApp(contextMenuQuickLaunchKey);
                 return true;
-                
+
             case QUICK_LAUNCH_RENAME_ID:
                 showRenameQuickLaunchDialog(contextMenuQuickLaunchKey);
                 return true;
-                
+
             case QUICK_LAUNCH_SETTINGS_ID:
                 openQuickLaunchSettings(contextMenuQuickLaunchKey);
                 return true;
-                
+
+            case QUICK_LAUNCH_MOVE_LEFT_ID:
+                moveQuickLaunchItemLeft(contextMenuQuickLaunchKey);
+                return true;
+
+            case QUICK_LAUNCH_MOVE_RIGHT_ID:
+                moveQuickLaunchItemRight(contextMenuQuickLaunchKey);
+                return true;
+
             case QUICK_LAUNCH_DELETE_ID:
                 removeFromQuickLaunch(contextMenuQuickLaunchKey);
                 return true;
-                
+
             default:
                 return false;
         }
@@ -323,6 +335,22 @@ public class QuickLaunchView {
     private void removeFromQuickLaunch(String key) {
         quickLaunchManager.removeQuickLaunchItem(key);
         Toast.makeText(activity, activity.getString(R.string.quick_launch_removed), Toast.LENGTH_SHORT).show();
+    }
+
+    private void moveQuickLaunchItemLeft(String key) {
+        if (quickLaunchManager.moveQuickLaunchItemLeft(key)) {
+            // Success - the broadcast will trigger UI refresh automatically
+        } else {
+            Toast.makeText(activity, "Cannot move left", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void moveQuickLaunchItemRight(String key) {
+        if (quickLaunchManager.moveQuickLaunchItemRight(key)) {
+            // Success - the broadcast will trigger UI refresh automatically
+        } else {
+            Toast.makeText(activity, "Cannot move right", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private QuickLaunchManager.QuickLaunchItem getQuickLaunchItemByKey(String key) {
