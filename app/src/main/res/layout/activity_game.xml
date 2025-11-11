@@ -63,10 +63,11 @@
 
         <SeekBar
             android:id="@+id/brightnessSlider"
-            android:layout_width="600dp"
+            android:layout_width="100dp"
             android:layout_height="50dp"
             android:layout_gravity="center"
             android:rotation="270"
+            android:min="0"
             android:max="100"
             android:progress="100"
             android:progressTint="#FFFFFF"
