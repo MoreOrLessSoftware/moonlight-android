@@ -20,6 +20,8 @@ public class QuickLaunchManager {
 
     private RunningStatusListener runningStatusListener;
     private int currentRunningAppId = 0;
+    private String currentRunningComputerUuid = null;
+    private String currentRunningQuickLaunchKey = null;
     
     public static class QuickLaunchItem {
         public final String key;
@@ -60,11 +62,62 @@ public class QuickLaunchManager {
         this.runningStatusListener = listener;
     }
     
-    public void updateRunningAppId(int runningAppId) {
-        if (this.currentRunningAppId != runningAppId) {
-            this.currentRunningAppId = runningAppId;
-            if (runningStatusListener != null) {
-                runningStatusListener.onRunningStatusChanged(runningAppId);
+    public void updateRunningAppId(int runningAppId, String serverUuid) {
+        // Only update if this is for the current running server
+        if (currentRunningComputerUuid != null && !currentRunningComputerUuid.equals(serverUuid)) {
+            // Different server - ignore this update
+            return;
+        }
+
+        // Check if current key's appId matches new appId
+        if (currentRunningQuickLaunchKey != null && runningAppId != 0) {
+            QuickLaunchItem item = getQuickLaunchItemByKey(currentRunningQuickLaunchKey);
+            if (item != null && item.appId == runningAppId && item.computerUuid.equals(serverUuid)) {
+                // Keep current key, just update appId
+                boolean changed = this.currentRunningAppId != runningAppId;
+                this.currentRunningAppId = runningAppId;
+                this.currentRunningComputerUuid = serverUuid;
+                if (changed && runningStatusListener != null) {
+                    runningStatusListener.onRunningStatusChanged(runningAppId);
+                }
+                return;
+            }
+        }
+
+        // Key doesn't match or is null, find first matching item for this server
+        String newKey = null;
+        if (runningAppId != 0) {
+            List<QuickLaunchItem> items = getAllQuickLaunchItems();
+            for (QuickLaunchItem item : items) {
+                if (item.appId == runningAppId && item.computerUuid.equals(serverUuid)) {
+                    newKey = item.key;
+                    break;
+                }
+            }
+        }
+
+        boolean changed = this.currentRunningAppId != runningAppId;
+        this.currentRunningAppId = runningAppId;
+        this.currentRunningComputerUuid = serverUuid;
+        this.currentRunningQuickLaunchKey = newKey;
+
+        if (changed && runningStatusListener != null) {
+            runningStatusListener.onRunningStatusChanged(runningAppId);
+        }
+    }
+
+    public void updateRunningQuickLaunchKey(String quickLaunchKey) {
+        this.currentRunningQuickLaunchKey = quickLaunchKey;
+
+        // Extract and set the appId and serverUuid from this key
+        if (quickLaunchKey != null) {
+            QuickLaunchItem item = getQuickLaunchItemByKey(quickLaunchKey);
+            if (item != null) {
+                this.currentRunningAppId = item.appId;
+                this.currentRunningComputerUuid = item.computerUuid;
+                if (runningStatusListener != null) {
+                    runningStatusListener.onRunningStatusChanged(item.appId);
+                }
             }
         }
     }
@@ -72,9 +125,29 @@ public class QuickLaunchManager {
     public int getCurrentRunningAppId() {
         return currentRunningAppId;
     }
-    
+
+    public String getCurrentRunningQuickLaunchKey() {
+        return currentRunningQuickLaunchKey;
+    }
+
     public boolean isAppRunning(int appId) {
         return currentRunningAppId == appId && currentRunningAppId != 0;
+    }
+
+    public boolean isQuickLaunchItemRunning(String key) {
+        return key != null && key.equals(currentRunningQuickLaunchKey) && currentRunningAppId != 0;
+    }
+
+    private QuickLaunchItem getQuickLaunchItemByKey(String key) {
+        if (key == null) return null;
+
+        List<QuickLaunchItem> items = getAllQuickLaunchItems();
+        for (QuickLaunchItem item : items) {
+            if (item.key.equals(key)) {
+                return item;
+            }
+        }
+        return null;
     }
     
     /**

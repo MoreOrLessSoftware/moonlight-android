@@ -776,7 +776,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         
         // Update Quick Launch running status
         if (quickLaunchView != null) {
-            quickLaunchView.updateRunningStatus(details.runningGameId);
+            quickLaunchView.updateRunningStatus(details.runningGameId, details.uuid);
         }
     }
 
