@@ -14,6 +14,7 @@ public class BrightnessSliderView {
     private static final String PREFS_NAME = "GameSettings";
     private static final String BRIGHTNESS_KEY = "streamBrightness";
     private static final int AUTO_HIDE_DELAY_MS = 2000;
+    private static final int SHOW_DELAY_MS = 3000;
     private static final float TOUCH_ZONE_WIDTH_DP = 80;
 
     private final Activity activity;
@@ -22,6 +23,8 @@ public class BrightnessSliderView {
     private final TextView brightnessValueText;
     private final Handler handler = new Handler();
     private final Runnable hideRunnable;
+    private final SharedPreferences prefs;
+    private final float touchZoneWidth;
     private boolean initialized = false;
 
     public BrightnessSliderView(Activity activity) {
@@ -29,6 +32,11 @@ public class BrightnessSliderView {
         this.brightnessSliderContainer = activity.findViewById(R.id.brightnessSliderContainer);
         this.brightnessSlider = activity.findViewById(R.id.brightnessSlider);
         this.brightnessValueText = activity.findViewById(R.id.brightnessValueText);
+        this.prefs = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE);
+
+        // Cache the touch zone width calculation
+        float density = activity.getResources().getDisplayMetrics().density;
+        this.touchZoneWidth = TOUCH_ZONE_WIDTH_DP * density;
 
         // Set up the auto-hide runnable
         hideRunnable = new Runnable() {
@@ -42,37 +50,48 @@ public class BrightnessSliderView {
     }
 
     private void setupBrightnessSlider() {
-        // Get saved brightness from SharedPreferences (default to 100%)
-        SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE);
-        float savedBrightness = prefs.getFloat(BRIGHTNESS_KEY, 1.0f);
+        // Get saved brightness from SharedPreferences (default to 0 = auto)
+        float savedBrightness = prefs.getFloat(BRIGHTNESS_KEY, -1.0f);
 
         // Apply the saved brightness to the window
         WindowManager.LayoutParams layoutParams = activity.getWindow().getAttributes();
-        layoutParams.screenBrightness = savedBrightness;
+        if (savedBrightness < 0) {
+            // Auto mode: use system brightness
+            layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+            brightnessSlider.setProgress(0);
+        } else {
+            layoutParams.screenBrightness = savedBrightness;
+            brightnessSlider.setProgress((int)(savedBrightness * 100));
+        }
         activity.getWindow().setAttributes(layoutParams);
-
-        // Set initial slider position (0-100 scale)
-        brightnessSlider.setProgress((int)(savedBrightness * 100));
 
         // Handle slider changes
         brightnessSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser) {
-                    // Update window brightness (0.0 to 1.0 scale)
-                    // We use a minimum of 0.01 to avoid completely black screen
-                    float brightness = Math.max(0.01f, progress / 100.0f);
                     WindowManager.LayoutParams params = activity.getWindow().getAttributes();
-                    params.screenBrightness = brightness;
-                    activity.getWindow().setAttributes(params);
 
-                    // Save the brightness setting
-                    SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE);
-                    prefs.edit().putFloat(BRIGHTNESS_KEY, brightness).apply();
+                    if (progress == 0) {
+                        // Auto mode: use system brightness
+                        params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+                        prefs.edit().putFloat(BRIGHTNESS_KEY, -1.0f).apply();
+                    } else {
+                        // Manual brightness (1-100 maps to 0.01-1.0)
+                        float brightness = progress / 100.0f;
+                        params.screenBrightness = brightness;
+                        prefs.edit().putFloat(BRIGHTNESS_KEY, brightness).apply();
+                    }
+
+                    activity.getWindow().setAttributes(params);
                 }
 
                 // Update brightness text and position (for both user and programmatic changes)
-                brightnessValueText.setText(progress + "%");
+                if (progress == 0) {
+                    brightnessValueText.setText("Auto");
+                } else {
+                    brightnessValueText.setText(progress + "%");
+                }
                 updateBrightnessTextPosition(progress);
             }
 
@@ -122,8 +141,6 @@ public class BrightnessSliderView {
      * Check if a touch event is in the brightness slider activation zone
      */
     public boolean isTouchInActivationZone(float touchX) {
-        float density = activity.getResources().getDisplayMetrics().density;
-        float touchZoneWidth = TOUCH_ZONE_WIDTH_DP * density;
         return touchX < touchZoneWidth;
     }
 
@@ -135,9 +152,8 @@ public class BrightnessSliderView {
             // Set SeekBar width to match container height (only need to do this once)
             if (!initialized) {
                 // Get the saved brightness value before adjusting width
-                SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE);
-                final float savedBrightness = prefs.getFloat(BRIGHTNESS_KEY, 1.0f);
-                final int savedProgress = (int)(savedBrightness * 100);
+                final float savedBrightness = prefs.getFloat(BRIGHTNESS_KEY, -1.0f);
+                final int savedProgress = savedBrightness < 0 ? 0 : (int)(savedBrightness * 100);
 
                 // Make invisible while we adjust the layout
                 brightnessSliderContainer.setVisibility(View.INVISIBLE);
@@ -179,8 +195,8 @@ public class BrightnessSliderView {
         // Cancel any pending hide operations
         handler.removeCallbacks(hideRunnable);
 
-        // Schedule auto-hide after 3 seconds
-        handler.postDelayed(hideRunnable, 3000);
+        // Schedule auto-hide
+        handler.postDelayed(hideRunnable, SHOW_DELAY_MS);
     }
 
     /**
