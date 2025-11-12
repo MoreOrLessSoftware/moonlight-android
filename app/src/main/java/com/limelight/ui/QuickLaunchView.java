@@ -70,7 +70,7 @@ public class QuickLaunchView {
         // Set up running status listener
         this.quickLaunchManager.setRunningStatusListener(new QuickLaunchManager.RunningStatusListener() {
             @Override
-            public void onRunningStatusChanged(int runningAppId) {
+            public void onRunningStatusChanged() {
                 updateButtonColors();
             }
         });
@@ -269,7 +269,7 @@ public class QuickLaunchView {
         }
 
         // Set this Quick Launch item as the currently running one
-        quickLaunchManager.updateRunningQuickLaunchKey(item.key);
+        quickLaunchManager.updateLastStartedQuickLaunchKey(item.key);
 
         // Create NvApp object with the appId
         NvApp app = new NvApp(item.originalAppName, item.appId, false);
