@@ -101,8 +101,8 @@ public class QuickLaunchView {
             if (item != null) {
                 menu.setHeaderTitle(item.getDisplayNameLong());
                 
-                // Add quit option if this app is running
-                if (quickLaunchManager.isAppRunning(item.appId)) {
+                // Add quit option if this Quick Launch item is running
+                if (quickLaunchManager.isQuickLaunchItemRunning(item.key)) {
                     menu.add(Menu.NONE, QUICK_LAUNCH_QUIT_ID, 1, activity.getString(R.string.applist_menu_quit));
                 }
 
@@ -260,17 +260,20 @@ public class QuickLaunchView {
             Toast.makeText(activity, "Computer manager not ready", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         // Find the computer by UUID
         ComputerDetails computer = managerBinder.getComputer(item.computerUuid);
         if (computer == null) {
             Toast.makeText(activity, "PC not found", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
+        // Set this Quick Launch item as the currently running one
+        quickLaunchManager.updateRunningQuickLaunchKey(item.key);
+
         // Create NvApp object with the appId
         NvApp app = new NvApp(item.originalAppName, item.appId, false);
-        
+
         // Use ServerHelper to launch the app with the Quick Launch key
         ServerHelper.doStart(activity, app, computer, managerBinder, item.key);
     }
@@ -388,8 +391,8 @@ public class QuickLaunchView {
     }
     
     private void updateButtonColor(Button button, QuickLaunchManager.QuickLaunchItem item) {
-        if (quickLaunchManager.isAppRunning(item.appId)) {
-            // Set green background selector for running apps
+        if (quickLaunchManager.isQuickLaunchItemRunning(item.key)) {
+            // Set green background selector for running Quick Launch item
             button.setBackgroundResource(R.drawable.quick_launch_button_running_selector);
             button.setTextColor(Color.BLACK);
         } else {
@@ -455,7 +458,7 @@ public class QuickLaunchView {
                     @Override
                     public void run() {
                         // Update running status after quit
-                        quickLaunchManager.updateRunningAppId(0);
+                        quickLaunchManager.updateRunningAppId(0, computer.uuid);
                     }
                 });
             }
@@ -465,7 +468,7 @@ public class QuickLaunchView {
     /**
      * Update running app status from external source (e.g., PcView)
      */
-    public void updateRunningStatus(int runningAppId) {
-        quickLaunchManager.updateRunningAppId(runningAppId);
+    public void updateRunningStatus(int runningAppId, String serverUuid) {
+        quickLaunchManager.updateRunningAppId(runningAppId, serverUuid);
     }
 }
