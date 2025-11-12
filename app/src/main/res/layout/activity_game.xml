@@ -50,32 +50,6 @@
         android:preferKeepClear="true"
         android:visibility="gone" />
 
-    <FrameLayout
-        android:id="@+id/brightnessSliderContainer"
-        android:layout_width="50dp"
-        android:layout_height="match_parent"
-        android:layout_marginLeft="10dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="80dp"
-        android:layout_marginBottom="80dp"
-        android:layout_gravity="left"
-        android:background="@drawable/brightness_slider_background"
-        android:visibility="gone">
-
-        <SeekBar
-            android:id="@+id/brightnessSlider"
-            android:layout_width="100dp"
-            android:layout_height="50dp"
-            android:layout_gravity="center"
-            android:rotation="270"
-            android:min="0"
-            android:max="100"
-            android:progress="100"
-            android:progressTint="#FFFFFF"
-            android:thumbTint="#FFFFFF"
-            android:paddingLeft="15dp"
-            android:paddingRight="15dp" />
-
-    </FrameLayout>
+    <include layout="@layout/brightness_slider" />
 
 </merge>
