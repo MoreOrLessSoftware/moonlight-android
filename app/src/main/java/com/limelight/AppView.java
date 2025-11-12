@@ -294,7 +294,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         inForeground = true;
 
         shortcutHelper = new ShortcutHelper(this);
-        quickLaunchManager = new QuickLaunchManager(this);
+        quickLaunchManager = QuickLaunchManager.getInstance(this);
 
         UiHelper.setLocale(this);
 

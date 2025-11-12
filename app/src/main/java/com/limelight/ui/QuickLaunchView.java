@@ -59,14 +59,14 @@ public class QuickLaunchView {
         }
     };
     
-    public QuickLaunchView(Activity activity, LinearLayout quickLaunchSection, 
+    public QuickLaunchView(Activity activity, LinearLayout quickLaunchSection,
                           LinearLayout quickLaunchContainer, QuickLaunchCallback callback) {
         this.activity = activity;
         this.quickLaunchSection = quickLaunchSection;
         this.quickLaunchContainer = quickLaunchContainer;
-        this.quickLaunchManager = new QuickLaunchManager(activity);
+        this.quickLaunchManager = QuickLaunchManager.getInstance(activity);
         this.callback = callback;
-        
+
         // Set up running status listener
         this.quickLaunchManager.setRunningStatusListener(new QuickLaunchManager.RunningStatusListener() {
             @Override
@@ -74,7 +74,7 @@ public class QuickLaunchView {
                 updateButtonColors();
             }
         });
-        
+
         loadQuickLaunchButtons();
     }
     
