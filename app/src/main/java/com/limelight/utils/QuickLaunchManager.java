@@ -14,6 +14,8 @@ public class QuickLaunchManager {
     public static final String QUICK_LAUNCH_UPDATE_ACTION = "com.limelight.QUICK_LAUNCH_UPDATED";
     private static final String SORT_ORDER_KEY = "_sort_order";
 
+    private static QuickLaunchManager instance;
+
     public interface RunningStatusListener {
         void onRunningStatusChanged(int runningAppId);
     }
@@ -22,7 +24,7 @@ public class QuickLaunchManager {
     private int currentRunningAppId = 0;
     private String currentRunningComputerUuid = null;
     private String currentRunningQuickLaunchKey = null;
-    
+
     public static class QuickLaunchItem {
         public final String key;
         public final String computerUuid;
@@ -30,8 +32,8 @@ public class QuickLaunchManager {
         public final String computerName;
         public final String originalAppName;
         public final String customName;
-        
-        public QuickLaunchItem(String key, String computerUuid, int appId, String computerName, 
+
+        public QuickLaunchItem(String key, String computerUuid, int appId, String computerName,
                               String originalAppName, String customName) {
             this.key = key;
             this.computerUuid = computerUuid;
@@ -40,7 +42,7 @@ public class QuickLaunchManager {
             this.originalAppName = originalAppName;
             this.customName = customName != null ? customName : originalAppName;
         }
-        
+
         public String getDisplayName() {
             return customName;
         }
@@ -49,13 +51,20 @@ public class QuickLaunchManager {
             return customName + (!customName.equals(originalAppName) ? " (" + originalAppName + ")" : "");
         }
     }
-    
+
     private final Context context;
     private final SharedPreferences preferences;
-    
-    public QuickLaunchManager(Context context) {
+
+    private QuickLaunchManager(Context context) {
         this.context = context.getApplicationContext();
         this.preferences = context.getSharedPreferences(QUICK_LAUNCH_PREF_FILENAME, Context.MODE_PRIVATE);
+    }
+
+    public static synchronized QuickLaunchManager getInstance(Context context) {
+        if (instance == null) {
+            instance = new QuickLaunchManager(context.getApplicationContext());
+        }
+        return instance;
     }
     
     public void setRunningStatusListener(RunningStatusListener listener) {
