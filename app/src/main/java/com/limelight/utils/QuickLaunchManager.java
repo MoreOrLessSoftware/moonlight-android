@@ -3,6 +3,8 @@ package com.limelight.utils;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.nvstream.http.NvApp;
 import java.util.ArrayList;
@@ -13,17 +15,35 @@ public class QuickLaunchManager {
     public static final String QUICK_LAUNCH_PREF_FILENAME = "QuickLaunch";
     public static final String QUICK_LAUNCH_UPDATE_ACTION = "com.limelight.QUICK_LAUNCH_UPDATED";
     private static final String SORT_ORDER_KEY = "_sort_order";
+    private static final long DEBOUNCE_DELAY_MS = 1000; // 1 second debounce
 
     private static QuickLaunchManager instance;
 
     public interface RunningStatusListener {
-        void onRunningStatusChanged(int runningAppId);
+        void onRunningStatusChanged();
+    }
+
+    // Track running status per server
+    private static class ServerRunningState {
+        int runningAppId = 0;
+        String lastStartedQuickLaunchKey = null;
+    }
+
+    // Pending update for debouncing
+    private static class PendingUpdate {
+        int runningAppId;
+        String serverUuid;
+
+        PendingUpdate(int runningAppId, String serverUuid) {
+            this.runningAppId = runningAppId;
+            this.serverUuid = serverUuid;
+        }
     }
 
     private RunningStatusListener runningStatusListener;
-    private int currentRunningAppId = 0;
-    private String currentRunningComputerUuid = null;
-    private String currentRunningQuickLaunchKey = null;
+    private final Map<String, ServerRunningState> serverStates = new java.util.HashMap<>();
+    private final Handler debounceHandler = new Handler(Looper.getMainLooper());
+    private final Map<String, Runnable> pendingUpdateRunnables = new java.util.HashMap<>();
 
     public static class QuickLaunchItem {
         public final String key;
@@ -72,22 +92,61 @@ public class QuickLaunchManager {
     }
     
     public void updateRunningAppId(int runningAppId, String serverUuid) {
-        // Only update if this is for the current running server
-        if (currentRunningComputerUuid != null && !currentRunningComputerUuid.equals(serverUuid)) {
-            // Different server - ignore this update
+        // Only debounce when appId is 0 (app stopping) to handle spurious calls
+        if (runningAppId == 0) {
+            // Cancel any pending update for this server
+            Runnable existingRunnable = pendingUpdateRunnables.get(serverUuid);
+            if (existingRunnable != null) {
+                debounceHandler.removeCallbacks(existingRunnable);
+            }
+
+            // Create new runnable for this update
+            Runnable updateRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    applyRunningAppIdUpdate(runningAppId, serverUuid);
+                    pendingUpdateRunnables.remove(serverUuid);
+                }
+            };
+
+            pendingUpdateRunnables.put(serverUuid, updateRunnable);
+            debounceHandler.postDelayed(updateRunnable, DEBOUNCE_DELAY_MS);
+        } else {
+            // Non-zero appId: cancel any pending 0 update and apply immediately
+            Runnable existingRunnable = pendingUpdateRunnables.get(serverUuid);
+            if (existingRunnable != null) {
+                debounceHandler.removeCallbacks(existingRunnable);
+                pendingUpdateRunnables.remove(serverUuid);
+            }
+            applyRunningAppIdUpdate(runningAppId, serverUuid);
+        }
+    }
+
+    private void applyRunningAppIdUpdate(int runningAppId, String serverUuid) {
+        // Get or create state for this server
+        ServerRunningState state = serverStates.get(serverUuid);
+        if (state == null) {
+            state = new ServerRunningState();
+            serverStates.put(serverUuid, state);
+        }
+
+        state.runningAppId = runningAppId;
+
+        // If appId is 0, clear the Quick Launch key for this server
+        if (runningAppId == 0) {
+            if (runningStatusListener != null) {
+                runningStatusListener.onRunningStatusChanged();
+            }
             return;
         }
 
         // Check if current key's appId matches new appId
-        if (currentRunningQuickLaunchKey != null && runningAppId != 0) {
-            QuickLaunchItem item = getQuickLaunchItemByKey(currentRunningQuickLaunchKey);
+        if (state.lastStartedQuickLaunchKey != null) {
+            QuickLaunchItem item = getQuickLaunchItemByKey(state.lastStartedQuickLaunchKey);
             if (item != null && item.appId == runningAppId && item.computerUuid.equals(serverUuid)) {
-                // Keep current key, just update appId
-                boolean changed = this.currentRunningAppId != runningAppId;
-                this.currentRunningAppId = runningAppId;
-                this.currentRunningComputerUuid = serverUuid;
-                if (changed && runningStatusListener != null) {
-                    runningStatusListener.onRunningStatusChanged(runningAppId);
+                // Keep current key, appId already updated above
+                if (runningStatusListener != null) {
+                    runningStatusListener.onRunningStatusChanged();
                 }
                 return;
             }
@@ -95,56 +154,55 @@ public class QuickLaunchManager {
 
         // Key doesn't match or is null, find first matching item for this server
         String newKey = null;
-        if (runningAppId != 0) {
-            List<QuickLaunchItem> items = getAllQuickLaunchItems();
-            for (QuickLaunchItem item : items) {
-                if (item.appId == runningAppId && item.computerUuid.equals(serverUuid)) {
-                    newKey = item.key;
-                    break;
-                }
+        List<QuickLaunchItem> items = getAllQuickLaunchItems();
+        for (QuickLaunchItem item : items) {
+            if (item.appId == runningAppId && item.computerUuid.equals(serverUuid)) {
+                newKey = item.key;
+                break;
             }
         }
 
-        boolean changed = this.currentRunningAppId != runningAppId;
-        this.currentRunningAppId = runningAppId;
-        this.currentRunningComputerUuid = serverUuid;
-        this.currentRunningQuickLaunchKey = newKey;
+        state.lastStartedQuickLaunchKey = newKey;
 
-        if (changed && runningStatusListener != null) {
-            runningStatusListener.onRunningStatusChanged(runningAppId);
+        if (runningStatusListener != null) {
+            runningStatusListener.onRunningStatusChanged();
         }
     }
 
-    public void updateRunningQuickLaunchKey(String quickLaunchKey) {
-        this.currentRunningQuickLaunchKey = quickLaunchKey;
-
+    public void updateLastStartedQuickLaunchKey(String quickLaunchKey) {
         // Extract and set the appId and serverUuid from this key
         if (quickLaunchKey != null) {
             QuickLaunchItem item = getQuickLaunchItemByKey(quickLaunchKey);
             if (item != null) {
-                this.currentRunningAppId = item.appId;
-                this.currentRunningComputerUuid = item.computerUuid;
+                // Get or create state for this server
+                ServerRunningState state = serverStates.get(item.computerUuid);
+                if (state == null) {
+                    state = new ServerRunningState();
+                    serverStates.put(item.computerUuid, state);
+                }
+
+                state.runningAppId = item.appId;
+                state.lastStartedQuickLaunchKey = quickLaunchKey;
+
                 if (runningStatusListener != null) {
-                    runningStatusListener.onRunningStatusChanged(item.appId);
+                    runningStatusListener.onRunningStatusChanged();
                 }
             }
         }
     }
-    
-    public int getCurrentRunningAppId() {
-        return currentRunningAppId;
-    }
-
-    public String getCurrentRunningQuickLaunchKey() {
-        return currentRunningQuickLaunchKey;
-    }
-
-    public boolean isAppRunning(int appId) {
-        return currentRunningAppId == appId && currentRunningAppId != 0;
-    }
 
     public boolean isQuickLaunchItemRunning(String key) {
-        return key != null && key.equals(currentRunningQuickLaunchKey) && currentRunningAppId != 0;
+        if (key == null) return false;
+
+        // Extract server UUID from the key
+        QuickLaunchItem item = getQuickLaunchItemByKey(key);
+        if (item == null) return false;
+
+        ServerRunningState state = serverStates.get(item.computerUuid);
+        if (state == null) return false;
+
+        // Highlight if the key matches AND app is running
+        return key.equals(state.lastStartedQuickLaunchKey) && state.runningAppId == item.appId;
     }
 
     private QuickLaunchItem getQuickLaunchItemByKey(String key) {
