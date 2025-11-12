@@ -153,6 +153,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private Handler brightnessSliderHandler = new Handler();
     private Runnable hideBrightnessSliderRunnable;
     private boolean brightnessSliderInitialized = false;
+    private Toast brightnessToast;
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
@@ -631,6 +632,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     // Save the brightness setting
                     SharedPreferences prefs = getSharedPreferences("GameSettings", MODE_PRIVATE);
                     prefs.edit().putFloat("streamBrightness", brightness).apply();
+
+                    // Show/update toast with current brightness percentage in real-time
+                    if (brightnessToast != null) {
+                        brightnessToast.cancel();
+                    }
+                    brightnessToast = Toast.makeText(Game.this, "Brightness: " + progress + "%", Toast.LENGTH_SHORT);
+                    brightnessToast.show();
                 }
             }
 

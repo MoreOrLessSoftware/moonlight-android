@@ -59,6 +59,7 @@
         android:layout_marginTop="80dp"
         android:layout_marginBottom="80dp"
         android:layout_gravity="left"
+        android:background="@drawable/brightness_slider_background"
         android:visibility="gone">
 
         <SeekBar
@@ -72,7 +73,6 @@
             android:progress="100"
             android:progressTint="#FFFFFF"
             android:thumbTint="#FFFFFF"
-            android:background="#80000000"
             android:paddingLeft="15dp"
             android:paddingRight="15dp" />
 
