@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/brightnessSliderContainer"
+    android:layout_width="wrap_content"
+    android:layout_height="match_parent"
+    android:layout_marginLeft="10dp"
+    android:layout_marginStart="10dp"
+    android:layout_marginTop="80dp"
+    android:layout_marginBottom="80dp"
+    android:layout_gravity="left"
+    android:visibility="gone">
+
+    <FrameLayout
+        android:layout_width="50dp"
+        android:layout_height="match_parent"
+        android:background="@drawable/brightness_slider_background">
+
+        <SeekBar
+            android:id="@+id/brightnessSlider"
+            android:layout_width="100dp"
+            android:layout_height="50dp"
+            android:layout_gravity="center"
+            android:rotation="270"
+            android:min="0"
+            android:max="100"
+            android:progress="100"
+            android:progressTint="#FFFFFF"
+            android:thumbTint="#FFFFFF"
+            android:paddingLeft="15dp"
+            android:paddingRight="15dp" />
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/brightnessValueText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="60dp"
+        android:layout_marginStart="60dp"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:textColor="#FFFFFF"
+        android:background="#00000000"
+        android:padding="8dp" />
+
+</FrameLayout>

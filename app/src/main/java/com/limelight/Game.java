@@ -30,6 +30,7 @@ import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.AppPreferences;
 import com.limelight.preferences.GlPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.ui.BrightnessSliderView;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamView;
 import com.limelight.utils.Dialog;
@@ -148,12 +149,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private TextView notificationOverlayView;
     private int requestedNotificationOverlayVisibility = View.GONE;
     private TextView performanceOverlayView;
-    private SeekBar brightnessSlider;
-    private View brightnessSliderContainer;
-    private Handler brightnessSliderHandler = new Handler();
-    private Runnable hideBrightnessSliderRunnable;
-    private boolean brightnessSliderInitialized = false;
-    private Toast brightnessToast;
+    private BrightnessSliderView brightnessSliderView;
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
@@ -290,9 +286,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         performanceOverlayView = findViewById(R.id.performanceOverlay);
 
         // Initialize brightness slider
-        brightnessSliderContainer = findViewById(R.id.brightnessSliderContainer);
-        brightnessSlider = findViewById(R.id.brightnessSlider);
-        setupBrightnessSlider();
+        brightnessSliderView = new BrightnessSliderView(this);
 
         inputCaptureProvider = InputCaptureManager.getInputCaptureProvider(this, this);
 
@@ -596,66 +590,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     }
 
-    private void setupBrightnessSlider() {
-        // Get saved brightness from SharedPreferences (default to 100%)
-        SharedPreferences prefs = getSharedPreferences("GameSettings", MODE_PRIVATE);
-        float savedBrightness = prefs.getFloat("streamBrightness", 1.0f);
-
-        // Apply the saved brightness to the window
-        WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-        layoutParams.screenBrightness = savedBrightness;
-        getWindow().setAttributes(layoutParams);
-
-        // Set initial slider position (0-100 scale)
-        brightnessSlider.setProgress((int)(savedBrightness * 100));
-
-        // Set up the auto-hide runnable
-        hideBrightnessSliderRunnable = new Runnable() {
-            @Override
-            public void run() {
-                brightnessSliderContainer.setVisibility(View.GONE);
-            }
-        };
-
-        // Handle slider changes
-        brightnessSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser) {
-                    // Update window brightness (0.0 to 1.0 scale)
-                    // We use a minimum of 0.01 to avoid completely black screen
-                    float brightness = Math.max(0.01f, progress / 100.0f);
-                    WindowManager.LayoutParams params = getWindow().getAttributes();
-                    params.screenBrightness = brightness;
-                    getWindow().setAttributes(params);
-
-                    // Save the brightness setting
-                    SharedPreferences prefs = getSharedPreferences("GameSettings", MODE_PRIVATE);
-                    prefs.edit().putFloat("streamBrightness", brightness).apply();
-
-                    // Show/update toast with current brightness percentage in real-time
-                    if (brightnessToast != null) {
-                        brightnessToast.cancel();
-                    }
-                    brightnessToast = Toast.makeText(Game.this, "Brightness: " + progress + "%", Toast.LENGTH_SHORT);
-                    brightnessToast.show();
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-                // Cancel any pending hide operations
-                brightnessSliderHandler.removeCallbacks(hideBrightnessSliderRunnable);
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                // Hide the slider after 2 seconds of inactivity
-                brightnessSliderHandler.postDelayed(hideBrightnessSliderRunnable, 2000);
-            }
-        });
-
-    }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
@@ -680,7 +614,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 performanceOverlayView.setVisibility(View.GONE);
                 notificationOverlayView.setVisibility(View.GONE);
-                brightnessSliderContainer.setVisibility(View.GONE);
+                brightnessSliderView.hide();
 
                 // Disable sensors while in PiP mode
                 controllerHandler.disableSensors();
@@ -1133,9 +1067,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             unbindService(usbDriverServiceConnection);
         }
 
-        // Clean up brightness slider handler callbacks
-        if (brightnessSliderHandler != null && hideBrightnessSliderRunnable != null) {
-            brightnessSliderHandler.removeCallbacks(hideBrightnessSliderRunnable);
+        // Clean up brightness slider
+        if (brightnessSliderView != null) {
+            brightnessSliderView.cleanup();
         }
 
         // Destroy the capture provider
@@ -2276,37 +2210,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             view.requestUnbufferedDispatch(event);
 
             // Check if touch is on the left edge to show brightness slider
-            float density = getResources().getDisplayMetrics().density;
-            float touchZoneWidth = 80 * density;
-
-            if (event.getX() < touchZoneWidth) {
-                // Show the brightness slider
-                if (brightnessSliderContainer.getVisibility() != View.VISIBLE) {
-                    brightnessSliderContainer.setVisibility(View.VISIBLE);
-
-                    // Set SeekBar width to match container height (only need to do this once)
-                    if (!brightnessSliderInitialized) {
-                        brightnessSliderContainer.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                int containerHeight = brightnessSliderContainer.getHeight();
-                                if (containerHeight > 0) {
-                                    android.view.ViewGroup.LayoutParams params = brightnessSlider.getLayoutParams();
-                                    params.width = containerHeight;
-                                    brightnessSlider.setLayoutParams(params);
-                                    brightnessSliderInitialized = true;
-                                }
-                            }
-                        });
-                    }
-                }
-
-                // Cancel any pending hide operations
-                brightnessSliderHandler.removeCallbacks(hideBrightnessSliderRunnable);
-
-                // Schedule auto-hide after 3 seconds
-                brightnessSliderHandler.postDelayed(hideBrightnessSliderRunnable, 3000);
-
+            if (brightnessSliderView.isTouchInActivationZone(event.getX())) {
+                brightnessSliderView.show();
                 return true; // Consume the touch event to prevent game input
             }
         }
