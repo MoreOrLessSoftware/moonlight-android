@@ -332,9 +332,33 @@ public class QuickLaunchView {
         builder.show();
     }
     
-    private void removeFromQuickLaunch(String key) {
-        quickLaunchManager.removeQuickLaunchItem(key);
-        Toast.makeText(activity, activity.getString(R.string.quick_launch_removed), Toast.LENGTH_SHORT).show();
+    private void removeFromQuickLaunch(final String key) {
+        QuickLaunchManager.QuickLaunchItem item = getQuickLaunchItemByKey(key);
+        if (item == null) {
+            return;
+        }
+
+        // Show confirmation dialog
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle("Remove from Quick Launch");
+        builder.setMessage("Remove \"" + item.getDisplayName() + "\" from Quick Launch?");
+
+        builder.setPositiveButton("Remove", new android.content.DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(android.content.DialogInterface dialog, int which) {
+                quickLaunchManager.removeQuickLaunchItem(key);
+                Toast.makeText(activity, activity.getString(R.string.quick_launch_removed), Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.setNegativeButton("Cancel", new android.content.DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(android.content.DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+
+        builder.show();
     }
 
     private void moveQuickLaunchItemLeft(String key) {
