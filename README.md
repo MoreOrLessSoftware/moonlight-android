@@ -10,7 +10,7 @@ This fork aims to build upon the original Android client with some new features 
 
 You can create shortcuts to specific Sunshine apps and apply custom streaming settings (like resolution, FPS, bitrate, etc) to each shortcut. The same app can be configured to multiple shortcuts:
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/3kc8VEu1x7k/0.jpg)](https://youtu.be/3kc8VEu1x7k)
+[![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/quick-launch.png)](https://youtu.be/3kc8VEu1x7k)
 
 > [!NOTE]
 > Quick Launch apps is still a work in progress. On some devices the list of Quick Launch apps might not refresh after adding or removing one until you re-open the app.
@@ -19,15 +19,21 @@ You can create shortcuts to specific Sunshine apps and apply custom streaming se
 
 Each app can now have it's own settings for resolution, FPS, bitrate, frame pacing, etc:
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/AYPQj0LOsxk/0.jpg)](https://youtu.be/AYPQj0LOsxk)
+[![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/per-app-settings.png)](https://youtu.be/AYPQj0LOsxk)
 
-### 3. New gamepad button chord for quitting host app
+### 3. Brightness adjustment while streaming
+
+Tap the left edge of the screen to show a brightness slider and set a custom brightness while streaming (or slide it to the bottom for "Auto" which will use the system brightness):
+
+[![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/brightness-slider.png)](https://youtu.be/CnanqtRz0FI)
+
+### 4. New gamepad button chord for quitting host app
 
 To end the session AND quit the app on the host machine, use a new button chord (made with macros in mind):
 
 ```LB``` + ```RB``` + ```D-pad right``` + ```D-pad down```
 
-### 4. Ultra low latency flags for Exynos
+### 5. Ultra low latency flags for Exynos
 
 Tried some [new flags for the Exynos decoder](https://github.com/MoreOrLessSoftware/moonlight-android/commit/77cd72c427dff7250b8e10b007d1ece2db9f7ddb):
 
