@@ -2368,25 +2368,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             keyCode = handleFlipFaceButtons(keyCode);
         }
 
-        // If the button hasn't been down long enough, sleep for a bit before sending the up event
-        // This allows "instant" button presses (like OUYA's virtual menu button) to work. This
-        // path should not be triggered during normal usage.
-        int buttonDownTime = (int)(event.getEventTime() - event.getDownTime());
-        if (buttonDownTime < ControllerHandler.MINIMUM_BUTTON_DOWN_TIME_MS)
-        {
-            // Since our sleep time is so short (<= 25 ms), it shouldn't cause a problem doing this
-            // in the UI thread.
-            try {
-                Thread.sleep(ControllerHandler.MINIMUM_BUTTON_DOWN_TIME_MS - buttonDownTime);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-
-                // InterruptedException clears the thread's interrupt status. Since we can't
-                // handle that here, we will re-interrupt the thread to set the interrupt
-                // status back to true.
-                Thread.currentThread().interrupt();
-            }
-        }
+        // REMOVED: Thread.sleep() workaround for OUYA virtual menu button (OUYA discontinued 2015)
+        // This was adding 0-25ms of latency to button releases on modern controllers.
+        // If needed for specific legacy devices, this can be re-enabled with a device check.
+        //
+        // Original code:
+        // int buttonDownTime = (int)(event.getEventTime() - event.getDownTime());
+        // if (buttonDownTime < MINIMUM_BUTTON_DOWN_TIME_MS) {
+        //     Thread.sleep(MINIMUM_BUTTON_DOWN_TIME_MS - buttonDownTime);
+        // }
 
         switch (keyCode) {
         case KeyEvent.KEYCODE_BUTTON_MODE:
