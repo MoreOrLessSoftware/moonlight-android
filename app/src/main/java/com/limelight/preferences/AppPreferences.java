@@ -110,22 +110,33 @@ public class AppPreferences {
     }
 
     public static PreferenceConfiguration getEffectivePreferences(Context context, String appKey, String appKey2) {
-        AppSettings appSettings = null;
+        // Load quick launch settings (appKey2), app settings (appKey), and global settings
+        AppSettings quickLaunchSettings = null;
         if (appKey2 != null) {
-            appSettings = getAppSettings(context, appKey2);
+            quickLaunchSettings = getAppSettings(context, appKey2);
         }
-        if (appSettings == null || appSettings.useGlobalSettings) {
-            appSettings = getAppSettings(context, appKey);
-        }
-        
-        if (appSettings.useGlobalSettings) {
+        AppSettings appSettings = getAppSettings(context, appKey);
+
+        // If both quick launch and app use global settings, return global config directly
+        if ((quickLaunchSettings == null || quickLaunchSettings.useGlobalSettings) && appSettings.useGlobalSettings) {
             return PreferenceConfiguration.readPreferences(context);
         }
-        
+
+        // Start with global settings as the base
         PreferenceConfiguration config = PreferenceConfiguration.readPreferences(context);
-        
-        if (appSettings.resolution != null) {
-            String[] parts = appSettings.resolution.split("x");
+
+        // Apply settings hierarchy: quick launch -> app -> global (already loaded)
+        // For each setting, use quick launch if set, otherwise app, otherwise keep global
+
+        // Resolution
+        String resolution = null;
+        if (quickLaunchSettings != null && quickLaunchSettings.resolution != null) {
+            resolution = quickLaunchSettings.resolution;
+        } else if (!appSettings.useGlobalSettings && appSettings.resolution != null) {
+            resolution = appSettings.resolution;
+        }
+        if (resolution != null) {
+            String[] parts = resolution.split("x");
             if (parts.length == 2) {
                 try {
                     config.width = Integer.parseInt(parts[0]);
@@ -135,27 +146,69 @@ public class AppPreferences {
                 }
             }
         }
-        
-        if (appSettings.fps > 0) {
-            config.fps = appSettings.fps;
+
+        // FPS
+        int fps = 0;
+        if (quickLaunchSettings != null && quickLaunchSettings.fps > 0) {
+            fps = quickLaunchSettings.fps;
+        } else if (!appSettings.useGlobalSettings && appSettings.fps > 0) {
+            fps = appSettings.fps;
         }
-        
-        if (appSettings.framePacing != null) {
-            config.framePacing = getFramePacingValue(appSettings.framePacing);
-        }
-        
-        if (appSettings.bitrate > 0) {
-            config.bitrate = appSettings.bitrate;
+        if (fps > 0) {
+            config.fps = fps;
         }
 
-        if (appSettings.actualDisplayRefreshRate > 0) {
-            config.actualDisplayRefreshRate = String.valueOf(appSettings.actualDisplayRefreshRate);
+        // Frame pacing
+        String framePacing = null;
+        if (quickLaunchSettings != null && quickLaunchSettings.framePacing != null) {
+            framePacing = quickLaunchSettings.framePacing;
+        } else if (!appSettings.useGlobalSettings && appSettings.framePacing != null) {
+            framePacing = appSettings.framePacing;
+        }
+        if (framePacing != null) {
+            config.framePacing = getFramePacingValue(framePacing);
         }
 
-        config.enableHdr = appSettings.enableHdr;
+        // Bitrate
+        int bitrate = 0;
+        if (quickLaunchSettings != null && quickLaunchSettings.bitrate > 0) {
+            bitrate = quickLaunchSettings.bitrate;
+        } else if (!appSettings.useGlobalSettings && appSettings.bitrate > 0) {
+            bitrate = appSettings.bitrate;
+        }
+        if (bitrate > 0) {
+            config.bitrate = bitrate;
+        }
 
-        config.enablePerfOverlay = appSettings.enablePerfOverlay;;
-        
+        // Display refresh rate
+        double actualDisplayRefreshRate = 0;
+        if (quickLaunchSettings != null && quickLaunchSettings.actualDisplayRefreshRate > 0) {
+            actualDisplayRefreshRate = quickLaunchSettings.actualDisplayRefreshRate;
+        } else if (!appSettings.useGlobalSettings && appSettings.actualDisplayRefreshRate > 0) {
+            actualDisplayRefreshRate = appSettings.actualDisplayRefreshRate;
+        }
+        if (actualDisplayRefreshRate > 0) {
+            config.actualDisplayRefreshRate = String.valueOf(actualDisplayRefreshRate);
+        }
+
+        // HDR
+        boolean enableHdr = config.enableHdr; // Start with global
+        if (quickLaunchSettings != null && !quickLaunchSettings.useGlobalSettings) {
+            enableHdr = quickLaunchSettings.enableHdr;
+        } else if (!appSettings.useGlobalSettings) {
+            enableHdr = appSettings.enableHdr;
+        }
+        config.enableHdr = enableHdr;
+
+        // Performance overlay
+        boolean enablePerfOverlay = config.enablePerfOverlay; // Start with global
+        if (quickLaunchSettings != null && !quickLaunchSettings.useGlobalSettings) {
+            enablePerfOverlay = quickLaunchSettings.enablePerfOverlay;
+        } else if (!appSettings.useGlobalSettings) {
+            enablePerfOverlay = appSettings.enablePerfOverlay;
+        }
+        config.enablePerfOverlay = enablePerfOverlay;
+
         return config;
     }
 }

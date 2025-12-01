@@ -5,7 +5,7 @@
     <CheckBoxPreference
         android:key="checkbox_use_global_settings"
         android:title="Use Global Settings"
-        android:summary="Use the global stream settings for this app"
+        android:summary="Do not use custom settings, instead use the global settings"
         android:defaultValue="true" />
 
     <PreferenceCategory 
