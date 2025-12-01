@@ -56,6 +56,18 @@ import java.util.Map;
 
 public class ControllerHandler implements InputManager.InputDeviceListener, UsbDriverListener {
 
+    /**
+     * Listener interface for physical controller button state changes.
+     * Allows observers to react to gamepad input changes (e.g., update virtual controller visuals).
+     */
+    public interface ControllerInputListener {
+        /**
+         * Called when the aggregated controller button state changes.
+         * @param buttonFlags The current button state flags from ControllerPacket
+         */
+        void onControllerInputChanged(int buttonFlags);
+    }
+
     private static final int MAXIMUM_BUMPER_UP_DELAY_MS = 100;
 
     private static final int START_DOWN_TIME_MOUSE_MODE_MS = 750;
@@ -130,6 +142,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private short currentControllers, initialControllers;
 
     public boolean pendingApplicationQuit = false;
+    private ControllerInputListener controllerInputListener = null;
 
     public ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig) {
         this.activityContext = activityContext;
@@ -265,6 +278,14 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         InputDeviceContext newContext = createInputDeviceContextForDevice(device);
         newContext.migrateContext(existingContext);
         inputDeviceContexts.put(deviceId, newContext);
+    }
+
+    /**
+     * Set a listener to receive controller input state changes.
+     * @param listener The listener to notify of input changes, or null to remove
+     */
+    public void setControllerInputListener(ControllerInputListener listener) {
+        this.controllerInputListener = listener;
     }
 
     public void stop() {
@@ -1304,6 +1325,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                     leftTrigger, rightTrigger,
                     leftStickX, leftStickY,
                     rightStickX, rightStickY);
+        }
+
+        // Notify listener of input state change (e.g., for virtual controller visual feedback)
+        if (controllerInputListener != null) {
+            controllerInputListener.onControllerInputChanged(inputMap);
         }
     }
 

@@ -527,6 +527,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     this);
             virtualController.refreshLayout();
             virtualController.show();
+
+            // Register virtual controller to receive physical gamepad input events
+            controllerHandler.setControllerInputListener(virtualController);
         }
 
         if (prefConfig.usbDriver) {
@@ -1048,6 +1051,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         super.onDestroy();
 
         if (controllerHandler != null) {
+            // Unregister virtual controller listener before destroying
+            controllerHandler.setControllerInputListener(null);
             controllerHandler.destroy();
         }
         if (keyboardTranslator != null) {

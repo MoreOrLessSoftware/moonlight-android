@@ -16,11 +16,12 @@ import android.widget.Toast;
 import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.binding.input.ControllerHandler;
+import com.limelight.nvstream.input.ControllerPacket;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class VirtualController {
+public class VirtualController implements ControllerHandler.ControllerInputListener {
     public static class ControllerInputContext {
         public short inputMap = 0x0000;
         public byte leftTrigger = 0x00;
@@ -211,5 +212,65 @@ public class VirtualController {
         handler.postDelayed(delayedRetransmitRunnable, 25);
         handler.postDelayed(delayedRetransmitRunnable, 50);
         handler.postDelayed(delayedRetransmitRunnable, 75);
+    }
+
+    /**
+     * Callback from ControllerHandler when physical gamepad input state changes.
+     * Updates visual state of on-screen buttons to match physical gamepad input.
+     * This runs asynchronously on the UI thread to avoid adding latency to gamepad input.
+     *
+     * @param buttonFlags The current button state flags from ControllerPacket
+     */
+    @Override
+    public void onControllerInputChanged(final int buttonFlags) {
+        // Only update visuals if we're in active mode (not configuring)
+        if (currentMode != ControllerMode.Active) {
+            return;
+        }
+
+        // Post to UI thread to avoid blocking the input thread
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                updateButtonVisualsInternal(buttonFlags);
+            }
+        });
+    }
+
+    /**
+     * Internal method that actually updates button visuals on the UI thread.
+     * @param buttonFlags The current button state flags from ControllerPacket
+     */
+    private void updateButtonVisualsInternal(int buttonFlags) {
+        // Map of ControllerPacket flags to Virtual Controller Element IDs
+        final int[][] buttonMappings = {
+            {ControllerPacket.A_FLAG, VirtualControllerElement.EID_A},
+            {ControllerPacket.B_FLAG, VirtualControllerElement.EID_B},
+            {ControllerPacket.X_FLAG, VirtualControllerElement.EID_X},
+            {ControllerPacket.Y_FLAG, VirtualControllerElement.EID_Y},
+            {ControllerPacket.LB_FLAG, VirtualControllerElement.EID_LB},
+            {ControllerPacket.RB_FLAG, VirtualControllerElement.EID_RB},
+            {ControllerPacket.PLAY_FLAG, VirtualControllerElement.EID_START},
+            {ControllerPacket.BACK_FLAG, VirtualControllerElement.EID_BACK}
+        };
+
+        // Update each button element's pressed state
+        for (int[] mapping : buttonMappings) {
+            int flag = mapping[0];
+            int elementId = mapping[1];
+            boolean isPressed = (buttonFlags & flag) != 0;
+
+            // Find the element and update its pressed state
+            for (VirtualControllerElement element : elements) {
+                if (element.elementId == elementId && element instanceof DigitalButton) {
+                    DigitalButton button = (DigitalButton) element;
+                    if (button.isPressed() != isPressed) {
+                        button.setPressed(isPressed);
+                        button.invalidate();
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
