@@ -52,8 +52,9 @@ public class AppStreamSettings extends Activity {
 
     public static class AppSettingsFragment extends PreferenceFragment {
         private String currentResolution;
+        private boolean isQuickLaunch;
 
-        private void setupFramePacingPreference(ListPreference framePacingPref, String currentValue) {
+        private void setupFramePacingPreference(ListPreference framePacingPref, String currentValue, boolean isQuickLaunch) {
             // Get original arrays from resources
             String[] originalEntries = getResources().getStringArray(R.array.video_frame_pacing_names);
             String[] originalValues = getResources().getStringArray(R.array.video_frame_pacing_values);
@@ -61,10 +62,11 @@ public class AppStreamSettings extends Activity {
             // Create new arrays with default option at the beginning
             String[] newEntries = new String[originalEntries.length + 1];
             String[] newValues = new String[originalValues.length + 1];
-            
-            newEntries[0] = "[Use global default]";
-            newValues[0] = ""; // Empty string represents null/global default
-            
+
+            // Use different label depending on whether this is a quick launch item or app
+            newEntries[0] = isQuickLaunch ? "[Use app default]" : "[Use global default]";
+            newValues[0] = ""; // Empty string represents null/default
+
             // Copy original arrays starting from index 1
             System.arraycopy(originalEntries, 0, newEntries, 1, originalEntries.length);
             System.arraycopy(originalValues, 0, newValues, 1, originalValues.length);
@@ -170,6 +172,9 @@ public class AppStreamSettings extends Activity {
 
             AppPreferences.AppSettings currentSettings = AppPreferences.getAppSettings(getActivity(), activity.appKey);
 
+            // Detect if this is a quick launch item (key format: uuid:appid:timestamp vs uuid:appid)
+            isQuickLaunch = activity.appKey != null && activity.appKey.split(":").length == 3;
+
             CheckBoxPreference useGlobalPref = (CheckBoxPreference) findPreference("checkbox_use_global_settings");
             Preference resolutionPref = findPreference("pref_app_resolution");
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
@@ -179,13 +184,19 @@ public class AppStreamSettings extends Activity {
             CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_app_enable_perf_overlay");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
 
+            // Update checkbox label and summary based on whether this is a quick launch item
+            if (isQuickLaunch) {
+                useGlobalPref.setTitle("Use App Settings");
+                useGlobalPref.setSummary("Do not use custom settings, instead use the app or global settings");
+            }
+
             // Initialize fields
             currentResolution = currentSettings.resolution;
             useGlobalPref.setChecked(currentSettings.useGlobalSettings);
             fpsPref.setText(currentSettings.fps > 0 ? String.valueOf(currentSettings.fps) : "");
             bitratePref.setText(currentSettings.bitrate > 0 ? String.valueOf(currentSettings.bitrate / 1000) : "");
             actualDisplayRefreshRatePref.setText(currentSettings.actualDisplayRefreshRate > 0 ? String.valueOf(currentSettings.actualDisplayRefreshRate) : "");
-            setupFramePacingPreference(framePacingPref, currentSettings.framePacing);
+            setupFramePacingPreference(framePacingPref, currentSettings.framePacing, isQuickLaunch);
             enableHdrPref.setChecked(currentSettings.enableHdr);
             enablePerfOverlayPref.setChecked(currentSettings.enablePerfOverlay);
 
@@ -349,19 +360,18 @@ public class AppStreamSettings extends Activity {
                 bitratePref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
             }
             
-            // Set frame pacing summary - show the human readable name
+            // Set frame pacing summary - show the human readable name or default label
             String framePacing = framePacingPref.getValue();
-            if (framePacing != null && !framePacing.isEmpty()) {
-                CharSequence[] entries = framePacingPref.getEntries();
-                CharSequence[] values = framePacingPref.getEntryValues();
-                for (int i = 0; i < values.length; i++) {
-                    if (framePacing.equals(values[i].toString())) {
-                        framePacingPref.setSummary(entries[i]);
-                        break;
-                    }
+            CharSequence[] entries = framePacingPref.getEntries();
+            CharSequence[] values = framePacingPref.getEntryValues();
+
+            // Find and display the matching entry (including the default option at index 0)
+            for (int i = 0; i < values.length; i++) {
+                if ((framePacing == null && values[i].toString().isEmpty()) ||
+                    (framePacing != null && framePacing.equals(values[i].toString()))) {
+                    framePacingPref.setSummary(entries[i]);
+                    break;
                 }
-            } else {
-                framePacingPref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
             }
 
             // Set actual display refresh rate summary
