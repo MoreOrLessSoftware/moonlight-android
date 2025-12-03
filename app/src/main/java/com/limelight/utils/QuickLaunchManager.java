@@ -15,6 +15,7 @@ public class QuickLaunchManager {
     public static final String QUICK_LAUNCH_PREF_FILENAME = "QuickLaunch";
     public static final String QUICK_LAUNCH_UPDATE_ACTION = "com.limelight.QUICK_LAUNCH_UPDATED";
     private static final String SORT_ORDER_KEY = "_sort_order";
+    private static final String LAST_STARTED_KEY_PREFIX = "_last_started_";
     private static final long DEBOUNCE_DELAY_MS = 1000; // 1 second debounce
 
     private static QuickLaunchManager instance;
@@ -78,6 +79,7 @@ public class QuickLaunchManager {
     private QuickLaunchManager(Context context) {
         this.context = context.getApplicationContext();
         this.preferences = context.getSharedPreferences(QUICK_LAUNCH_PREF_FILENAME, Context.MODE_PRIVATE);
+        loadPersistedState();
     }
 
     public static synchronized QuickLaunchManager getInstance(Context context) {
@@ -89,6 +91,35 @@ public class QuickLaunchManager {
     
     public void setRunningStatusListener(RunningStatusListener listener) {
         this.runningStatusListener = listener;
+    }
+
+    private void loadPersistedState() {
+        // Load all persisted lastStartedQuickLaunchKey values
+        Map<String, ?> allPrefs = preferences.getAll();
+        for (Map.Entry<String, ?> entry : allPrefs.entrySet()) {
+            if (entry.getKey().startsWith(LAST_STARTED_KEY_PREFIX)) {
+                String serverUuid = entry.getKey().substring(LAST_STARTED_KEY_PREFIX.length());
+                String lastStartedKey = (String) entry.getValue();
+
+                if (lastStartedKey != null && !lastStartedKey.isEmpty()) {
+                    ServerRunningState state = serverStates.get(serverUuid);
+                    if (state == null) {
+                        state = new ServerRunningState();
+                        serverStates.put(serverUuid, state);
+                    }
+                    state.lastStartedQuickLaunchKey = lastStartedKey;
+                }
+            }
+        }
+    }
+
+    private void saveLastStartedKey(String serverUuid, String quickLaunchKey) {
+        String prefKey = LAST_STARTED_KEY_PREFIX + serverUuid;
+        if (quickLaunchKey == null || quickLaunchKey.isEmpty()) {
+            preferences.edit().remove(prefKey).apply();
+        } else {
+            preferences.edit().putString(prefKey, quickLaunchKey).apply();
+        }
     }
     
     public void updateRunningAppId(int runningAppId, String serverUuid) {
@@ -132,8 +163,8 @@ public class QuickLaunchManager {
 
         state.runningAppId = runningAppId;
 
-        // If appId is 0, clear the Quick Launch key for this server
         if (runningAppId == 0) {
+            // Don't clear the Quick Launch key here - sometimes the runningAppId goes to 0 briefly
             if (runningStatusListener != null) {
                 runningStatusListener.onRunningStatusChanged();
             }
@@ -163,6 +194,7 @@ public class QuickLaunchManager {
         }
 
         state.lastStartedQuickLaunchKey = newKey;
+        saveLastStartedKey(serverUuid, newKey);
 
         if (runningStatusListener != null) {
             runningStatusListener.onRunningStatusChanged();
@@ -183,6 +215,7 @@ public class QuickLaunchManager {
 
                 state.runningAppId = item.appId;
                 state.lastStartedQuickLaunchKey = quickLaunchKey;
+                saveLastStartedKey(item.computerUuid, quickLaunchKey);
 
                 if (runningStatusListener != null) {
                     runningStatusListener.onRunningStatusChanged();
