@@ -18,6 +18,7 @@ import com.limelight.nvstream.http.PairingManager;
 import com.limelight.nvstream.wol.WakeOnLanSender;
 import com.limelight.utils.CacheHelper;
 import com.limelight.utils.Dialog;
+import com.limelight.utils.QuickLaunchManager;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
@@ -31,9 +32,12 @@ import java.util.List;
 import java.util.UUID;
 
 public class ShortcutTrampoline extends Activity {
+    public static final String EXTRA_QUICK_LAUNCH_NAME = "QuickLaunchName";
+
     private String uuidString;
     private NvApp app;
-    private ArrayList<Intent> intentStack = new ArrayList<>();
+    private String quickLaunchKey;
+    private final ArrayList<Intent> intentStack = new ArrayList<>();
 
     private int wakeHostTries = 10;
     private ComputerDetails computer;
@@ -111,39 +115,59 @@ public class ShortcutTrampoline extends Activity {
                                 runOnUiThread(new Runnable() {
                                     @Override
                                     public void run() {
+                                        // If the managerBinder was already cleaned up by a previous callback,
+                                        // just return early to avoid processing the same state multiple times
+                                        if (managerBinder == null) {
+                                            return;
+                                        }
+
                                         // Stop showing the spinner
                                         if (blockingLoadSpinner != null) {
                                             blockingLoadSpinner.dismiss();
                                             blockingLoadSpinner = null;
                                         }
 
-                                        // If the managerBinder was destroyed before this callback,
-                                        // just finish the activity.
-                                        if (managerBinder == null) {
-                                            finish();
-                                            return;
-                                        }
-
                                         if (details.state == ComputerDetails.State.ONLINE && details.pairState == PairingManager.PairState.PAIRED) {
-                                            
+
                                             // Launch game if provided app ID, otherwise launch app view
                                             if (app != null) {
                                                 if (details.runningGameId == 0 || details.runningGameId == app.getAppId()) {
-                                                    intentStack.add(ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder));
+                                                    // Add the PC view at the back (and clear the task)
+                                                    Intent i = new Intent(ShortcutTrampoline.this, PcView.class);
+                                                    i.setAction(Intent.ACTION_MAIN);
+                                                    i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                                    intentStack.add(i);
+
+                                                    // Add the game intent
+                                                    intentStack.add(ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder, quickLaunchKey));
 
                                                     // Close this activity
                                                     finish();
 
                                                     // Now start the activities
                                                     startActivities(intentStack.toArray(new Intent[]{}));
+                                                    // Disable transition animation for seamless launch
+                                                    overridePendingTransition(0, 0);
                                                 } else {
                                                     // Create the start intent immediately, so we can safely unbind the managerBinder
                                                     // below before we return.
-                                                    final Intent startIntent = ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder);
+                                                    final Intent startIntent = ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder, quickLaunchKey);
+
+                                                    // Stop polling and unbind BEFORE showing the dialog to prevent it from flashing
+                                                    managerBinder.stopPolling();
+                                                    unbindService(serviceConnection);
+                                                    managerBinder = null;
 
                                                     UiHelper.displayQuitConfirmationDialog(ShortcutTrampoline.this, new Runnable() {
                                                         @Override
                                                         public void run() {
+                                                            // Add the PC view at the back (and clear the task)
+                                                            Intent i = new Intent(ShortcutTrampoline.this, PcView.class);
+                                                            i.setAction(Intent.ACTION_MAIN);
+                                                            i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                                            intentStack.add(i);
+
+                                                            // Add the game intent
                                                             intentStack.add(startIntent);
 
                                                             // Close this activity
@@ -151,6 +175,8 @@ public class ShortcutTrampoline extends Activity {
 
                                                             // Now start the activities
                                                             startActivities(intentStack.toArray(new Intent[]{}));
+                                                            // Disable transition animation for seamless launch
+                                                            overridePendingTransition(0, 0);
                                                         }
                                                     }, new Runnable() {
                                                         @Override
@@ -159,6 +185,9 @@ public class ShortcutTrampoline extends Activity {
                                                             finish();
                                                         }
                                                     });
+
+                                                    // Don't continue to the cleanup code below since we already cleaned up
+                                                    return;
                                                 }
                                             } else {
                                                 // Close this activity
@@ -184,6 +213,8 @@ public class ShortcutTrampoline extends Activity {
 
                                                 // Now start the activities
                                                 startActivities(intentStack.toArray(new Intent[]{}));
+                                                // Disable transition animation for seamless launch
+                                                overridePendingTransition(0, 0);
                                             }
                                             
                                         }
@@ -284,6 +315,33 @@ public class ShortcutTrampoline extends Activity {
         // App arguments, both are optional, but one must be provided in order to start an app
         String appIdString = getIntent().getStringExtra(Game.EXTRA_APP_ID);
         String appNameString = getIntent().getStringExtra(Game.EXTRA_APP_NAME);
+        String quickLaunchName = getIntent().getStringExtra(EXTRA_QUICK_LAUNCH_NAME);
+
+        // Handle Quick Launch name lookup first
+        if (quickLaunchName != null && !quickLaunchName.isEmpty()) {
+            QuickLaunchManager quickLaunchManager = QuickLaunchManager.getInstance(this);
+            QuickLaunchManager.QuickLaunchItem item = quickLaunchManager.getQuickLaunchItemByName(quickLaunchName);
+
+            if (item == null) {
+                Dialog.displayDialog(ShortcutTrampoline.this,
+                        getResources().getString(R.string.conn_error_title),
+                        "Quick Launch item not found: " + quickLaunchName,
+                        true);
+                return;
+            }
+
+            // Set up the intent with the Quick Launch item details
+            uuidString = item.computerUuid;
+            appIdString = String.valueOf(item.appId);
+            appNameString = item.originalAppName;
+            quickLaunchKey = item.key;
+
+            // Update the intent extras
+            setIntent(new Intent(getIntent())
+                .putExtra(AppView.UUID_EXTRA, uuidString)
+                .putExtra(Game.EXTRA_APP_ID, appIdString)
+                .putExtra(Game.EXTRA_APP_NAME, appNameString));
+        }
 
         if (!validateInput(uuidString, appIdString, nameString)) {
             // Invalid input, so just return

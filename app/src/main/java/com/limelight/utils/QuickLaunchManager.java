@@ -238,7 +238,7 @@ public class QuickLaunchManager {
         return key.equals(state.lastStartedQuickLaunchKey) && state.runningAppId == item.appId;
     }
 
-    private QuickLaunchItem getQuickLaunchItemByKey(String key) {
+    public QuickLaunchItem getQuickLaunchItemByKey(String key) {
         if (key == null) return null;
 
         List<QuickLaunchItem> items = getAllQuickLaunchItems();
@@ -249,7 +249,22 @@ public class QuickLaunchManager {
         }
         return null;
     }
-    
+
+    /**
+     * Get a Quick Launch item by its custom name (case-insensitive)
+     */
+    public QuickLaunchItem getQuickLaunchItemByName(String name) {
+        if (name == null || name.isEmpty()) return null;
+
+        List<QuickLaunchItem> items = getAllQuickLaunchItems();
+        for (QuickLaunchItem item : items) {
+            if (item.customName.equalsIgnoreCase(name)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
     /**
      * Add an app to Quick Launch
      */
