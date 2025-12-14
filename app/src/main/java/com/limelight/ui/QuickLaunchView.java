@@ -99,7 +99,7 @@ public class QuickLaunchView {
             // Get the app ID for this Quick Launch item
             QuickLaunchManager.QuickLaunchItem item = getQuickLaunchItemByKey(key);
             if (item != null) {
-                menu.setHeaderTitle(item.getDisplayNameLong());
+                menu.setHeaderTitle(item.originalAppName);
                 
                 // Add quit option if this Quick Launch item is running
                 if (quickLaunchManager.isQuickLaunchItemRunning(item.key)) {
