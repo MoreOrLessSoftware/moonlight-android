@@ -186,6 +186,15 @@
             android:name=".binding.input.driver.UsbDriverService"
             android:label="Usb Driver Service" />
 
+        <!-- Broadcast receiver for quitting the stream from external apps -->
+        <receiver
+            android:name=".receivers.StreamControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.limelight.QUIT_STREAM" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".HelpActivity"
             android:resizeableActivity="true"

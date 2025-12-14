@@ -174,6 +174,24 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     };
 
+    private final android.content.BroadcastReceiver quitAppReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (ACTION_QUIT_APP.equals(intent.getAction())) {
+                // Set flag to quit the app on the server (same as gamepad quit gesture)
+                if (controllerHandler != null) {
+                    controllerHandler.pendingApplicationQuit = true;
+                }
+
+                // Stop the connection (which will call doQuit if pendingApplicationQuit is set)
+                stopConnection();
+
+                // Finish the activity
+                finish();
+            }
+        }
+    };
+
     public static final String EXTRA_HOST = "Host";
     public static final String EXTRA_PORT = "Port";
     public static final String EXTRA_HTTPS_PORT = "HttpsPort";
@@ -185,6 +203,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public static final String EXTRA_APP_HDR = "HDR";
     public static final String EXTRA_SERVER_CERT = "ServerCert";
     public static final String EXTRA_QUICK_LAUNCH_APP_KEY = "QuickLaunchAppKey";
+    public static final String ACTION_QUIT_APP = "com.limelight.QUIT_STREAMING_APP";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -548,6 +567,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
                     "This device or ROM doesn't support hardware accelerated H.264 playback.", true);
             return;
+        }
+
+        // Register broadcast receiver to allow external control
+        android.content.IntentFilter filter = new android.content.IntentFilter(ACTION_QUIT_APP);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(quitAppReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(quitAppReceiver, filter);
         }
 
         // The connection will be started when the surface gets created
@@ -1049,6 +1076,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        // Unregister broadcast receiver
+        try {
+            unregisterReceiver(quitAppReceiver);
+        } catch (IllegalArgumentException e) {
+            // Receiver not registered, ignore
+        }
 
         if (controllerHandler != null) {
             // Unregister virtual controller listener before destroying
