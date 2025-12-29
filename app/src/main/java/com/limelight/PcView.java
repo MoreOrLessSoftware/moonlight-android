@@ -68,6 +68,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
     private QuickLaunchView quickLaunchView;
+    private ImageButton perfOverlayButton;
     
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder binder) {
@@ -144,6 +145,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         ImageButton settingsButton = findViewById(R.id.settingsButton);
         ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
         ImageButton helpButton = findViewById(R.id.helpButton);
+        perfOverlayButton = findViewById(R.id.perfOverlayButton);
 
         settingsButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -162,6 +164,12 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             @Override
             public void onClick(View v) {
                 HelpLauncher.launchSetupGuide(PcView.this);
+            }
+        });
+        perfOverlayButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                togglePerfOverlay();
             }
         });
 
@@ -189,6 +197,9 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             noPcFoundLayout.setVisibility(View.INVISIBLE);
         }
         pcGridAdapter.notifyDataSetChanged();
+
+        // Update perf overlay button visual state
+        updatePerfOverlayButton();
     }
 
     @Override
@@ -322,7 +333,10 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
         inForeground = true;
         startComputerUpdates();
-        
+
+        // Update perf overlay button state in case it changed in settings
+        updatePerfOverlayButton();
+
         // Notify QuickLaunchView of resume
         if (quickLaunchView != null) {
             quickLaunchView.onResume();
@@ -813,6 +827,29 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     @Override
     public ComputerManagerService.ComputerManagerBinder getManagerBinder() {
         return managerBinder;
+    }
+
+    private void togglePerfOverlay() {
+        PreferenceConfiguration config = PreferenceConfiguration.readPreferences(this);
+        boolean newValue = !config.enablePerfOverlay;
+
+        // Write the new value to SharedPreferences
+        android.content.SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        prefs.edit().putBoolean("checkbox_enable_perf_overlay", newValue).apply();
+
+        updatePerfOverlayButton();
+        Toast.makeText(this, "Performance overlay " + (newValue ? "enabled" : "disabled"), Toast.LENGTH_SHORT).show();
+    }
+
+    private void updatePerfOverlayButton() {
+        if (perfOverlayButton != null) {
+            PreferenceConfiguration prefs = PreferenceConfiguration.readPreferences(this);
+            if (prefs.enablePerfOverlay) {
+                perfOverlayButton.setImageResource(R.drawable.ic_perf_overlay_enabled);
+            } else {
+                perfOverlayButton.setImageResource(R.drawable.ic_perf_overlay);
+            }
+        }
     }
 
     public static class ComputerObject {
