@@ -15,15 +15,15 @@ public class AppPreferences {
         public String framePacing;
         public int bitrate;
         public double actualDisplayRefreshRate;
-        public boolean enableHdr;
-        public boolean enablePerfOverlay;
+        public String enableHdr;
+        public String enablePerfOverlay;
         public boolean useGlobalSettings;
 
         public AppSettings() {
             this.useGlobalSettings = true;
         }
 
-        public AppSettings(String resolution, int fps, String framePacing, int bitrate, double actualDisplayRefreshRate, boolean enableHdr, boolean enablePerfOverlay, boolean useGlobalSettings) {
+        public AppSettings(String resolution, int fps, String framePacing, int bitrate, double actualDisplayRefreshRate, String enableHdr, String enablePerfOverlay, boolean useGlobalSettings) {
             this.resolution = resolution;
             this.fps = fps;
             this.framePacing = framePacing;
@@ -54,8 +54,8 @@ public class AppPreferences {
                 json.optString("framePacing", null),
                 json.optInt("bitrate", 0),
                 json.optDouble("actualDisplayRefreshRate", 0),
-                json.optBoolean("enableHdr", false),
-                json.optBoolean("enablePerfOverlay", false),
+                json.optString("enableHdr", null),
+                json.optString("enablePerfOverlay", null),
                 json.optBoolean("useGlobalSettings", true)
             );
         }
@@ -192,22 +192,26 @@ public class AppPreferences {
         }
 
         // HDR
-        boolean enableHdr = config.enableHdr; // Start with global
-        if (quickLaunchSettings != null && !quickLaunchSettings.useGlobalSettings) {
-            enableHdr = quickLaunchSettings.enableHdr;
-        } else if (!appSettings.useGlobalSettings) {
-            enableHdr = appSettings.enableHdr;
+        String enableHdrValue = null;
+        if (quickLaunchSettings != null && quickLaunchSettings.enableHdr != null) {
+            enableHdrValue = quickLaunchSettings.enableHdr;
+        } else if (!appSettings.useGlobalSettings && appSettings.enableHdr != null) {
+            enableHdrValue = appSettings.enableHdr;
         }
-        config.enableHdr = enableHdr;
+        if (enableHdrValue != null) {
+            config.enableHdr = Boolean.parseBoolean(enableHdrValue);
+        }
 
         // Performance overlay
-        boolean enablePerfOverlay = config.enablePerfOverlay; // Start with global
-        if (quickLaunchSettings != null && !quickLaunchSettings.useGlobalSettings) {
-            enablePerfOverlay = quickLaunchSettings.enablePerfOverlay;
-        } else if (!appSettings.useGlobalSettings) {
-            enablePerfOverlay = appSettings.enablePerfOverlay;
+        String enablePerfOverlayValue = null;
+        if (quickLaunchSettings != null && quickLaunchSettings.enablePerfOverlay != null) {
+            enablePerfOverlayValue = quickLaunchSettings.enablePerfOverlay;
+        } else if (!appSettings.useGlobalSettings && appSettings.enablePerfOverlay != null) {
+            enablePerfOverlayValue = appSettings.enablePerfOverlay;
         }
-        config.enablePerfOverlay = enablePerfOverlay;
+        if (enablePerfOverlayValue != null) {
+            config.enablePerfOverlay = Boolean.parseBoolean(enablePerfOverlayValue);
+        }
 
         return config;
     }

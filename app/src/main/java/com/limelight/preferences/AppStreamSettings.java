@@ -58,7 +58,7 @@ public class AppStreamSettings extends Activity {
             // Get original arrays from resources
             String[] originalEntries = getResources().getStringArray(R.array.video_frame_pacing_names);
             String[] originalValues = getResources().getStringArray(R.array.video_frame_pacing_values);
-            
+
             // Create new arrays with default option at the beginning
             String[] newEntries = new String[originalEntries.length + 1];
             String[] newValues = new String[originalValues.length + 1];
@@ -70,13 +70,38 @@ public class AppStreamSettings extends Activity {
             // Copy original arrays starting from index 1
             System.arraycopy(originalEntries, 0, newEntries, 1, originalEntries.length);
             System.arraycopy(originalValues, 0, newValues, 1, originalValues.length);
-            
+
             // Update the preference
             framePacingPref.setEntries(newEntries);
             framePacingPref.setEntryValues(newValues);
-            
+
             // Set current value (null becomes empty string for default)
             framePacingPref.setValue(currentValue == null ? "" : currentValue);
+        }
+
+        private void setupBooleanPreference(ListPreference pref, int entriesResourceId, int valuesResourceId, String currentValue, boolean isQuickLaunch) {
+            // Get original arrays from resources
+            String[] originalEntries = getResources().getStringArray(entriesResourceId);
+            String[] originalValues = getResources().getStringArray(valuesResourceId);
+
+            // Create new arrays with default option at the beginning
+            String[] newEntries = new String[originalEntries.length + 1];
+            String[] newValues = new String[originalValues.length + 1];
+
+            // Use different label depending on whether this is a quick launch item or app
+            newEntries[0] = isQuickLaunch ? "[Use app default]" : "[Use global default]";
+            newValues[0] = ""; // Empty string represents null/default
+
+            // Copy original arrays starting from index 1
+            System.arraycopy(originalEntries, 0, newEntries, 1, originalEntries.length);
+            System.arraycopy(originalValues, 0, newValues, 1, originalValues.length);
+
+            // Update the preference
+            pref.setEntries(newEntries);
+            pref.setEntryValues(newValues);
+
+            // Set current value (null becomes empty string for default)
+            pref.setValue(currentValue == null ? "" : currentValue);
         }
 
         private void showCustomResolutionDialog() {
@@ -180,8 +205,8 @@ public class AppStreamSettings extends Activity {
             EditTextPreference fpsPref = (EditTextPreference) findPreference("text_app_fps");
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
-            CheckBoxPreference enableHdrPref = (CheckBoxPreference) findPreference("checkbox_app_enable_hdr");
-            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_app_enable_perf_overlay");
+            ListPreference enableHdrPref = (ListPreference) findPreference("list_app_enable_hdr");
+            ListPreference enablePerfOverlayPref = (ListPreference) findPreference("list_app_enable_perf_overlay");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
 
             // Update checkbox label and summary based on whether this is a quick launch item
@@ -197,8 +222,8 @@ public class AppStreamSettings extends Activity {
             bitratePref.setText(currentSettings.bitrate > 0 ? String.valueOf(currentSettings.bitrate / 1000) : "");
             actualDisplayRefreshRatePref.setText(currentSettings.actualDisplayRefreshRate > 0 ? String.valueOf(currentSettings.actualDisplayRefreshRate) : "");
             setupFramePacingPreference(framePacingPref, currentSettings.framePacing, isQuickLaunch);
-            enableHdrPref.setChecked(currentSettings.enableHdr);
-            enablePerfOverlayPref.setChecked(currentSettings.enablePerfOverlay);
+            setupBooleanPreference(enableHdrPref, R.array.hdr_setting_names, R.array.hdr_setting_values, currentSettings.enableHdr, isQuickLaunch);
+            setupBooleanPreference(enablePerfOverlayPref, R.array.perf_overlay_setting_names, R.array.perf_overlay_setting_values, currentSettings.enablePerfOverlay, isQuickLaunch);
 
             updatePreferenceSummaries();
             updatePreferenceStates(useGlobalPref.isChecked());
@@ -326,8 +351,8 @@ public class AppStreamSettings extends Activity {
             findPreference("text_app_bitrate_kbps").setEnabled(!useGlobal);
             findPreference("list_app_frame_pacing").setEnabled(!useGlobal);
             findPreference("text_app_actual_display_refresh_rate").setEnabled(!useGlobal);
-            findPreference("checkbox_app_enable_hdr").setEnabled(!useGlobal);
-            findPreference("checkbox_app_enable_perf_overlay").setEnabled(!useGlobal);
+            findPreference("list_app_enable_hdr").setEnabled(!useGlobal);
+            findPreference("list_app_enable_perf_overlay").setEnabled(!useGlobal);
         }
         
         private void updatePreferenceSummaries() {
@@ -336,14 +361,16 @@ public class AppStreamSettings extends Activity {
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
             EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
-            
+            ListPreference enableHdrPref = (ListPreference) findPreference("list_app_enable_hdr");
+            ListPreference enablePerfOverlayPref = (ListPreference) findPreference("list_app_enable_perf_overlay");
+
             // Set resolution summary
             if (currentResolution != null && !currentResolution.isEmpty()) {
                 resolutionPref.setSummary(currentResolution);
             } else {
                 resolutionPref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
             }
-            
+
             // Set FPS summary
             String fps = fpsPref.getText();
             if (fps != null && !fps.isEmpty() && !fps.equals("0")) {
@@ -351,7 +378,7 @@ public class AppStreamSettings extends Activity {
             } else {
                 fpsPref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
             }
-            
+
             // Set bitrate summary
             String bitrateMbps = bitratePref.getText();
             if (bitrateMbps != null && !bitrateMbps.isEmpty() && !bitrateMbps.equals("0")) {
@@ -359,17 +386,17 @@ public class AppStreamSettings extends Activity {
             } else {
                 bitratePref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
             }
-            
+
             // Set frame pacing summary - show the human readable name or default label
             String framePacing = framePacingPref.getValue();
-            CharSequence[] entries = framePacingPref.getEntries();
-            CharSequence[] values = framePacingPref.getEntryValues();
+            CharSequence[] framePacingEntries = framePacingPref.getEntries();
+            CharSequence[] framePacingValues = framePacingPref.getEntryValues();
 
             // Find and display the matching entry (including the default option at index 0)
-            for (int i = 0; i < values.length; i++) {
-                if ((framePacing == null && values[i].toString().isEmpty()) ||
-                    (framePacing != null && framePacing.equals(values[i].toString()))) {
-                    framePacingPref.setSummary(entries[i]);
+            for (int i = 0; i < framePacingValues.length; i++) {
+                if ((framePacing == null && framePacingValues[i].toString().isEmpty()) ||
+                    (framePacing != null && framePacing.equals(framePacingValues[i].toString()))) {
+                    framePacingPref.setSummary(framePacingEntries[i]);
                     break;
                 }
             }
@@ -380,6 +407,30 @@ public class AppStreamSettings extends Activity {
                 actualDisplayRefreshRatePref.setSummary(actualDisplayRefreshRate + "Hz");
             } else {
                 actualDisplayRefreshRatePref.setSummary(android.text.Html.fromHtml("<i>Not set</i>"));
+            }
+
+            // Set HDR summary - show the human readable name or default label
+            String enableHdr = enableHdrPref.getValue();
+            CharSequence[] hdrEntries = enableHdrPref.getEntries();
+            CharSequence[] hdrValues = enableHdrPref.getEntryValues();
+            for (int i = 0; i < hdrValues.length; i++) {
+                if ((enableHdr == null && hdrValues[i].toString().isEmpty()) ||
+                    (enableHdr != null && enableHdr.equals(hdrValues[i].toString()))) {
+                    enableHdrPref.setSummary(hdrEntries[i]);
+                    break;
+                }
+            }
+
+            // Set perf overlay summary - show the human readable name or default label
+            String enablePerfOverlay = enablePerfOverlayPref.getValue();
+            CharSequence[] perfOverlayEntries = enablePerfOverlayPref.getEntries();
+            CharSequence[] perfOverlayValues = enablePerfOverlayPref.getEntryValues();
+            for (int i = 0; i < perfOverlayValues.length; i++) {
+                if ((enablePerfOverlay == null && perfOverlayValues[i].toString().isEmpty()) ||
+                    (enablePerfOverlay != null && enablePerfOverlay.equals(perfOverlayValues[i].toString()))) {
+                    enablePerfOverlayPref.setSummary(perfOverlayEntries[i]);
+                    break;
+                }
             }
         }
 
@@ -393,8 +444,8 @@ public class AppStreamSettings extends Activity {
             EditTextPreference bitratePref = (EditTextPreference) findPreference("text_app_bitrate_kbps");
             ListPreference framePacingPref = (ListPreference) findPreference("list_app_frame_pacing");
             EditTextPreference actualDisplayRefreshRatePref = (EditTextPreference) findPreference("text_app_actual_display_refresh_rate");
-            CheckBoxPreference enableHdrPref = (CheckBoxPreference) findPreference("checkbox_app_enable_hdr");
-            CheckBoxPreference enablePerfOverlayPref = (CheckBoxPreference) findPreference("checkbox_app_enable_perf_overlay");
+            ListPreference enableHdrPref = (ListPreference) findPreference("list_app_enable_hdr");
+            ListPreference enablePerfOverlayPref = (ListPreference) findPreference("list_app_enable_perf_overlay");
 
             int fps = 0;
             String fpsText = fpsPref.getText();
@@ -415,7 +466,7 @@ public class AppStreamSettings extends Activity {
                 } catch (NumberFormatException ignored) {
                 }
             }
-            
+
             // Convert empty string back to null for frame pacing (represents default)
             String framePacingValue = framePacingPref.getValue();
             if (framePacingValue != null && framePacingValue.isEmpty()) {
@@ -431,14 +482,26 @@ public class AppStreamSettings extends Activity {
                 }
             }
 
+            // Convert empty string back to null for HDR (represents default)
+            String enableHdrValue = enableHdrPref.getValue();
+            if (enableHdrValue != null && enableHdrValue.isEmpty()) {
+                enableHdrValue = null;
+            }
+
+            // Convert empty string back to null for perf overlay (represents default)
+            String enablePerfOverlayValue = enablePerfOverlayPref.getValue();
+            if (enablePerfOverlayValue != null && enablePerfOverlayValue.isEmpty()) {
+                enablePerfOverlayValue = null;
+            }
+
             AppPreferences.AppSettings settings = new AppPreferences.AppSettings(
                 currentResolution,
                 fps,
                 framePacingValue,
                 bitrateKbps,
                 actualDisplayRefreshRate,
-                enableHdrPref.isChecked(),
-                enablePerfOverlayPref.isChecked(),
+                enableHdrValue,
+                enablePerfOverlayValue,
                 useGlobalPref.isChecked()
             );
 

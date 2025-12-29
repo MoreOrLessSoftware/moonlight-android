@@ -131,4 +131,22 @@
         <item>right</item>
         <item>left</item>
     </string-array>
+
+    <string-array name="hdr_setting_names">
+        <item>On</item>
+        <item>Off</item>
+    </string-array>
+    <string-array name="hdr_setting_values" translatable="false">
+        <item>true</item>
+        <item>false</item>
+    </string-array>
+
+    <string-array name="perf_overlay_setting_names">
+        <item>On</item>
+        <item>Off</item>
+    </string-array>
+    <string-array name="perf_overlay_setting_values" translatable="false">
+        <item>true</item>
+        <item>false</item>
+    </string-array>
 </resources>

@@ -38,14 +38,16 @@
             android:title="Actual display refresh rate"
             android:summary="The actual refresh rate of the display connected to your device, in case it is not the same even number as the FPS. Host should have the same refresh rate or frame rate cap for best smoothness. Leave as '0' for same as stream FPS"
             android:inputType="numberDecimal" />
-        <CheckBoxPreference
-            android:key="checkbox_app_enable_hdr"
+        <ListPreference
+            android:key="list_app_enable_hdr"
             android:title="@string/title_enable_hdr"
-            android:summary="@string/summary_enable_hdr" />
-        <CheckBoxPreference
-            android:key="checkbox_app_enable_perf_overlay"
+            android:entries="@array/hdr_setting_names"
+            android:entryValues="@array/hdr_setting_values" />
+        <ListPreference
+            android:key="list_app_enable_perf_overlay"
             android:title="@string/title_enable_perf_overlay"
-            android:summary="@string/summary_enable_perf_overlay" />
+            android:entries="@array/perf_overlay_setting_names"
+            android:entryValues="@array/perf_overlay_setting_values" />
     </PreferenceCategory>
 
 </PreferenceScreen>
