@@ -398,6 +398,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             return false;
         }
 
+        // TODO: Temporarily force HDR on so we can get 10-bit SDR (need to add a preference for this)
+        if (prefs.enableHdr) {
+            return true;
+        }
+
         for (MediaCodecInfo.CodecProfileLevel profileLevel : hevcDecoder.getCapabilitiesForType("video/hevc").profileLevels) {
             if (profileLevel.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10) {
                 LimeLog.info("HEVC decoder "+hevcDecoder.getName()+" supports HEVC Main10 HDR10");
