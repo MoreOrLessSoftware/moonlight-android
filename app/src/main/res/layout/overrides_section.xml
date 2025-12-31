@@ -33,7 +33,7 @@
             android:layout_height="wrap_content"
             android:text="@string/bitrate_use_default"
             android:textAppearance="?android:attr/textAppearanceSmall"
-            android:minWidth="150dp"
+            android:minWidth="160dp"
             android:layout_marginEnd="12dp" />
 
         <SeekBar
@@ -42,6 +42,35 @@
             android:layout_height="wrap_content"
             android:max="50"
             android:progress="0" />
+
+        <LinearLayout
+            android:id="@+id/perfOverlayButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginStart="12dp"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?android:attr/selectableItemBackground">
+
+            <ImageView
+                android:id="@+id/perfOverlayIcon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_perf_overlay_default"
+                android:contentDescription="Performance Overlay Override" />
+
+            <TextView
+                android:id="@+id/perfOverlayLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Performance stats: Default"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
