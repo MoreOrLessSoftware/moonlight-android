@@ -31,7 +31,7 @@ Tap the left edge of the screen to show a brightness slider and set a custom bri
 
 These overrides will supersede any per-app or Quick Launch settings when enabled:
 
-![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides3.png)
+![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides4.png)
 
 ### 5. New gamepad button chord for quitting host app
 
