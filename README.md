@@ -29,7 +29,7 @@ Tap the left edge of the screen to show a brightness slider and set a custom bri
 
 ### 4. Overrides for bitrate and performance stats
 
-These overrides will supercede any per-app or Quick Launch settings when enabled:
+These overrides will supersede any per-app or Quick Launch settings when enabled:
 
 ![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides3.png)
 
