@@ -2,12 +2,14 @@ package com.limelight.preferences;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 public class AppPreferences {
     private static final String APP_PREFERENCES_FILE = "AppPreferences";
+    private static final String PREF_BITRATE_OVERRIDE = "bitrate_override"; // Global bitrate override
 
     public static class AppSettings {
         public String resolution;
@@ -211,6 +213,14 @@ public class AppPreferences {
         }
         if (enablePerfOverlayValue != null) {
             config.enablePerfOverlay = Boolean.parseBoolean(enablePerfOverlayValue);
+        }
+
+        // Apply global bitrate override (highest priority)
+        // This override applies to all streams regardless of other settings
+        SharedPreferences defaultPrefs = PreferenceManager.getDefaultSharedPreferences(context);
+        int bitrateOverride = defaultPrefs.getInt(PREF_BITRATE_OVERRIDE, 0);
+        if (bitrateOverride > 0) {
+            config.bitrate = bitrateOverride;
         }
 
         return config;

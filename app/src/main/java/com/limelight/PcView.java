@@ -22,6 +22,7 @@ import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.preferences.StreamSettings;
 import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
+import com.limelight.ui.OverridesView;
 import com.limelight.ui.QuickLaunchView;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.HelpLauncher;
@@ -69,6 +70,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
     private QuickLaunchView quickLaunchView;
     private ImageButton perfOverlayButton;
+    private OverridesView overridesView;
     
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder binder) {
@@ -188,6 +190,9 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         LinearLayout quickLaunchSection = findViewById(R.id.quickLaunchSection);
         LinearLayout quickLaunchContainer = findViewById(R.id.quickLaunchContainer);
         quickLaunchView = new QuickLaunchView(this, quickLaunchSection, quickLaunchContainer, this);
+
+        // Initialize Overrides section
+        overridesView = new OverridesView(this);
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
         if (pcGridAdapter.getCount() == 0) {
@@ -319,6 +324,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             quickLaunchView.onDestroy();
         }
 
+        // Notify OverridesView of destroy
+        if (overridesView != null) {
+            overridesView.onDestroy();
+        }
+
         if (managerBinder != null) {
             unbindService(serviceConnection);
         }
@@ -341,6 +351,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         if (quickLaunchView != null) {
             quickLaunchView.onResume();
         }
+
+        // Notify OverridesView of resume
+        if (overridesView != null) {
+            overridesView.onResume();
+        }
     }
 
     @Override
@@ -349,10 +364,15 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
         inForeground = false;
         stopComputerUpdates(false);
-        
+
         // Notify QuickLaunchView of pause
         if (quickLaunchView != null) {
             quickLaunchView.onPause();
+        }
+
+        // Notify OverridesView of pause
+        if (overridesView != null) {
+            overridesView.onPause();
         }
     }
 
