@@ -50,7 +50,7 @@ These seem to reduce latency by a couple ms on my Pixel 7a and also actual rende
 
 ## Download
 
-[Download the latest v0.2.0 release here](https://github.com/MoreOrLessSoftware/moonlight-android/releases/download/v0.2.0/moonlight-X-nonRoot-release-v0.2.0.apk). This APK will install as a new app called Moonlight X.
+[Download the latest v0.2.13 release here](https://github.com/MoreOrLessSoftware/moonlight-android/releases/download/v0.2.13/moonlight-X-nonRoot-release-v0.2.13.apk). This APK will install as a new app called Moonlight X.
 
 ## Building
 * Install Android Studio and the Android NDK
