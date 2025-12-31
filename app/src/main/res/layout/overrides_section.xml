@@ -18,7 +18,7 @@
         android:textStyle="bold"
         android:layout_marginBottom="8dp" />
 
-    <!-- Bitrate Override -->
+    <!-- Overrides Controls -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -27,33 +27,19 @@
         android:paddingStart="8dp"
         android:paddingEnd="8dp">
 
-        <TextView
-            android:id="@+id/bitrateOverrideValue"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/bitrate_use_default"
-            android:textSize="14sp"
-            android:minWidth="160dp"
-            android:layout_marginEnd="12dp" />
-
-        <SeekBar
-            android:id="@+id/bitrateOverrideSeekBar"
-            android:layout_width="350dp"
-            android:layout_height="wrap_content"
-            android:max="60"
-            android:progress="0" />
-
+        <!-- Stats Overlay Button -->
         <LinearLayout
             android:id="@+id/perfOverlayButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginStart="12dp"
             android:padding="8dp"
             android:clickable="true"
             android:focusable="true"
-            android:background="?android:attr/selectableItemBackground">
+            android:background="@drawable/button_border_rounded"
+            android:layout_marginEnd="16dp">
 
             <ImageView
                 android:id="@+id/perfOverlayIcon"
@@ -64,13 +50,41 @@
 
             <TextView
                 android:id="@+id/perfOverlayLabel"
-                android:layout_width="wrap_content"
+                android:layout_width="180dp"
                 android:layout_height="wrap_content"
                 android:text="Stats overlay: Default"
                 android:textSize="14sp"
                 android:singleLine="true"
                 android:ellipsize="end"
                 android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Bitrate Override -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:background="@drawable/button_border_rounded">
+
+            <TextView
+                android:id="@+id/bitrateOverrideValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bitrate_use_default"
+                android:textSize="14sp"
+                android:minWidth="160dp"
+                android:layout_marginEnd="12dp" />
+
+            <SeekBar
+                android:id="@+id/bitrateOverrideSeekBar"
+                android:layout_width="350dp"
+                android:layout_height="wrap_content"
+                android:max="60"
+                android:progress="0" />
 
         </LinearLayout>
 
