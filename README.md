@@ -10,7 +10,7 @@ This fork aims to build upon the original Android client with some new features 
 
 You can create shortcuts to specific Sunshine apps and apply custom streaming settings (like resolution, FPS, bitrate, etc) to each shortcut. The same app can be configured to multiple shortcuts:
 
-[![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/quick-launch.png)](https://youtu.be/3kc8VEu1x7k)
+[![Quick Launch Apps](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/quick-launch.png)](https://youtu.be/3kc8VEu1x7k)
 
 > [!NOTE]
 > Quick Launch apps can also be added as shortcuts in Android launchers, etc.
@@ -19,21 +19,19 @@ You can create shortcuts to specific Sunshine apps and apply custom streaming se
 
 Each app can now have it's own settings for resolution, FPS, bitrate, frame pacing, etc:
 
-[![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/per-app-settings.png)](https://youtu.be/AYPQj0LOsxk)
+[![Per-app settings](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/per-app-settings.png)](https://youtu.be/AYPQj0LOsxk)
 
 ### 3. Brightness adjustment while streaming
 
 Tap the left edge of the screen to show a brightness slider and set a custom brightness while streaming (or slide it to the bottom for "Auto" which will use the system brightness):
 
-[![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/brightness-slider.png)](https://youtu.be/CnanqtRz0FI)
+[![Brightness adjustment](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/brightness-slider.png)](https://youtu.be/CnanqtRz0FI)
 
-### 4. Quick toggle for performance overlay + bitrate override
+### 4. Overrides for bitrate and performance stats
 
-The performance overlay toggle changes the main setting.
+These overrides will supercede any per-app or Quick Launch settings when enabled:
 
-The bitrate override supercedes the global, per-app and Quick Launch bitrate settings. Slide all the way to the left to disable the override.
-
-![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides.png)
+![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides2.png)
 
 ### 5. New gamepad button chord for quitting host app
 
@@ -52,13 +50,17 @@ videoFormat.setInteger("vendor.sec-dec-output.delay", 0); // Minimal output dela
 
 These seem to reduce latency by a couple ms on my Pixel 7a and also actual rendering latency by 1 or 2 frames in my tests. To use, enable the "Ultra Low Latency" setting and I would suggest Balanced frame pacing.
 
+### 7. Force HDR (10-bit SDR) streaming on devices that don't support HDR (Experimental)
+
+Some non-HDR devices can still stream 10-bit SDR if Sunshine sends it. This simple hack bypasses the HEVC decoder check for HDR10 when you have the "Enable HDR" setting activated.
+
 ## Features and Improvements Merged from Artemis
 
 - Ultra low latency mode with Snapdragon (8 Gen 2+) and MediaTek (MTK) latency improvements
 
 ## Download
 
-[Download the latest v0.2.16 release here](https://github.com/MoreOrLessSoftware/moonlight-android/releases/download/v0.2.16/moonlight-X-nonRoot-release-v0.2.16a.apk). This APK will install as a new app called Moonlight X.
+[Download the latest v0.2.18 release here](https://github.com/MoreOrLessSoftware/moonlight-android/releases/download/v0.2.18/moonlight-X-nonRoot-release-v0.2.18.apk). This APK will install as a new app called Moonlight X.
 
 ## Building
 * Install Android Studio and the Android NDK
