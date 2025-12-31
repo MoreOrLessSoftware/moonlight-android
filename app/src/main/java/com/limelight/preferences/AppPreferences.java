@@ -10,6 +10,8 @@ import org.json.JSONObject;
 public class AppPreferences {
     private static final String APP_PREFERENCES_FILE = "AppPreferences";
     private static final String PREF_BITRATE_OVERRIDE = "bitrate_override"; // Global bitrate override
+    private static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override"; // Global performance overlay override
+    private static final String PREF_OVERRIDES_ENABLED = "overrides_enabled"; // Whether overrides section is enabled
 
     public static class AppSettings {
         public String resolution;
@@ -215,12 +217,27 @@ public class AppPreferences {
             config.enablePerfOverlay = Boolean.parseBoolean(enablePerfOverlayValue);
         }
 
-        // Apply global bitrate override (highest priority)
+        // Apply global overrides only if overrides are enabled (highest priority)
         // This override applies to all streams regardless of other settings
         SharedPreferences defaultPrefs = PreferenceManager.getDefaultSharedPreferences(context);
-        int bitrateOverride = defaultPrefs.getInt(PREF_BITRATE_OVERRIDE, 0);
-        if (bitrateOverride > 0) {
-            config.bitrate = bitrateOverride;
+        boolean overridesEnabled = defaultPrefs.getBoolean(PREF_OVERRIDES_ENABLED, false);
+
+        if (overridesEnabled) {
+            // Apply global bitrate override
+            int bitrateOverride = defaultPrefs.getInt(PREF_BITRATE_OVERRIDE, 0);
+            if (bitrateOverride > 0) {
+                config.bitrate = bitrateOverride;
+            }
+
+            // Apply global performance overlay override
+            // 0 = use default (no override), 1 = force on, 2 = force off
+            int perfOverlayOverride = defaultPrefs.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
+            if (perfOverlayOverride == 1) {
+                config.enablePerfOverlay = true;
+            } else if (perfOverlayOverride == 2) {
+                config.enablePerfOverlay = false;
+            }
+            // If perfOverlayOverride == 0, keep the config value as is (use default)
         }
 
         return config;

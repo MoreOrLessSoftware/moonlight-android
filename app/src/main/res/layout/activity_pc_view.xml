@@ -83,7 +83,7 @@
         style="?android:attr/borderlessButtonStyle"/>
 
     <ImageButton
-        android:id="@+id/perfOverlayButton"
+        android:id="@+id/overridesToggleButton"
         android:layout_width="70dp"
         android:layout_height="65dp"
         android:cropToPadding="false"
@@ -91,9 +91,9 @@
         android:layout_alignParentTop="true"
         android:layout_toRightOf="@+id/settingsButton"
         android:layout_toEndOf="@+id/settingsButton"
-        android:src="@drawable/ic_perf_overlay"
+        android:src="@drawable/ic_overrides_enabled"
         android:preferKeepClear="true"
-        android:contentDescription="Toggle Performance Overlay"
+        android:contentDescription="Toggle Overrides Section"
         style="?android:attr/borderlessButtonStyle"/>
 
     <ImageButton
@@ -103,8 +103,8 @@
         android:cropToPadding="false"
         android:scaleType="fitXY"
         android:layout_alignParentTop="true"
-        android:layout_toRightOf="@+id/perfOverlayButton"
-        android:layout_toEndOf="@+id/perfOverlayButton"
+        android:layout_toRightOf="@+id/overridesToggleButton"
+        android:layout_toEndOf="@+id/overridesToggleButton"
         android:src="@drawable/ic_help"
         android:preferKeepClear="true"
         style="?android:attr/borderlessButtonStyle"/>
