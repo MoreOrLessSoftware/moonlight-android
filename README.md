@@ -13,7 +13,7 @@ You can create shortcuts to specific Sunshine apps and apply custom streaming se
 [![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/quick-launch.png)](https://youtu.be/3kc8VEu1x7k)
 
 > [!NOTE]
-> Quick Launch apps is still a work in progress. On some devices the list of Quick Launch apps might not refresh after adding or removing one until you re-open the app.
+> Quick Launch apps can also be added as shortcuts in Android launchers, etc.
 
 ### 2. Per-app settings overrides
 
