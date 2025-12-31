@@ -587,49 +587,40 @@ public class MediaCodecHelper {
                 }
             }
             else if (isDecoderInList(mtkDecoderPrefixes, decoderInfo.getName())) {
-                //derflacco
-                if (ultraLowLatency) {
-                    {
-                        // If the decoder supports LowLatency, we can assume it's a recent mtk cpu with decent decoding capability
-                        boolean supportsLowLatency = decoderInfo.getName().toLowerCase().contains("low_latency")
-                                || decoderInfo.getName().toLowerCase().contains("c2.mtk");
+                if (tryNumber < 4) {
+                    // --- PRESET: MTK Low-Latency (safe & balanced, no duplicates) ---
 
-                        if (supportsLowLatency) {
-                            // Aggressive profile for MTK low-latency decoders
-                            safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode", 2);           // Stronger CPU boost for decoder threads
-                            safeSet(videoFormat, "vendor.mtk.ext.dolby.vision.cpu-boost", 1);    // Extra CPU boost when Dolby Vision paths are used
-                            safeSet(videoFormat, "vendor.mtk.vdec.buffer.fetch.timeout.ms", 2);  // Internal buffer-fetch timeout (ms); lower can cut stalls
-                            safeSet(videoFormat, "vendor.mtk.vdec.bq.guard.interval.time", 2);   // Guard interval for decoder buffer queue; smaller = tighter pacing
-                            safeSet(videoFormat, "vendor.mtk.vdec.input.max.queue.depth", 2);    // Max input queue depth; lower = less pipeline buffering
-                            safeSet(videoFormat, "vendor.mtk.vdec.output.max.queue.depth", 2);   // Max output queue depth; lower = lower display latency
-                            safeSet(videoFormat, "vendor.mtk.vdec.disable-idle", 1);             // Keep decoder from idling to avoid clock drop/sleep
-                            safeSet(videoFormat, "vendor.mtk.vdec.low-latency.mode", 1);         // Enable decoder low-latency path
-                            safeSet(videoFormat, "vendor.mtk.vdec.preload.frame.count", 0);      // Preload 0 frames; no prebuffering for latency
-                            safeSet(videoFormat, "vendor.mtk.vdec.ultra-low-latency", 0);        // Toggle ultra-low-latency path (0=off, 1=on)
-                            safeSet(videoFormat, "vendor.mtk.vdec.nvop.skip", 1);                // Skip NVOP/no-op frames to reduce overhead
-                            safeSet(videoFormat, "vendor.mtk.vdec.skip.mode", 0);                // Frame-skip policy (0=off/conservative)
-                            safeSet(videoFormat, "vendor.mtk.vdec.frame-drop.policy", 0);        // Frame-drop policy (0=default/no forced drops)
-                            safeSet(videoFormat, "vendor.mtk.vdec.parser.boost", 1);             // Boost bitstream parser workload
-                            safeSet(videoFormat, "vendor.mtk.vdec.dvfs.mode", 1);                // DVFS bias toward performance
-                            safeSet(videoFormat, "vendor.mtk.vdec.vsync.adjust.enable", 0);      // Disable decoder vsync pacing/adjust to avoid interference
+                    // Boost/DVFS: moderate profile
+                    safeSet(videoFormat, "vdec-lowlatency", 1);
+                    safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode", 1);
+                    safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode.value", 1);
+                    safeSet(videoFormat, "vendor.mtk.vdec.dvfs.mode", 1);
+                    safeSet(videoFormat, "vendor.mtk.vdec.dvfs.level", 1);
 
-                            // Conservative profile for MTK decoders without low-latency support (e.g., G99 , Dimensity 7200)
+                    // Pipeline / code path
+                    safeSet(videoFormat, "vendor.mtk.vdec.low-latency.mode", 1);    // Enable low-latency path
+                    safeSet(videoFormat, "vendor.mtk.vdec.ultra-low-latency", 0);   // ULL off for stability
+                    safeSet(videoFormat, "vendor.mtk.vdec.disable-idle", 1);        // Prevent clock downscaling
+                    safeSet(videoFormat, "vendor.mtk.vdec.preload.frame.count", 1); // Light prebuffering
 
-                            safeSet(videoFormat, "vendor.mtk.vdec.buffer.fetch.timeout.ms", 4);  // Slightly longer fetch timeout for stability
-                            safeSet(videoFormat, "vendor.mtk.vdec.bq.guard.interval.time", 4);   // Wider guard interval; reduce contention
-                            safeSet(videoFormat, "vendor.mtk.vdec.input.max.queue.depth", 4);    // Deeper input queue; smoother under load
-                            safeSet(videoFormat, "vendor.mtk.vdec.output.max.queue.depth", 4);   // Deeper output queue; fewer underruns
-                            safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode", 1);           // Mild CPU boost
-                            safeSet(videoFormat, "vendor.mtk.vdec.parser.boost", 1);             // Keep parser boosted even in conservative mode
-                            safeSet(videoFormat, "vendor.mtk.vdec.vsync.adjust.enable", 0);      // Keep vsync adjust off
-                            safeSet(videoFormat, "vendor.mtk.vdec.nvop.skip", 1);                // Skip NVOP frames
-                            safeSet(videoFormat, "vendor.mtk.vdec.disable-idle", 1);             // Prevent idle to avoid wake-up penalties
-                            safeSet(videoFormat, "vendor.mtk.vdec.drop.nonref.frame", 1);        // Allow dropping non-reference frames under stress
-                            safeSet(videoFormat, "vendor.mtk.vdec.skip.mode", 1);                // Light/controlled frame skipping enabled
-                            safeSet(videoFormat, "vendor.mtk.vdec.preload.frame.count", 0);      // No preloaded frames
-                        }
-                    }
-                    setNewOption = true;
+                    // Queue / timeouts (moderate)
+                    safeSet(videoFormat, "vendor.mtk.vdec.buffer.fetch.timeout.ms", 4);
+                    safeSet(videoFormat, "vendor.mtk.vdec.bq.guard.interval.time", 4);
+                    safeSet(videoFormat, "vendor.mtk.vdec.input.max.queue.depth", 3);
+                    safeSet(videoFormat, "vendor.mtk.vdec.output.max.queue.depth", 3);
+
+                    // Pacing: controlled by the app
+                    safeSet(videoFormat, "vendor.mtk.vdec.vsync.adjust.enable", 0);
+
+                    // Skip/drop: only NVOP
+                    safeSet(videoFormat, "vendor.mtk.vdec.nvop.skip", 1);
+                    safeSet(videoFormat, "vendor.mtk.vdec.skip.mode", 0);
+                    safeSet(videoFormat, "vendor.mtk.vdec.drop.nonref.frame", 0);
+                    safeSet(videoFormat, "vendor.mtk.vdec.frame-drop.policy", 0);
+
+                    // Standard Android hints
+                    safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, (int) Short.MAX_VALUE);
+                    safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0);
                 }
             }
             else if (isDecoderInList(kirinDecoderPrefixes, decoderInfo.getName())) {
