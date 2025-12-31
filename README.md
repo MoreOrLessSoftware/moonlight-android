@@ -27,13 +27,21 @@ Tap the left edge of the screen to show a brightness slider and set a custom bri
 
 [![IMAGE ALT TEXT HERE](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/brightness-slider.png)](https://youtu.be/CnanqtRz0FI)
 
-### 4. New gamepad button chord for quitting host app
+### 4. Quick toggle for performance overlay + bitrate override
+
+The performance overlay toggle changes the main setting.
+
+The bitrate override supercedes the global, per-app and Quick Launch bitrate settings.
+
+![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides.png)
+
+### 5. New gamepad button chord for quitting host app
 
 To end the session AND quit the app on the host machine, use a new button chord (made with macros in mind):
 
 ```LB``` + ```RB``` + ```D-pad right``` + ```D-pad down```
 
-### 5. Ultra low latency flags for Exynos
+### 6. Ultra low latency flags for Exynos
 
 Tried some [new flags for the Exynos decoder](https://github.com/MoreOrLessSoftware/moonlight-android/commit/77cd72c427dff7250b8e10b007d1ece2db9f7ddb):
 
