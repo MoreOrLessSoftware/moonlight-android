@@ -319,4 +319,10 @@
     <string name="quick_launch_rename_title">Rename Quick Launch</string>
     <string name="quick_launch_rename_message">Enter a new name for this Quick Launch item:</string>
     <string name="quick_launch_renamed">Quick Launch renamed</string>
+
+    <!-- Overrides Section strings -->
+    <string name="overrides_section_title">Overrides</string>
+    <string name="title_bitrate_override">Bitrate Override</string>
+    <string name="summary_bitrate_override">Override all bitrate settings. Set to left for default behavior.</string>
+    <string name="bitrate_use_default">Bitrate: (Use Default)</string>
 </resources>

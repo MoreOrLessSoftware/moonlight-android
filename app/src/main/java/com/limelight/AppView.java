@@ -15,6 +15,7 @@ import com.limelight.nvstream.http.PairingManager;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
+import com.limelight.ui.OverridesView;
 import com.limelight.utils.QuickLaunchManager;
 import com.limelight.utils.CacheHelper;
 import com.limelight.utils.Dialog;
@@ -55,6 +56,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
     private String uuidString;
     private ShortcutHelper shortcutHelper;
     private QuickLaunchManager quickLaunchManager;
+    private OverridesView overridesView;
 
     private ComputerDetails computer;
     private ComputerManagerService.ApplistPoller poller;
@@ -307,6 +309,9 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         UiHelper.notifyNewRootView(this);
 
+        // Initialize Overrides section
+        overridesView = new OverridesView(this);
+
         showHiddenApps = getIntent().getBooleanExtra(SHOW_HIDDEN_APPS_EXTRA, false);
         uuidString = getIntent().getStringExtra(UUID_EXTRA);
 
@@ -371,6 +376,11 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs();
 
+        // Notify OverridesView of destroy
+        if (overridesView != null) {
+            overridesView.onDestroy();
+        }
+
         if (managerBinder != null) {
             unbindService(serviceConnection);
         }
@@ -385,6 +395,11 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         inForeground = true;
         startComputerUpdates();
+
+        // Notify OverridesView of resume
+        if (overridesView != null) {
+            overridesView.onResume();
+        }
     }
 
     @Override
@@ -393,6 +408,11 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         inForeground = false;
         stopComputerUpdates();
+
+        // Notify OverridesView of pause
+        if (overridesView != null) {
+            overridesView.onPause();
+        }
     }
 
     @Override

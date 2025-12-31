@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Overrides Section Layout -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:seekbar="http://schemas.moonlight-stream.com/apk/res/seekbar"
+    android:id="@+id/overridesSection"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="?android:attr/selectableItemBackground">
+
+    <TextView
+        android:id="@+id/overridesSectionTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/overrides_section_title"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Bitrate Override -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:id="@+id/bitrateOverrideValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/bitrate_use_default"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:minWidth="150dp"
+            android:layout_marginEnd="12dp" />
+
+        <SeekBar
+            android:id="@+id/bitrateOverrideSeekBar"
+            android:layout_width="400dp"
+            android:layout_height="wrap_content"
+            android:max="50"
+            android:progress="0" />
+
+    </LinearLayout>
+
+</LinearLayout>
