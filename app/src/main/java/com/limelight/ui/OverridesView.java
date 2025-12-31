@@ -33,6 +33,7 @@ public class OverridesView {
     private final TextView perfOverlayLabel;
     private ImageView overridesToggleButton;
     private final SharedPreferences preferences;
+    private boolean isAButtonPressed = false;
 
     public OverridesView(Activity activity) {
         this.activity = activity;
@@ -163,7 +164,32 @@ public class OverridesView {
         bitrateOverrideSeekBar.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
+                // Track A button state
+                if (keyCode == KeyEvent.KEYCODE_BUTTON_A) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                        isAButtonPressed = true;
+                    } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                        isAButtonPressed = false;
+                    }
+                    return false; // Don't consume A button events
+                }
+
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    // Handle d-pad left/right based on A button state
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (!isAButtonPressed) {
+                            // Move focus instead of adjusting slider
+                            View nextView = keyCode == KeyEvent.KEYCODE_DPAD_LEFT
+                                ? v.focusSearch(View.FOCUS_LEFT)
+                                : v.focusSearch(View.FOCUS_RIGHT);
+                            if (nextView != null) {
+                                nextView.requestFocus();
+                            }
+                            return true; // Consume event to prevent SeekBar from handling
+                        }
+                        // A button is pressed, adjust slider
+                    }
+
                     int currentProgress = bitrateOverrideSeekBar.getProgress();
                     int newProgress = currentProgress;
 
