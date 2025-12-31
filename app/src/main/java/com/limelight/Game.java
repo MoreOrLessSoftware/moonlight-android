@@ -2589,6 +2589,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
 
+            // Show stream configuration to user
+            String configMessage = String.format(Locale.getDefault(),
+                "Streaming %dx%d @ %d FPS, %d Mbps%s",
+                prefConfig.width,
+                prefConfig.height,
+                prefConfig.fps,
+                prefConfig.bitrate / 1000,
+                prefConfig.enableHdr ? ", HDR" : "");
+            Toast.makeText(Game.this, configMessage, Toast.LENGTH_LONG).show();
+
             decoderRenderer.setRenderTarget(holder);
             conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
                     decoderRenderer, Game.this);
