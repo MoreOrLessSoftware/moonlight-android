@@ -31,7 +31,7 @@ Tap the left edge of the screen to show a brightness slider and set a custom bri
 
 The performance overlay toggle changes the main setting.
 
-The bitrate override supercedes the global, per-app and Quick Launch bitrate settings.
+The bitrate override supercedes the global, per-app and Quick Launch bitrate settings. Slide all the way to the left to disable the override.
 
 ![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides.png)
 
