@@ -1,13 +1,19 @@
 package com.limelight.ui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.text.InputType;
+import android.view.KeyEvent;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.limelight.R;
 
@@ -15,8 +21,8 @@ public class OverridesView {
     public static final String PREF_BITRATE_OVERRIDE = "bitrate_override";
     public static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override";
     public static final String PREF_OVERRIDES_ENABLED = "overrides_enabled";
-    private static final int BITRATE_STEP = 10000; // 10 Mbps steps in kbps
-    private static final int SEEKBAR_MAX = 50; // 50 steps * 10 Mbps = 500 Mbps max
+    private static final int BITRATE_STEP = 5000; // 5 Mbps steps in kbps
+    private static final int SEEKBAR_MAX = 60; // 60 steps * 5 Mbps = 300 Mbps max
 
     private final Activity activity;
     private final LinearLayout overridesSection;
@@ -120,6 +126,15 @@ public class OverridesView {
         bitrateOverrideSeekBar.setProgress(seekBarPosition);
         updateBitrateLabel(seekBarPosition);
 
+        // Set up click listener on label to show custom input dialog
+        bitrateOverrideValue.setClickable(true);
+        bitrateOverrideValue.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showBitrateInputDialog();
+            }
+        });
+
         // Set up seekbar listener
         bitrateOverrideSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -143,6 +158,41 @@ public class OverridesView {
                     .apply();
             }
         });
+
+        // Handle gamepad/keyboard navigation to use 5 Mbps steps
+        bitrateOverrideSeekBar.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    int currentProgress = bitrateOverrideSeekBar.getProgress();
+                    int newProgress = currentProgress;
+
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_MINUS) {
+                        // Decrease by 1 step (5 Mbps)
+                        newProgress = Math.max(0, currentProgress - 1);
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_PLUS || keyCode == KeyEvent.KEYCODE_EQUALS) {
+                        // Increase by 1 step (5 Mbps)
+                        newProgress = Math.min(SEEKBAR_MAX, currentProgress + 1);
+                    } else {
+                        return false; // Let other keys be handled normally
+                    }
+
+                    if (newProgress != currentProgress) {
+                        bitrateOverrideSeekBar.setProgress(newProgress);
+                        updateBitrateLabel(newProgress);
+
+                        // Save the value immediately
+                        int bitrateKbps = newProgress == 0 ? 0 : newProgress * BITRATE_STEP;
+                        preferences.edit()
+                            .putInt(PREF_BITRATE_OVERRIDE, bitrateKbps)
+                            .apply();
+
+                        return true; // Event handled
+                    }
+                }
+                return false;
+            }
+        });
     }
 
     private void updateBitrateLabel(int seekBarPosition) {
@@ -153,9 +203,80 @@ public class OverridesView {
         if (seekBarPosition == 0) {
             bitrateOverrideValue.setText(R.string.bitrate_use_default);
         } else {
-            int bitrateMbps = seekBarPosition * 10; // Each position is 10 Mbps
+            int bitrateMbps = seekBarPosition * 5; // Each position is 5 Mbps
             bitrateOverrideValue.setText(String.format("Bitrate: %d Mbps", bitrateMbps));
         }
+    }
+
+    private void showBitrateInputDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle("Set Bitrate Override");
+        builder.setMessage("Enter bitrate in Mbps (0 for default, max 500)");
+
+        final EditText input = new EditText(activity);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+        // Pre-fill with current value
+        int currentBitrate = preferences.getInt(PREF_BITRATE_OVERRIDE, 0);
+        if (currentBitrate > 0) {
+            input.setText(String.valueOf(currentBitrate / 1000)); // Convert kbps to Mbps
+        }
+
+        // Wrap EditText in a container with padding
+        LinearLayout container = new LinearLayout(activity);
+        container.setOrientation(LinearLayout.VERTICAL);
+        int padding = (int) (20 * activity.getResources().getDisplayMetrics().density);
+        container.setPadding(padding, 0, padding, 0);
+        container.addView(input);
+
+        builder.setView(container);
+
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String text = input.getText().toString().trim();
+                if (text.isEmpty()) {
+                    return;
+                }
+
+                try {
+                    int bitrateMbps = Integer.parseInt(text);
+
+                    // Validate range
+                    if (bitrateMbps < 0) {
+                        bitrateMbps = 0;
+                    } else if (bitrateMbps > 500) {
+                        Toast.makeText(activity, "Maximum bitrate is 500 Mbps", Toast.LENGTH_SHORT).show();
+                        bitrateMbps = 500;
+                    }
+
+                    // Convert to kbps and save
+                    int bitrateKbps = bitrateMbps * 1000;
+                    preferences.edit()
+                        .putInt(PREF_BITRATE_OVERRIDE, bitrateKbps)
+                        .apply();
+
+                    // Update seekbar to closest position
+                    int seekBarPosition = bitrateKbps > 0 ? bitrateKbps / BITRATE_STEP : 0;
+                    if (bitrateOverrideSeekBar != null) {
+                        bitrateOverrideSeekBar.setProgress(seekBarPosition);
+                    }
+                    updateBitrateLabel(seekBarPosition);
+
+                } catch (NumberFormatException e) {
+                    Toast.makeText(activity, "Invalid number", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+
+        builder.show();
     }
 
     /**
@@ -206,15 +327,15 @@ public class OverridesView {
         if (override == 1) {
             // Force enabled - green icon
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
-            perfOverlayLabel.setText("Performance stats: Enabled");
+            perfOverlayLabel.setText("Stats overlay: Enabled");
         } else if (override == 2) {
             // Force disabled - white icon with red slash
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay);
-            perfOverlayLabel.setText("Performance stats: Disabled");
+            perfOverlayLabel.setText("Stats overlay: Disabled");
         } else {
             // Use default - gray icon to indicate auto/default mode
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_default);
-            perfOverlayLabel.setText("Performance stats: Default");
+            perfOverlayLabel.setText("Stats overlay: Default");
         }
     }
 
