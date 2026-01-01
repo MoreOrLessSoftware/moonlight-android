@@ -225,21 +225,21 @@ public class QuickLaunchView {
         Button button = new Button(activity);
         button.setText(item.getDisplayName());
         button.setTextSize(12);
-        
+
         // Set a tag to identify this as a Quick Launch button for context menus
         button.setTag("quicklaunch:" + item.key);
-        
+
         // Set button dimensions and margins
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        params.setMargins(8, 0, 8, 0);
+        params.setMargins(0, 0, 16, 0);
         button.setLayoutParams(params);
-        
+
         // Update button color based on running status
         updateButtonColor(button, item);
-        
+
         // Set click listener to launch the app
         button.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -247,10 +247,10 @@ public class QuickLaunchView {
                 launchQuickLaunchApp(item);
             }
         });
-        
+
         // Register for context menu
         activity.registerForContextMenu(button);
-        
+
         return button;
     }
     
