@@ -58,6 +58,9 @@ Some non-HDR devices can still stream 10-bit SDR if Sunshine sends it. This simp
 
 - Ultra low latency mode with Snapdragon (8 Gen 2+) and MediaTek (MTK) latency improvements
 
+## Downloads
+[Download APK directly](https://github.com/MoreOrLessSoftware/moonlight-android/releases)
+
 ## Building
 * Install Android Studio and the Android NDK
 * Run ‘git submodule update --init --recursive’ from within moonlight-android/
