@@ -123,7 +123,7 @@ public class AppPreferences {
 
         // If both quick launch and app use global settings, return global config directly
         if ((quickLaunchSettings == null || quickLaunchSettings.useGlobalSettings) && appSettings.useGlobalSettings) {
-            return PreferenceConfiguration.readPreferences(context);
+            return applyPreferenceOverrides(context, PreferenceConfiguration.readPreferences(context));
         }
 
         // Start with global settings as the base
@@ -217,6 +217,10 @@ public class AppPreferences {
             config.enablePerfOverlay = Boolean.parseBoolean(enablePerfOverlayValue);
         }
 
+        return applyPreferenceOverrides(context, config);
+    }
+
+    private static PreferenceConfiguration applyPreferenceOverrides(Context context, PreferenceConfiguration config) {
         // Apply global overrides only if overrides are enabled (highest priority)
         // This override applies to all streams regardless of other settings
         SharedPreferences defaultPrefs = PreferenceManager.getDefaultSharedPreferences(context);
