@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Overrides Section Layout - Portrait -->
+<!-- Overrides Section Layout - Landscape -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:seekbar="http://schemas.moonlight-stream.com/apk/res/seekbar"
     android:id="@+id/overridesSection"
@@ -18,11 +18,12 @@
         android:textStyle="bold"
         android:layout_marginBottom="8dp" />
 
-    <!-- Overrides Controls - Vertical stack for portrait -->
+    <!-- Overrides Controls - Horizontal for landscape -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <!-- Stats Overlay Button -->
         <LinearLayout
@@ -36,7 +37,7 @@
             android:clickable="true"
             android:focusable="true"
             android:background="@drawable/button_border_rounded"
-            android:layout_marginBottom="8dp">
+            android:layout_marginEnd="16dp">
 
             <ImageView
                 android:id="@+id/perfOverlayIcon"
@@ -91,6 +92,12 @@
                 android:progress="0" />
 
         </LinearLayout>
+
+        <!-- Spacer to absorb extra space -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
 
     </LinearLayout>
 
