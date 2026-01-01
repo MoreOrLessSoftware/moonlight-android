@@ -23,19 +23,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp">
+        android:gravity="center_vertical">
 
         <!-- Stats Overlay Button -->
         <LinearLayout
             android:id="@+id/perfOverlayButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minHeight="48dp"
+            android:minHeight="44dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="8dp"
+            android:padding="6dp"
             android:clickable="true"
             android:focusable="true"
             android:background="@drawable/button_border_rounded"
@@ -43,17 +41,17 @@
 
             <ImageView
                 android:id="@+id/perfOverlayIcon"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:src="@drawable/ic_perf_overlay_default"
                 android:contentDescription="Performance Overlay Override" />
 
             <TextView
                 android:id="@+id/perfOverlayLabel"
-                android:layout_width="180dp"
+                android:layout_width="160dp"
                 android:layout_height="wrap_content"
                 android:text="Stats overlay: Default"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:singleLine="true"
                 android:ellipsize="end"
                 android:layout_marginStart="8dp" />
@@ -64,11 +62,12 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minHeight="48dp"
+            android:maxWidth="600dp"
+            android:minHeight="44dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="8dp"
-            android:paddingEnd="12dp"
+            android:padding="6dp"
+            android:paddingEnd="20dp"
             android:background="@drawable/button_border_rounded">
 
             <TextView
@@ -76,18 +75,29 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/bitrate_use_default"
-                android:textSize="14sp"
-                android:minWidth="160dp"
-                android:layout_marginEnd="12dp" />
+                android:textSize="13sp"
+                android:minWidth="130dp"
+                android:focusable="true"
+                android:clickable="true"
+                android:padding="2dp"
+                android:background="@drawable/text_focus_selector" />
 
             <SeekBar
                 android:id="@+id/bitrateOverrideSeekBar"
-                android:layout_width="350dp"
+                android:minWidth="200dp"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:max="60"
+                android:layout_weight="1"
+                android:max="40"
                 android:progress="0" />
 
         </LinearLayout>
+
+        <!-- Spacer to absorb extra space -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
 
     </LinearLayout>
 

@@ -324,5 +324,5 @@
     <string name="overrides_section_title">Overrides</string>
     <string name="title_bitrate_override">Bitrate Override</string>
     <string name="summary_bitrate_override">Override all bitrate settings. Set to left for default behavior.</string>
-    <string name="bitrate_use_default">Bitrate: (Use Default)</string>
+    <string name="bitrate_use_default">Bitrate: (Default)</string>
 </resources>

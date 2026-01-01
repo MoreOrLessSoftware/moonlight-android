@@ -22,7 +22,7 @@ public class OverridesView {
     public static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override";
     public static final String PREF_OVERRIDES_ENABLED = "overrides_enabled";
     private static final int BITRATE_STEP = 5000; // 5 Mbps steps in kbps
-    private static final int SEEKBAR_MAX = 60; // 60 steps * 5 Mbps = 300 Mbps max
+    private static final int SEEKBAR_MAX = 40; // 40 steps * 5 Mbps = 200 Mbps max
 
     private final Activity activity;
     private final LinearLayout overridesSection;
@@ -33,7 +33,7 @@ public class OverridesView {
     private final TextView perfOverlayLabel;
     private ImageView overridesToggleButton;
     private final SharedPreferences preferences;
-    private boolean isAButtonPressed = false;
+    private boolean isSliderAdjustmentMode = false;
 
     public OverridesView(Activity activity) {
         this.activity = activity;
@@ -136,6 +136,16 @@ public class OverridesView {
             }
         });
 
+        // Reset adjustment mode when focus is lost
+        bitrateOverrideSeekBar.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (!hasFocus) {
+                    isSliderAdjustmentMode = false;
+                }
+            }
+        });
+
         // Set up seekbar listener
         bitrateOverrideSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -164,21 +174,23 @@ public class OverridesView {
         bitrateOverrideSeekBar.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
-                // Track A button state
-                if (keyCode == KeyEvent.KEYCODE_BUTTON_A) {
+                // Toggle adjustment mode when select button is pressed
+                if (keyCode == KeyEvent.KEYCODE_BUTTON_A || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
                     if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                        isAButtonPressed = true;
-                    } else if (event.getAction() == KeyEvent.ACTION_UP) {
-                        isAButtonPressed = false;
+                        isSliderAdjustmentMode = !isSliderAdjustmentMode;
+                        // Could show visual feedback here (e.g., toast or highlight)
+                        return true; // Consume the event
                     }
-                    return false; // Don't consume A button events
+                    return true;
                 }
 
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    // Handle d-pad left/right based on A button state
-                    if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                        if (!isAButtonPressed) {
-                            // Move focus instead of adjusting slider
+                    boolean isDpadLeftRight = (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT);
+
+                    // Handle d-pad left/right based on adjustment mode
+                    if (isDpadLeftRight) {
+                        if (!isSliderAdjustmentMode) {
+                            // Not in adjustment mode - move focus
                             View nextView = keyCode == KeyEvent.KEYCODE_DPAD_LEFT
                                 ? v.focusSearch(View.FOCUS_LEFT)
                                 : v.focusSearch(View.FOCUS_RIGHT);
@@ -187,7 +199,7 @@ public class OverridesView {
                             }
                             return true; // Consume event to prevent SeekBar from handling
                         }
-                        // A button is pressed, adjust slider
+                        // In adjustment mode - adjust slider (handled below)
                     }
 
                     int currentProgress = bitrateOverrideSeekBar.getProgress();
@@ -212,9 +224,15 @@ public class OverridesView {
                         preferences.edit()
                             .putInt(PREF_BITRATE_OVERRIDE, bitrateKbps)
                             .apply();
-
-                        return true; // Event handled
                     }
+
+                    // If in adjustment mode and d-pad left/right, always consume to keep focus
+                    if (isSliderAdjustmentMode && isDpadLeftRight) {
+                        return true;
+                    }
+
+                    // For keyboard keys, only consume if value changed
+                    return newProgress != currentProgress;
                 }
                 return false;
             }
