@@ -139,7 +139,7 @@ public class ShortcutTrampoline extends Activity {
                                                     intentStack.add(i);
 
                                                     // Add the game intent
-                                                    intentStack.add(ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder, quickLaunchKey));
+                                                    intentStack.add(ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder, quickLaunchKey, false));
 
                                                     // Close this activity
                                                     finish();
@@ -151,7 +151,7 @@ public class ShortcutTrampoline extends Activity {
                                                 } else {
                                                     // Create the start intent immediately, so we can safely unbind the managerBinder
                                                     // below before we return.
-                                                    final Intent startIntent = ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder, quickLaunchKey);
+                                                    final Intent startIntent = ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder, quickLaunchKey, false);
 
                                                     // Stop polling and unbind BEFORE showing the dialog to prevent it from flashing
                                                     managerBinder.stopPolling();
@@ -208,7 +208,7 @@ public class ShortcutTrampoline extends Activity {
                                                 // If a game is running, we'll make the stream the top level activity
                                                 if (details.runningGameId != 0) {
                                                     intentStack.add(ServerHelper.createStartIntent(ShortcutTrampoline.this,
-                                                            new NvApp(null, details.runningGameId, false), details, managerBinder));
+                                                            new NvApp(null, details.runningGameId, false), details, managerBinder, null, false));
                                                 }
 
                                                 // Now start the activities

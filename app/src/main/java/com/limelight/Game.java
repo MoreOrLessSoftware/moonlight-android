@@ -203,6 +203,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public static final String EXTRA_APP_HDR = "HDR";
     public static final String EXTRA_SERVER_CERT = "ServerCert";
     public static final String EXTRA_QUICK_LAUNCH_APP_KEY = "QuickLaunchAppKey";
+    public static final String EXTRA_APPLY_PREFERENCE_OVERRIDES = "ApplyPreferenceOverrides";
     public static final String ACTION_QUIT_APP = "com.limelight.QUIT_STREAMING_APP";
 
     @Override
@@ -248,7 +249,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Read the stream preferences (per-app if configured, otherwise global)
         String appKey = computerId + ":" + appId;
         String quickLaunchAppKey = Game.this.getIntent().getStringExtra(EXTRA_QUICK_LAUNCH_APP_KEY);
-        prefConfig = AppPreferences.getEffectivePreferences(this, appKey, quickLaunchAppKey);
+        boolean applyPreferenceOverrides = Game.this.getIntent().getBooleanExtra(EXTRA_APPLY_PREFERENCE_OVERRIDES, true);
+        prefConfig = AppPreferences.getEffectivePreferences(this, appKey, quickLaunchAppKey, applyPreferenceOverrides);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
         // Enter landscape unless we're on a square screen
