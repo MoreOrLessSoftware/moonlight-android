@@ -49,18 +49,25 @@ public class ServerHelper {
         i.putExtra(Game.EXTRA_APP_NAME, app.getAppName());
         i.putExtra(Game.EXTRA_APP_ID, ""+app.getAppId());
         i.putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported());
+        i.putExtra(Game.EXTRA_APPLY_PREFERENCE_OVERRIDES, false);
         i.setAction(Intent.ACTION_DEFAULT);
         return i;
     }
 
     public static Intent createStartIntent(Activity parent, NvApp app, ComputerDetails computer,
                                            ComputerManagerService.ComputerManagerBinder managerBinder) {
-        return createStartIntent(parent, app, computer, managerBinder, null);
+        return createStartIntent(parent, app, computer, managerBinder, null, true);
     }
-    
+
     public static Intent createStartIntent(Activity parent, NvApp app, ComputerDetails computer,
-                                           ComputerManagerService.ComputerManagerBinder managerBinder, 
+                                           ComputerManagerService.ComputerManagerBinder managerBinder,
                                            String quickLaunchAppKey) {
+        return createStartIntent(parent, app, computer, managerBinder, quickLaunchAppKey, true);
+    }
+
+    public static Intent createStartIntent(Activity parent, NvApp app, ComputerDetails computer,
+                                           ComputerManagerService.ComputerManagerBinder managerBinder,
+                                           String quickLaunchAppKey, boolean applyPreferenceOverrides) {
         Intent intent = new Intent(parent, Game.class);
         intent.putExtra(Game.EXTRA_HOST, computer.activeAddress.address);
         intent.putExtra(Game.EXTRA_PORT, computer.activeAddress.port);
@@ -71,6 +78,7 @@ public class ServerHelper {
         intent.putExtra(Game.EXTRA_UNIQUEID, managerBinder.getUniqueId());
         intent.putExtra(Game.EXTRA_PC_UUID, computer.uuid);
         intent.putExtra(Game.EXTRA_PC_NAME, computer.name);
+        intent.putExtra(Game.EXTRA_APPLY_PREFERENCE_OVERRIDES, applyPreferenceOverrides);
         if (quickLaunchAppKey != null) {
             intent.putExtra(Game.EXTRA_QUICK_LAUNCH_APP_KEY, quickLaunchAppKey);
         }

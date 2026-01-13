@@ -110,10 +110,14 @@ public class AppPreferences {
     }
 
     public static PreferenceConfiguration getEffectivePreferences(Context context, String appKey) {
-        return getEffectivePreferences(context, appKey, null);
+        return getEffectivePreferences(context, appKey, null, true);
     }
 
     public static PreferenceConfiguration getEffectivePreferences(Context context, String appKey, String appKey2) {
+        return getEffectivePreferences(context, appKey, appKey2, true);
+    }
+
+    public static PreferenceConfiguration getEffectivePreferences(Context context, String appKey, String appKey2, boolean applyOverrides) {
         // Load quick launch settings (appKey2), app settings (appKey), and global settings
         AppSettings quickLaunchSettings = null;
         if (appKey2 != null) {
@@ -123,7 +127,8 @@ public class AppPreferences {
 
         // If both quick launch and app use global settings, return global config directly
         if ((quickLaunchSettings == null || quickLaunchSettings.useGlobalSettings) && appSettings.useGlobalSettings) {
-            return applyPreferenceOverrides(context, PreferenceConfiguration.readPreferences(context));
+            PreferenceConfiguration config = PreferenceConfiguration.readPreferences(context);
+            return applyOverrides ? applyPreferenceOverrides(context, config) : config;
         }
 
         // Start with global settings as the base
@@ -217,7 +222,7 @@ public class AppPreferences {
             config.enablePerfOverlay = Boolean.parseBoolean(enablePerfOverlayValue);
         }
 
-        return applyPreferenceOverrides(context, config);
+        return applyOverrides ? applyPreferenceOverrides(context, config) : config;
     }
 
     private static PreferenceConfiguration applyPreferenceOverrides(Context context, PreferenceConfiguration config) {
