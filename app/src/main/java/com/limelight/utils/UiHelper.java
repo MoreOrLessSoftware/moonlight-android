@@ -258,4 +258,25 @@ public class UiHelper {
                 .setNegativeButton(parent.getResources().getString(R.string.no), dialogClickListener)
                 .show();
     }
+
+    public static String formatRefreshRate(double rate) {
+        return formatRate(rate, "Hz");
+    }
+
+    public static String formatRate(double rate, String unit) {
+        // Round to 3 decimal places maximum
+        double rounded = Math.round(rate * 1000.0) / 1000.0;
+
+        // Check if the rate has a fractional component
+        if (rounded == Math.floor(rounded)) {
+            // No fractional part - show as integer
+            return String.format("%d%s", (int)rounded, unit);
+        } else {
+            // Has fractional part - format with up to 3 decimals and remove trailing zeros
+            String formatted = String.format("%.3f", rounded);
+            formatted = formatted.replaceAll("0+$", "");
+            formatted = formatted.replaceAll("\\.$", "");
+            return formatted + unit;
+        }
+    }
 }
