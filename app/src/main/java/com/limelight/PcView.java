@@ -43,6 +43,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.view.ContextMenu;
+import android.view.Display;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -69,6 +70,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     private ShortcutHelper shortcutHelper;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
+    private boolean hasShownRefreshRateToast = false;
     private QuickLaunchView quickLaunchView;
     private OverridesView overridesView;
     
@@ -336,6 +338,14 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
         // Display a decoder crash notification if we've returned after a crash
         UiHelper.showDecoderCrashDialog(this);
+
+        // Display current refresh rate only on first load
+        if (!hasShownRefreshRateToast) {
+            Display display = getWindowManager().getDefaultDisplay();
+            float refreshRate = display.getRefreshRate();
+            Toast.makeText(this, "Current refresh rate: " + UiHelper.formatRefreshRate(refreshRate), Toast.LENGTH_SHORT).show();
+            hasShownRefreshRateToast = true;
+        }
 
         inForeground = true;
         startComputerUpdates();
