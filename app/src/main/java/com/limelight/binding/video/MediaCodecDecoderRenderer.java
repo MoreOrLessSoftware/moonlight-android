@@ -33,6 +33,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Process;
 import android.os.SystemClock;
+import android.util.LongSparseArray;
 import android.util.Range;
 import android.view.Choreographer;
 import android.view.Surface;
@@ -128,6 +129,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int numVpsIn;
     private int numFramesIn;
     private int numFramesOut;
+
+    // Decode latency tracking: map PTS(us) -> enqueue time (ns)
+    private final LongSparseArray<Long> enqueueNsByPtsUs = new LongSparseArray<>();
 
     private MediaCodecInfo findAvcDecoder() {
         MediaCodecInfo decoder = MediaCodecHelper.findProbableSafeDecoder("video/avc", MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
@@ -1136,14 +1140,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 outputBufferQueue.add(lastIndex);
                             }
 
-                            // Add delta time to the totals (excluding probable outliers)
-                            long delta = SystemClock.uptimeMillis() - (presentationTimeUs / 1000);
-                            if (delta >= 0 && delta < 1000) {
-                                activeWindowVideoStats.decoderTimeMs += delta;
-                                if (!USE_FRAME_RENDER_TIME) {
-                                    activeWindowVideoStats.totalTimeMs += delta;
-                                }
-                            }
+                            // Update decode latency stats using real enqueue->dequeue time
+                            updateDecodeLatencyStats(presentationTimeUs);
                         } else {
                             switch (outIndex) {
                                 case MediaCodec.INFO_TRY_AGAIN_LATER:
@@ -1355,6 +1353,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             videoDecoder.queueInputBuffer(nextInputBufferIndex,
                     0, nextInputBuffer.position(),
                     timestampUs, codecFlags);
+
+            // Track enqueue time for this PTS
+            try { enqueueNsByPtsUs.put(timestampUs, System.nanoTime()); } catch (Throwable ignored) {}
 
             // We need a new buffer now
             nextInputBufferIndex = -1;
@@ -1832,6 +1833,21 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             return 0;
         }
         return (int)(globalVideoStats.decoderTimeMs / globalVideoStats.totalFramesReceived);
+    }
+
+    // Update stats using real decode time: enqueue->dequeue, instead of uptime - PTS
+    private void updateDecodeLatencyStats(long presentationTimeUs) {
+        Long enqNs = enqueueNsByPtsUs.get(presentationTimeUs);
+        if (enqNs != null) {
+            enqueueNsByPtsUs.delete(presentationTimeUs);
+            long decMs = (System.nanoTime() - enqNs) / 1_000_000L;
+            if (decMs >= 0 && decMs < 1000) {
+                activeWindowVideoStats.decoderTimeMs += decMs;
+                if (!USE_FRAME_RENDER_TIME) {
+                    activeWindowVideoStats.totalTimeMs += decMs;
+                }
+            }
+        }
     }
 
     static class DecoderHungException extends RuntimeException {
