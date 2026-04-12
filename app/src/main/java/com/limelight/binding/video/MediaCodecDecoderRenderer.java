@@ -133,6 +133,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     // Decode latency tracking: map PTS(us) -> enqueue time (ns)
     private final LongSparseArray<Long> enqueueNsByPtsUs = new LongSparseArray<>();
 
+    // Low-latency rendering controls
+    private boolean preferLowerDelays = false;
+    private volatile int preferLowerDelaysTimeoutUs = 2000;
+
     private MediaCodecInfo findAvcDecoder() {
         MediaCodecInfo decoder = MediaCodecHelper.findProbableSafeDecoder("video/avc", MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
         if (decoder == null) {
@@ -308,6 +312,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         this.context = activity;
         this.activity = activity;
         this.prefs = prefs;
+        this.preferLowerDelays = prefs.enableUltraLowLatency;
         this.crashListener = crashListener;
         this.consecutiveCrashCount = consecutiveCrashCount;
         this.glRenderer = glRenderer;
@@ -1016,7 +1021,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             if (nextOutputBuffer != null) {
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        videoDecoder.releaseOutputBuffer(nextOutputBuffer, frameTimeNanos);
+                        releaseWithPolicy(nextOutputBuffer, frameTimeNanos);
                     }
                     else {
                         videoDecoder.releaseOutputBuffer(nextOutputBuffer, true);
@@ -1073,8 +1078,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 BufferInfo info = new BufferInfo();
                 while (!stopping) {
                     try {
-                        // Try to output a frame
-                        int outIndex = videoDecoder.dequeueOutputBuffer(info, 50000);
+                        // Try to output a frame (with adaptive timeout for low-latency mode)
+                        int outIndex = videoDecoder.dequeueOutputBuffer(info, getOutputDequeueTimeoutUs());
                         if (outIndex >= 0) {
                             long presentationTimeUs = info.presentationTimeUs;
                             int lastIndex = outIndex;
@@ -1098,7 +1103,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     // In max smoothness or cap FPS mode, we want to never drop frames
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                         // Use a PTS that will cause this frame to never be dropped
-                                        videoDecoder.releaseOutputBuffer(lastIndex, 0);
+                                        releaseWithPolicy(lastIndex, 0);
                                     }
                                     else {
                                         videoDecoder.releaseOutputBuffer(lastIndex, true);
@@ -1108,7 +1113,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                         // Use a PTS that will cause this frame to be dropped if another comes in within
                                         // the same V-sync period
-                                        videoDecoder.releaseOutputBuffer(lastIndex, System.nanoTime());
+                                        releaseWithPolicy(lastIndex, System.nanoTime());
                                     }
                                     else {
                                         videoDecoder.releaseOutputBuffer(lastIndex, true);
@@ -1166,6 +1171,28 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         rendererThread.setName("Video - Renderer (MediaCodec)");
         rendererThread.setPriority(Thread.NORM_PRIORITY + 2);
         rendererThread.start();
+    }
+
+    // Helper: release with low-latency policy (immediate only when very near to now)
+    private void releaseWithPolicy(int bufferIndex, long frameTimeNanos) {
+        try {
+            long now = System.nanoTime();
+            boolean immediate = preferLowerDelays && (frameTimeNanos <= now + 300_000L);
+            if (immediate) {
+                videoDecoder.releaseOutputBuffer(bufferIndex, true);
+            } else {
+                videoDecoder.releaseOutputBuffer(bufferIndex, frameTimeNanos);
+            }
+        } catch (Throwable t) {
+            try {
+                // Fallback to immediate if timestamped release fails for any reason
+                videoDecoder.releaseOutputBuffer(bufferIndex, true);
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private int getOutputDequeueTimeoutUs() {
+        return preferLowerDelays ? Math.max(250, preferLowerDelaysTimeoutUs) : preferLowerDelaysTimeoutUs;
     }
 
     private boolean fetchNextInputBuffer() {
