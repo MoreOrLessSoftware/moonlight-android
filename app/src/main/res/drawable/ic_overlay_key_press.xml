@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Downward arrow -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2 L12,10 M8,6 L12,10 L16,6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- Simple keyboard key -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5,14 L19,14 Q20,14 20,15 L20,21 Q20,22 19,22 L5,22 Q4,22 4,21 L4,15 Q4,14 5,14 Z"/>
+</vector>

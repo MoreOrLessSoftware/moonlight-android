@@ -667,6 +667,19 @@ public class StreamSettings extends Activity {
                     return true;
                 }
             });
+
+            // Setup custom commands preference click listener
+            Preference customCommandsPref = findPreference("overlay_custom_commands");
+            if (customCommandsPref != null) {
+                customCommandsPref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                    @Override
+                    public boolean onPreferenceClick(Preference preference) {
+                        Intent intent = new Intent(getActivity(), CustomCommandsActivity.class);
+                        startActivity(intent);
+                        return true;
+                    }
+                });
+            }
         }
     }
 }
