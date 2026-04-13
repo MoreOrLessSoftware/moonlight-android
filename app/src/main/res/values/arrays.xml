@@ -132,6 +132,36 @@
         <item>left</item>
     </string-array>
 
+    <string-array name="overlay_trigger_button_names">
+        <item>@string/overlay_trigger_select</item>
+        <item>@string/overlay_trigger_start</item>
+        <item>@string/overlay_trigger_guide</item>
+        <item>@string/overlay_trigger_lb_rb</item>
+    </string-array>
+    <string-array name="overlay_trigger_button_values" translatable="false">
+        <item>select</item>
+        <item>start</item>
+        <item>guide</item>
+        <item>lb_rb</item>
+    </string-array>
+
+    <string-array name="overlay_hold_duration_names">
+        <item>@string/overlay_duration_500</item>
+        <item>@string/overlay_duration_1000</item>
+        <item>@string/overlay_duration_1500</item>
+        <item>@string/overlay_duration_2000</item>
+        <item>@string/overlay_duration_2500</item>
+        <item>@string/overlay_duration_3000</item>
+    </string-array>
+    <string-array name="overlay_hold_duration_values" translatable="false">
+        <item>500</item>
+        <item>1000</item>
+        <item>1500</item>
+        <item>2000</item>
+        <item>2500</item>
+        <item>3000</item>
+    </string-array>
+
     <string-array name="hdr_setting_names">
         <item>On</item>
         <item>Off</item>

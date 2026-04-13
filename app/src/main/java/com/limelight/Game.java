@@ -33,6 +33,8 @@ import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.BrightnessSliderView;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamView;
+import com.limelight.ui.overlay.CustomCommand;
+import com.limelight.ui.overlay.OverlayMenuView;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
@@ -62,6 +64,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.text.Html;
 import android.util.Rational;
 import android.view.Display;
 import android.view.InputDevice;
@@ -150,6 +153,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private int requestedNotificationOverlayVisibility = View.GONE;
     private TextView performanceOverlayView;
     private BrightnessSliderView brightnessSliderView;
+    private OverlayMenuView overlayMenuView;
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
@@ -308,6 +312,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // Initialize brightness slider
         brightnessSliderView = new BrightnessSliderView(this);
+
+        // Initialize overlay menu view (setup will be done after controllerHandler is initialized)
+        overlayMenuView = findViewById(R.id.overlayMenuView);
+        overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
 
         inputCaptureProvider = InputCaptureManager.getInputCaptureProvider(this, this);
 
@@ -525,6 +533,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 PlatformBinding.getCryptoProvider(this), serverCert);
         controllerHandler = new ControllerHandler(this, conn, this, prefConfig);
         keyboardTranslator = new KeyboardTranslator();
+
+        // Setup overlay menu now that controllerHandler is initialized
+        setupOverlayMenu();
 
         InputManager inputManager = (InputManager) getSystemService(Context.INPUT_SERVICE);
         inputManager.registerInputDeviceListener(keyboardTranslator, null);
@@ -1376,6 +1387,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return false;
         }
 
+        // If overlay menu is visible, route all key events to it
+        if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
+            return overlayMenuView.dispatchKeyEvent(event);
+        }
+
         // Handle a synthetic back button event that some Android OS versions
         // create as a result of a right-click. This event WILL repeat if
         // the right mouse button is held down, so we ignore those.
@@ -1456,6 +1472,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Pass-through virtual navigation keys
         if ((event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0) {
             return false;
+        }
+
+        // If overlay menu is visible, route all key events to it
+        if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
+            return overlayMenuView.dispatchKeyEvent(event);
         }
 
         // Handle a synthetic back button event that some Android OS versions
@@ -2079,7 +2100,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 // TODO: Re-enable native touch when have a better solution for handling
                 // cancelled touches from Android gestures and 3 finger taps to activate
-                // the software keyboard.
+                // the overlay menu.
                 /*if (!prefConfig.touchscreenTrackpad && trySendTouchEvent(view, event)) {
                     // If this host supports touch events and absolute touch is enabled,
                     // send it directly as a touch event.
@@ -2106,8 +2127,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                             (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0)) {
                         // All fingers up
                         if (event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
-                            // This is a 3 finger tap to bring up the keyboard
-                            toggleKeyboard();
+                            // This is a 3 finger tap to bring up the overlay menu
+                            runOnUiThread(() -> overlayMenuView.show());
                             return true;
                         }
                     }
@@ -2179,8 +2200,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
-        return handleMotionEvent(null, event) || super.onGenericMotionEvent(event);
+        // If overlay menu is visible, route all motion events to it
+        if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
+            return overlayMenuView.onGenericMotionEvent(event);
+        }
 
+        return handleMotionEvent(null, event) || super.onGenericMotionEvent(event);
     }
 
     private void updateMousePosition(View touchedView, MotionEvent event) {
@@ -2512,6 +2537,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 UiHelper.notifyStreamConnected(Game.this);
 
                 hideSystemUi(1000);
+
+                // Show overlay menu hint toast
+                showOverlayMenuHint();
             }
         });
 
@@ -2778,5 +2806,220 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             default:
                 return false;
         }
+    }
+
+    /**
+     * Setup overlay menu and its listeners
+     */
+    private void setupOverlayMenu() {
+        // Set up the overlay menu listener for select button hold detection
+        controllerHandler.setOverlayMenuListener(new ControllerHandler.OverlayMenuListener() {
+            @Override
+            public void onOverlayMenuOpen() {
+                runOnUiThread(() -> overlayMenuView.show());
+            }
+
+            @Override
+            public void onOverlayMenuCancel() {
+                // Nothing to do - no progress indicator to hide
+            }
+        });
+
+        // Set up menu action listener
+        overlayMenuView.setMenuActionListener(new OverlayMenuView.MenuActionListener() {
+            @Override
+            public void onDisconnect() {
+                // Stop connection and finish activity
+                stopConnection();
+                finish();
+            }
+
+            @Override
+            public void onQuitSession() {
+                // Set flag to quit app on server, then disconnect
+                controllerHandler.pendingApplicationQuit = true;
+                stopConnection();
+                finish();
+            }
+
+            @Override
+            public void onToggleStats() {
+                prefConfig.enablePerfOverlay = !prefConfig.enablePerfOverlay;
+
+                // Toggle performance overlay visibility
+                if (performanceOverlayView.getVisibility() == View.VISIBLE) {
+                    performanceOverlayView.setVisibility(View.GONE);
+                } else {
+                    performanceOverlayView.setVisibility(View.VISIBLE);
+                }
+            }
+
+            @Override
+            public void onToggleMouseEmulation() {
+                // Toggle mouse emulation mode for the primary controller
+                controllerHandler.toggleMouseEmulationForController0();
+            }
+
+            @Override
+            public void onShowKeyboard() {
+                // Toggle Android soft keyboard
+                toggleKeyboard();
+            }
+
+            @Override
+            public void onSendGuideButton() {
+                // Send Guide button press to the host
+                sendGuideButton();
+            }
+
+            @Override
+            public void onCustomCommand(CustomCommand command) {
+                // Send custom key combination to server
+                sendCustomKeyCommand(command);
+            }
+
+            @Override
+            public void onMenuClosed() {
+                // Menu closed, no additional action needed
+            }
+        });
+    }
+
+    /**
+     * Show a toast hint about how to open the overlay menu
+     */
+    private void showOverlayMenuHint() {
+        // Get the trigger button name
+        int buttonNameResId;
+        switch (prefConfig.overlayTriggerButton) {
+            case "select":
+                buttonNameResId = R.string.overlay_trigger_select;
+                break;
+            case "start":
+                buttonNameResId = R.string.overlay_trigger_start;
+                break;
+            case "guide":
+                buttonNameResId = R.string.overlay_trigger_guide;
+                break;
+            case "lb_rb":
+                buttonNameResId = R.string.overlay_trigger_lb_rb;
+                break;
+            default:
+                buttonNameResId = R.string.overlay_trigger_select;
+                break;
+        }
+        String buttonName = getString(buttonNameResId);
+
+        // Show the toast
+        String message = getString(R.string.overlay_menu_hint, buttonName);
+        Toast.makeText(this, Html.fromHtml(message), Toast.LENGTH_LONG).show();
+    }
+
+    /**
+     * Send a custom key command to the server
+     */
+    private void sendCustomKeyCommand(CustomCommand command) {
+        CustomCommand.KeyCombination keyCombination = command.getKeyCombination();
+
+        // Windows virtual key codes for modifier keys
+        final short VK_CONTROL = 0x11;
+        final short VK_MENU = 0x12;    // Alt key
+        final short VK_SHIFT = 0x10;
+        final short VK_LWIN = 0x5B;    // Windows/Meta key
+
+        // Build modifier flags
+        byte modifierFlags = 0;
+        if (keyCombination.isCtrl()) {
+            modifierFlags |= KeyboardPacket.MODIFIER_CTRL;
+        }
+        if (keyCombination.isAlt()) {
+            modifierFlags |= KeyboardPacket.MODIFIER_ALT;
+        }
+        if (keyCombination.isShift()) {
+            modifierFlags |= KeyboardPacket.MODIFIER_SHIFT;
+        }
+        if (keyCombination.isMeta()) {
+            modifierFlags |= KeyboardPacket.MODIFIER_META;
+        }
+
+        // Translate Android key code to Windows VK code format
+        final short translatedKeyCode = keyboardTranslator.translate(keyCombination.getKeyCode(), -1);
+        final byte finalModifiers = modifierFlags;
+
+        // Skip if translation failed
+        if (translatedKeyCode == 0) {
+            return;
+        }
+
+        Handler handler = new Handler();
+
+        // Step 1: Send modifier keys DOWN first (to mimic human key press)
+        if (keyCombination.isCtrl()) {
+            conn.sendKeyboardInput(VK_CONTROL, KeyboardPacket.KEY_DOWN, (byte) 0, (byte) 0);
+        }
+        if (keyCombination.isAlt()) {
+            conn.sendKeyboardInput(VK_MENU, KeyboardPacket.KEY_DOWN, (byte) 0, (byte) 0);
+        }
+        if (keyCombination.isShift()) {
+            conn.sendKeyboardInput(VK_SHIFT, KeyboardPacket.KEY_DOWN, (byte) 0, (byte) 0);
+        }
+        if (keyCombination.isMeta()) {
+            conn.sendKeyboardInput(VK_LWIN, KeyboardPacket.KEY_DOWN, (byte) 0, (byte) 0);
+        }
+
+        // Step 2: Wait 50ms, then send main key DOWN (with modifier flags set)
+        handler.postDelayed(() -> {
+            conn.sendKeyboardInput(translatedKeyCode, KeyboardPacket.KEY_DOWN, finalModifiers, (byte) 0);
+
+            // Step 3: Wait 50ms, then send main key UP (with modifier flags set)
+            handler.postDelayed(() -> {
+                conn.sendKeyboardInput(translatedKeyCode, KeyboardPacket.KEY_UP, finalModifiers, (byte) 0);
+
+                // Step 4: Wait 50ms, then send modifier keys UP (in reverse order)
+                handler.postDelayed(() -> {
+                    if (keyCombination.isMeta()) {
+                        conn.sendKeyboardInput(VK_LWIN, KeyboardPacket.KEY_UP, (byte) 0, (byte) 0);
+                    }
+                    if (keyCombination.isShift()) {
+                        conn.sendKeyboardInput(VK_SHIFT, KeyboardPacket.KEY_UP, (byte) 0, (byte) 0);
+                    }
+                    if (keyCombination.isAlt()) {
+                        conn.sendKeyboardInput(VK_MENU, KeyboardPacket.KEY_UP, (byte) 0, (byte) 0);
+                    }
+                    if (keyCombination.isCtrl()) {
+                        conn.sendKeyboardInput(VK_CONTROL, KeyboardPacket.KEY_UP, (byte) 0, (byte) 0);
+                    }
+                }, 50);
+            }, 50);
+        }, 50);
+    }
+
+    /**
+     * Send Guide button press to the server
+     */
+    private void sendGuideButton() {
+        // Send Guide button down using ControllerHandler
+        controllerHandler.reportOscState(
+            ControllerPacket.SPECIAL_BUTTON_FLAG, // buttonFlags - Guide button
+            (short) 0, // leftStickX
+            (short) 0, // leftStickY
+            (short) 0, // rightStickX
+            (short) 0, // rightStickY
+            (byte) 0,  // leftTrigger
+            (byte) 0   // rightTrigger
+        );
+
+        // Send Guide button up after a brief delay
+        new Handler().postDelayed(() -> {
+            controllerHandler.reportOscState(
+                0,         // buttonFlags - no buttons pressed
+                (short) 0, // leftStickX
+                (short) 0, // leftStickY
+                (short) 0, // rightStickX
+                (short) 0, // rightStickY
+                (byte) 0,  // leftTrigger
+                (byte) 0   // rightTrigger
+            );
+        }, 100);
     }
 }

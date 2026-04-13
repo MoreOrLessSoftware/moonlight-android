@@ -68,11 +68,28 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         void onControllerInputChanged(int buttonFlags);
     }
 
+    /**
+     * Listener interface for overlay menu trigger events from select button hold.
+     */
+    public interface OverlayMenuListener {
+        /**
+         * Called when select button has been held for 3 seconds (open menu).
+         */
+        void onOverlayMenuOpen();
+
+        /**
+         * Called when select button is released before 3 seconds (cancel).
+         */
+        void onOverlayMenuCancel();
+    }
+
     private static final int MAXIMUM_BUMPER_UP_DELAY_MS = 100;
 
     private static final int START_DOWN_TIME_MOUSE_MODE_MS = 750;
 
     private static final int MINIMUM_BUTTON_DOWN_TIME_MS = 25;
+
+    private int overlayMenuOpenMs = 1500;
 
     private static final int EMULATING_SPECIAL = 0x1;
     private static final int EMULATING_SELECT = 0x2;
@@ -143,12 +160,37 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     public boolean pendingApplicationQuit = false;
     private ControllerInputListener controllerInputListener = null;
+    private OverlayMenuListener overlayMenuListener = null;
+    private long selectDownTime = 0;
+    private Runnable overlayMenuOpenRunnable = null;
+    private int overlayTriggerButtonFlag = ControllerPacket.BACK_FLAG;
 
     public ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig) {
         this.activityContext = activityContext;
         this.conn = conn;
         this.gestures = gestures;
         this.prefConfig = prefConfig;
+
+        // Parse overlay trigger button preference to flag(s)
+        switch (prefConfig.overlayTriggerButton) {
+            case "select":
+                this.overlayTriggerButtonFlag = ControllerPacket.BACK_FLAG;
+                break;
+            case "start":
+                this.overlayTriggerButtonFlag = ControllerPacket.PLAY_FLAG;
+                break;
+            case "guide":
+                this.overlayTriggerButtonFlag = ControllerPacket.SPECIAL_BUTTON_FLAG;
+                break;
+            case "lb_rb":
+                this.overlayTriggerButtonFlag = ControllerPacket.LB_FLAG | ControllerPacket.RB_FLAG;
+                break;
+            default:
+                this.overlayTriggerButtonFlag = ControllerPacket.BACK_FLAG;
+                break;
+        }
+
+        this.overlayMenuOpenMs = prefConfig.overlayHoldDurationMs;
         this.deviceVibrator = (Vibrator) activityContext.getSystemService(Context.VIBRATOR_SERVICE);
         this.deviceSensorManager = (SensorManager) activityContext.getSystemService(Context.SENSOR_SERVICE);
         this.inputManager = (InputManager) activityContext.getSystemService(Context.INPUT_SERVICE);
@@ -286,6 +328,37 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
      */
     public void setControllerInputListener(ControllerInputListener listener) {
         this.controllerInputListener = listener;
+    }
+
+    public void setOverlayMenuListener(OverlayMenuListener listener) {
+        this.overlayMenuListener = listener;
+    }
+
+    /**
+     * Toggle mouse emulation mode for controller 0 (the primary controller).
+     * This is typically called from the overlay menu.
+     */
+    public void toggleMouseEmulationForController0() {
+        // Try to find an input device context for controller 0
+        for (int i = 0; i < inputDeviceContexts.size(); i++) {
+            InputDeviceContext context = inputDeviceContexts.valueAt(i);
+            if (context.assignedControllerNumber && context.controllerNumber == 0) {
+                context.toggleMouseEmulation();
+                return;
+            }
+        }
+
+        // Try USB device contexts
+        for (int i = 0; i < usbDeviceContexts.size(); i++) {
+            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+            if (context.assignedControllerNumber && context.controllerNumber == 0) {
+                context.toggleMouseEmulation();
+                return;
+            }
+        }
+
+        // Fallback to default context if no controller 0 was found
+        defaultContext.toggleMouseEmulation();
     }
 
     public void stop() {
@@ -1339,10 +1412,13 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     // Return a valid keycode, -2 to consume, or -1 to not consume the event
     // Device MAY BE NULL
     private int handleRemapping(InputDeviceContext context, KeyEvent event) {
-        // Don't capture the back button if configured
+        // Don't capture the back button if configured, UNLESS it's being used for overlay trigger
         if (context.ignoreBack) {
             if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-                return REMAP_IGNORE;
+                // Allow back button through if it's being used as the overlay trigger
+                if ((ControllerPacket.BACK_FLAG & overlayTriggerButtonFlag) == 0) {
+                    return REMAP_IGNORE;
+                }
             }
         }
 
@@ -2353,6 +2429,100 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
     }
 
+    /**
+     * Start the overlay menu hold detection timers.
+     */
+    private void startOverlayMenuHoldDetection(long downTime) {
+        if (overlayMenuListener == null) {
+            return;
+        }
+
+        selectDownTime = downTime;
+
+        // Schedule menu open callback at OVERLAY_MENU_OPEN_MS interval
+        overlayMenuOpenRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (overlayMenuListener != null && selectDownTime > 0) {
+                    cancelOverlayMenuHoldDetection();
+
+                    // Release ALL gamepad inputs for all controllers before opening menu
+                    // to ensure the host doesn't think any buttons/sticks are still pressed
+                    for (int i = 0; i < inputDeviceContexts.size(); i++) {
+                        InputDeviceContext context = inputDeviceContexts.valueAt(i);
+                        // Reset all button flags, triggers, and analog sticks to neutral
+                        context.inputMap = 0;
+                        context.leftTrigger = 0;
+                        context.rightTrigger = 0;
+                        context.leftStickX = 0;
+                        context.leftStickY = 0;
+                        context.rightStickX = 0;
+                        context.rightStickY = 0;
+                        sendControllerInputPacket(context);
+                    }
+
+                    // Also reset the default context
+                    defaultContext.inputMap = 0;
+                    defaultContext.leftTrigger = 0;
+                    defaultContext.rightTrigger = 0;
+                    defaultContext.leftStickX = 0;
+                    defaultContext.leftStickY = 0;
+                    defaultContext.rightStickX = 0;
+                    defaultContext.rightStickY = 0;
+                    sendControllerInputPacket(defaultContext);
+
+                    overlayMenuListener.onOverlayMenuOpen();
+                }
+            }
+        };
+        mainThreadHandler.postDelayed(overlayMenuOpenRunnable, overlayMenuOpenMs);
+    }
+
+
+    /**
+     * Cancel the overlay menu hold detection and notify listener.
+     */
+    private void cancelOverlayMenuHoldDetection() {
+        if (overlayMenuOpenRunnable != null) {
+            mainThreadHandler.removeCallbacks(overlayMenuOpenRunnable);
+            overlayMenuOpenRunnable = null;
+        }
+
+        boolean wasActive = selectDownTime > 0;
+        selectDownTime = 0;
+
+        // Only notify cancel if we had started the hold detection
+        if (wasActive && overlayMenuListener != null) {
+            overlayMenuListener.onOverlayMenuCancel();
+        }
+    }
+
+    /**
+     * Check if the pressed button should trigger the overlay menu.
+     * Uses bitwise operations to check if:
+     * 1. The button is part of the configured trigger
+     * 2. All required trigger buttons are now pressed
+     */
+    private void checkOverlayTrigger(InputDeviceContext context, int buttonFlag, long eventTime) {
+        // Check if this button is part of the trigger
+        if ((buttonFlag & overlayTriggerButtonFlag) != 0) {
+            // Check if ALL required trigger buttons are now pressed
+            if ((context.inputMap & overlayTriggerButtonFlag) == overlayTriggerButtonFlag) {
+                startOverlayMenuHoldDetection(eventTime);
+            }
+        }
+    }
+
+    /**
+     * Check if the released button should cancel the overlay menu trigger.
+     * Uses bitwise operations to check if the button is part of the configured trigger.
+     */
+    private void checkOverlayTriggerRelease(int buttonFlag) {
+        if ((buttonFlag & overlayTriggerButtonFlag) != 0) {
+            cancelOverlayMenuHoldDetection();
+        }
+    }
+
     public boolean handleButtonUp(KeyEvent event) {
         InputDeviceContext context = getContextForEvent(event);
         if (context == null) {
@@ -2381,22 +2551,17 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         switch (keyCode) {
         case KeyEvent.KEYCODE_BUTTON_MODE:
             context.inputMap &= ~ControllerPacket.SPECIAL_BUTTON_FLAG;
+            checkOverlayTriggerRelease(ControllerPacket.SPECIAL_BUTTON_FLAG);
             break;
         case KeyEvent.KEYCODE_BUTTON_START:
         case KeyEvent.KEYCODE_MENU:
-            // Sometimes we'll get a spurious key up event on controller disconnect.
-            // Make sure it's real by checking that the key is actually down before taking
-            // any action.
-            if ((context.inputMap & ControllerPacket.PLAY_FLAG) != 0 &&
-                    event.getEventTime() - context.startDownTime > ControllerHandler.START_DOWN_TIME_MOUSE_MODE_MS &&
-                    prefConfig.mouseEmulation) {
-                context.toggleMouseEmulation();
-            }
             context.inputMap &= ~ControllerPacket.PLAY_FLAG;
+            checkOverlayTriggerRelease(ControllerPacket.PLAY_FLAG);
             break;
         case KeyEvent.KEYCODE_BACK:
         case KeyEvent.KEYCODE_BUTTON_SELECT:
             context.inputMap &= ~ControllerPacket.BACK_FLAG;
+            checkOverlayTriggerRelease(ControllerPacket.BACK_FLAG);
             break;
         case KeyEvent.KEYCODE_DPAD_LEFT:
             if (context.hatXAxisUsed) {
@@ -2470,10 +2635,12 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         case KeyEvent.KEYCODE_BUTTON_L1:
             context.inputMap &= ~ControllerPacket.LB_FLAG;
             context.lastLbUpTime = event.getEventTime();
+            checkOverlayTriggerRelease(ControllerPacket.LB_FLAG);
             break;
         case KeyEvent.KEYCODE_BUTTON_R1:
             context.inputMap &= ~ControllerPacket.RB_FLAG;
             context.lastRbUpTime = event.getEventTime();
+            checkOverlayTriggerRelease(ControllerPacket.RB_FLAG);
             break;
         case KeyEvent.KEYCODE_BUTTON_THUMBL:
             context.inputMap &= ~ControllerPacket.LS_CLK_FLAG;
@@ -2599,18 +2766,25 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         case KeyEvent.KEYCODE_BUTTON_MODE:
             context.hasMode = true;
             context.inputMap |= ControllerPacket.SPECIAL_BUTTON_FLAG;
+            if (event.getRepeatCount() == 0) {
+                checkOverlayTrigger(context, ControllerPacket.SPECIAL_BUTTON_FLAG, event.getEventTime());
+            }
             break;
         case KeyEvent.KEYCODE_BUTTON_START:
         case KeyEvent.KEYCODE_MENU:
+            context.inputMap |= ControllerPacket.PLAY_FLAG;
             if (event.getRepeatCount() == 0) {
                 context.startDownTime = event.getEventTime();
+                checkOverlayTrigger(context, ControllerPacket.PLAY_FLAG, event.getEventTime());
             }
-            context.inputMap |= ControllerPacket.PLAY_FLAG;
             break;
         case KeyEvent.KEYCODE_BACK:
         case KeyEvent.KEYCODE_BUTTON_SELECT:
             context.hasSelect = true;
             context.inputMap |= ControllerPacket.BACK_FLAG;
+            if (event.getRepeatCount() == 0) {
+                checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime());
+            }
             break;
         case KeyEvent.KEYCODE_DPAD_LEFT:
             if (context.hatXAxisUsed) {
@@ -2683,9 +2857,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             break;
         case KeyEvent.KEYCODE_BUTTON_L1:
             context.inputMap |= ControllerPacket.LB_FLAG;
+            if (event.getRepeatCount() == 0) {
+                checkOverlayTrigger(context, ControllerPacket.LB_FLAG, event.getEventTime());
+            }
             break;
         case KeyEvent.KEYCODE_BUTTON_R1:
             context.inputMap |= ControllerPacket.RB_FLAG;
+            if (event.getRepeatCount() == 0) {
+                checkOverlayTrigger(context, ControllerPacket.RB_FLAG, event.getEventTime());
+            }
             break;
         case KeyEvent.KEYCODE_BUTTON_THUMBL:
             context.inputMap |= ControllerPacket.LS_CLK_FLAG;

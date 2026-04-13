@@ -85,14 +85,8 @@
             android:title="@string/title_checkbox_usb_bind_all"
             android:summary="@string/summary_checkbox_usb_bind_all"
             android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_mouse_emulation"
-            android:title="@string/title_checkbox_mouse_emulation"
-            android:summary="@string/summary_checkbox_mouse_emulation"
-            android:defaultValue="true" />
         <ListPreference
             android:key="analog_scrolling"
-            android:dependency="checkbox_mouse_emulation"
             android:title="@string/title_analog_scrolling"
             android:summary="@string/summary_analog_scrolling"
             android:entries="@array/analog_scrolling_names"
@@ -131,6 +125,27 @@
             android:title="@string/title_checkbox_gamepad_motion_fallback"
             android:summary="@string/summary_checkbox_gamepad_motion_fallback"
             android:defaultValue="false" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_overlay_menu"
+        android:key="category_overlay_menu">
+        <ListPreference
+            android:key="overlay_trigger_button"
+            android:title="@string/title_overlay_trigger_button"
+            android:summary="@string/summary_overlay_trigger_button"
+            android:entries="@array/overlay_trigger_button_names"
+            android:entryValues="@array/overlay_trigger_button_values"
+            android:defaultValue="select" />
+        <ListPreference
+            android:key="overlay_hold_duration"
+            android:title="@string/title_overlay_hold_duration"
+            android:summary="@string/summary_overlay_hold_duration"
+            android:entries="@array/overlay_hold_duration_names"
+            android:entryValues="@array/overlay_hold_duration_values"
+            android:defaultValue="1500" />
+        <Preference
+            android:key="overlay_custom_commands"
+            android:title="@string/title_overlay_custom_commands"
+            android:summary="@string/summary_overlay_custom_commands" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_input_settings"
         android:key="category_input_settings">
