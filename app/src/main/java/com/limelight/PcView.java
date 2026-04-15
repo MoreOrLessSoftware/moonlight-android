@@ -42,6 +42,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
+import android.text.Html;
 import android.view.ContextMenu;
 import android.view.Display;
 import android.view.Menu;
@@ -343,7 +344,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         if (!hasShownRefreshRateToast) {
             Display display = getWindowManager().getDefaultDisplay();
             float refreshRate = display.getRefreshRate();
-            Toast.makeText(this, "Current refresh rate: " + UiHelper.formatRefreshRate(refreshRate), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, Html.fromHtml("Current refresh rate: <b>" + UiHelper.formatRefreshRate(refreshRate) + "</b>"), Toast.LENGTH_LONG).show();
             hasShownRefreshRateToast = true;
         }
 
