@@ -467,8 +467,9 @@ public class OverlayMenuView extends HorizontalScrollView {
                 actionListener.onToggleMouseEmulation();
                 shouldCloseMenu = true;
             } else if (action == ACTION_SHOW_KEYBOARD) {
-                actionListener.onShowKeyboard();
-                shouldCloseMenu = true;
+                // Use helper method which closes menu before showing keyboard
+                activateKeyboard();
+                return; // Early return since activateKeyboard() handles menu closing
             } else if (action == ACTION_SEND_GUIDE) {
                 actionListener.onSendGuideButton();
                 shouldCloseMenu = true;
@@ -516,10 +517,12 @@ public class OverlayMenuView extends HorizontalScrollView {
      * Activate keyboard shortcut (Y button)
      */
     private void activateKeyboard() {
-        if (actionListener != null) {
-            actionListener.onShowKeyboard();
-        }
-        closeMenu();
+        // Close menu first, then show keyboard to avoid focus conflicts
+        hide(() -> {
+            if (actionListener != null) {
+                actionListener.onShowKeyboard();
+            }
+        });
     }
 
     /**
