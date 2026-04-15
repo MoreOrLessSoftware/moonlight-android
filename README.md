@@ -54,9 +54,30 @@ These seem to reduce latency by a couple ms on my Pixel 7a and also actual rende
 
 Some non-HDR devices can still stream 10-bit SDR if Sunshine sends it. This simple hack bypasses the HEVC decoder check for HDR10 when you have the "Enable HDR" setting activated.
 
+### 8. In-Stream Overlay Menu
+
+Access quick actions and custom commands during streaming with a customizable overlay menu:
+
+![In-stream overlay menu](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overlay-menu-3.png)
+
+**Features:**
+- **Quick Actions**: Disconnect, quit session, toggle stats, mouse mode, and show keyboard
+- **Custom Commands**: Create unlimited custom keyboard shortcuts
+- **Multiple Trigger Options**:
+  - Select button (default)
+  - Start button
+  - Guide button (might not be supported on all devices)
+  - LB + RB combination
+- **Customizable Hold Duration**: Choose how long to hold (0.5s to 3s)
+- **Touch Gesture**: 3-finger tap also opens the menu
+
+**Note:** Start button long-press mouse emulation has been removed - use the overlay menu "Mouse Mode" button instead.
+
 ## Features and Improvements Merged from Artemis
 
 - Ultra low latency mode with Snapdragon (8 Gen 2+) and MediaTek (MTK) latency improvements
+- Low Frame Rate (LFR) / low delay buffer logic (on when "Ultra low latency" option is enabled)
+- Revised decode latency calculation (typically a few ms less than Moonlight reports)
 
 ## Downloads
 [Download APK directly](https://github.com/MoreOrLessSoftware/moonlight-android/releases)
