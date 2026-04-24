@@ -253,6 +253,14 @@ public class OverlayMenuView extends HorizontalScrollView {
             }
 
             switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    navigateLeft();
+                    return true;
+
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    navigateRight();
+                    return true;
+
                 case KeyEvent.KEYCODE_BUTTON_A:
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                     activateSelected();

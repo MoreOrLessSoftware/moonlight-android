@@ -164,6 +164,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private long selectDownTime = 0;
     private Runnable overlayMenuOpenRunnable = null;
     private int overlayTriggerButtonFlag = ControllerPacket.BACK_FLAG;
+    private boolean overlayTriggeredByRemoteBack = false;
 
     public ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig) {
         this.activityContext = activityContext;
@@ -1412,16 +1413,6 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     // Return a valid keycode, -2 to consume, or -1 to not consume the event
     // Device MAY BE NULL
     private int handleRemapping(InputDeviceContext context, KeyEvent event) {
-        // Don't capture the back button if configured, UNLESS it's being used for overlay trigger
-        if (context.ignoreBack) {
-            if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-                // Allow back button through if it's being used as the overlay trigger
-                if ((ControllerPacket.BACK_FLAG & overlayTriggerButtonFlag) == 0) {
-                    return REMAP_IGNORE;
-                }
-            }
-        }
-
         // If we know this gamepad has a share button and receive an unmapped
         // KEY_RECORD event, report that as a share button press.
         if (context.hasShare) {
@@ -2444,7 +2435,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             @Override
             public void run() {
                 if (overlayMenuListener != null && selectDownTime > 0) {
-                    cancelOverlayMenuHoldDetection();
+                    // Clean up state without calling cancelOverlayMenuHoldDetection()
+                    // to avoid finishing the activity for remote back buttons
+                    overlayMenuOpenRunnable = null;
+                    selectDownTime = 0;
+                    overlayTriggeredByRemoteBack = false;
 
                     // Release ALL gamepad inputs for all controllers before opening menu
                     // to ensure the host doesn't think any buttons/sticks are still pressed
@@ -2481,6 +2476,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     /**
      * Cancel the overlay menu hold detection and notify listener.
+     * If triggered by remote back button, finish the activity.
      */
     private void cancelOverlayMenuHoldDetection() {
         if (overlayMenuOpenRunnable != null) {
@@ -2489,11 +2485,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         boolean wasActive = selectDownTime > 0;
+        boolean wasRemoteBack = overlayTriggeredByRemoteBack;
         selectDownTime = 0;
+        overlayTriggeredByRemoteBack = false;
 
         // Only notify cancel if we had started the hold detection
         if (wasActive && overlayMenuListener != null) {
             overlayMenuListener.onOverlayMenuCancel();
+        }
+
+        // If this was a remote back button short press, exit the activity
+        if (wasActive && wasRemoteBack) {
+            activityContext.finish();
         }
     }
 
@@ -2502,12 +2505,17 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
      * Uses bitwise operations to check if:
      * 1. The button is part of the configured trigger
      * 2. All required trigger buttons are now pressed
+     * @param context The input device context
+     * @param buttonFlag The button flag that was pressed
+     * @param eventTime The event timestamp
+     * @param isRemoteBack True if triggered by remote control back button
      */
-    private void checkOverlayTrigger(InputDeviceContext context, int buttonFlag, long eventTime) {
+    private void checkOverlayTrigger(InputDeviceContext context, int buttonFlag, long eventTime, boolean isRemoteBack) {
         // Check if this button is part of the trigger
         if ((buttonFlag & overlayTriggerButtonFlag) != 0) {
             // Check if ALL required trigger buttons are now pressed
             if ((context.inputMap & overlayTriggerButtonFlag) == overlayTriggerButtonFlag) {
+                overlayTriggeredByRemoteBack = isRemoteBack;
                 startOverlayMenuHoldDetection(eventTime);
             }
         }
@@ -2558,9 +2566,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             context.inputMap &= ~ControllerPacket.PLAY_FLAG;
             checkOverlayTriggerRelease(ControllerPacket.PLAY_FLAG);
             break;
-        case KeyEvent.KEYCODE_BACK:
         case KeyEvent.KEYCODE_BUTTON_SELECT:
             context.inputMap &= ~ControllerPacket.BACK_FLAG;
+            checkOverlayTriggerRelease(ControllerPacket.BACK_FLAG);
+            break;
+        case KeyEvent.KEYCODE_BACK:
+            if (!context.ignoreBack) {
+                // Only clear flag if it was set (gamepad case)
+                context.inputMap &= ~ControllerPacket.BACK_FLAG;
+            }
             checkOverlayTriggerRelease(ControllerPacket.BACK_FLAG);
             break;
         case KeyEvent.KEYCODE_DPAD_LEFT:
@@ -2767,7 +2781,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             context.hasMode = true;
             context.inputMap |= ControllerPacket.SPECIAL_BUTTON_FLAG;
             if (event.getRepeatCount() == 0) {
-                checkOverlayTrigger(context, ControllerPacket.SPECIAL_BUTTON_FLAG, event.getEventTime());
+                checkOverlayTrigger(context, ControllerPacket.SPECIAL_BUTTON_FLAG, event.getEventTime(), false);
             }
             break;
         case KeyEvent.KEYCODE_BUTTON_START:
@@ -2775,15 +2789,33 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             context.inputMap |= ControllerPacket.PLAY_FLAG;
             if (event.getRepeatCount() == 0) {
                 context.startDownTime = event.getEventTime();
-                checkOverlayTrigger(context, ControllerPacket.PLAY_FLAG, event.getEventTime());
+                checkOverlayTrigger(context, ControllerPacket.PLAY_FLAG, event.getEventTime(), false);
             }
             break;
-        case KeyEvent.KEYCODE_BACK:
         case KeyEvent.KEYCODE_BUTTON_SELECT:
             context.hasSelect = true;
             context.inputMap |= ControllerPacket.BACK_FLAG;
             if (event.getRepeatCount() == 0) {
-                checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime());
+                checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+            }
+            break;
+        case KeyEvent.KEYCODE_BACK:
+            context.hasSelect = true;
+
+            if (context.ignoreBack) {
+                // Remote control - don't send to host, only use for local overlay detection
+                if (event.getRepeatCount() == 0) {
+                    // Temporarily set flag for overlay detection, then clear it
+                    context.inputMap |= ControllerPacket.BACK_FLAG;
+                    checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), true);
+                    context.inputMap &= ~ControllerPacket.BACK_FLAG;
+                }
+            } else {
+                // Gamepad - send to host and check overlay trigger
+                context.inputMap |= ControllerPacket.BACK_FLAG;
+                if (event.getRepeatCount() == 0) {
+                    checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+                }
             }
             break;
         case KeyEvent.KEYCODE_DPAD_LEFT:
@@ -2858,13 +2890,13 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         case KeyEvent.KEYCODE_BUTTON_L1:
             context.inputMap |= ControllerPacket.LB_FLAG;
             if (event.getRepeatCount() == 0) {
-                checkOverlayTrigger(context, ControllerPacket.LB_FLAG, event.getEventTime());
+                checkOverlayTrigger(context, ControllerPacket.LB_FLAG, event.getEventTime(), false);
             }
             break;
         case KeyEvent.KEYCODE_BUTTON_R1:
             context.inputMap |= ControllerPacket.RB_FLAG;
             if (event.getRepeatCount() == 0) {
-                checkOverlayTrigger(context, ControllerPacket.RB_FLAG, event.getEventTime());
+                checkOverlayTrigger(context, ControllerPacket.RB_FLAG, event.getEventTime(), false);
             }
             break;
         case KeyEvent.KEYCODE_BUTTON_THUMBL:
