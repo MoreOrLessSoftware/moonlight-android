@@ -237,9 +237,10 @@ public class OverlayMenuView extends HorizontalScrollView {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // Handle Android back button (but not gamepad SELECT button which sends KEYCODE_BACK)
+        // Handle back button from keyboards, touch, and TV remotes (but not full gamepad SELECT button)
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN) {
-            if (!isGamepadEvent(event)) {
+            // Only activate on a new press (not a repeated/held button from menu opening)
+            if (!isFullGamepadEvent(event) && event.getRepeatCount() == 0) {
                 closeMenu();
             }
             return true;
@@ -314,9 +315,10 @@ public class OverlayMenuView extends HorizontalScrollView {
      */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Handle Android back button (but not gamepad SELECT button which sends KEYCODE_BACK)
+        // Handle back button from keyboards, touch, and TV remotes (but not full gamepad SELECT button)
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (!isGamepadEvent(event)) {
+            // Only activate on a new press (not a repeated/held button from menu opening)
+            if (!isFullGamepadEvent(event) && event.getRepeatCount() == 0) {
                 closeMenu();
             }
             return true;
@@ -373,6 +375,15 @@ public class OverlayMenuView extends HorizontalScrollView {
         return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
                (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
                (source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD;
+    }
+
+    /**
+     * Check if a key event is from a full gamepad controller (not just a TV remote/D-pad)
+     */
+    private boolean isFullGamepadEvent(KeyEvent event) {
+        int source = event.getSource();
+        return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+               (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
     }
 
     /**
