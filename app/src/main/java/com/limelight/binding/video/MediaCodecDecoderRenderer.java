@@ -1390,7 +1390,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     @Override
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
-                                long receiveTimeUs, long enqueueTimeUs) {
+                                long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs) {
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
@@ -1715,12 +1715,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
         }
 
-        // The frame timestamps use an undefined epoch, so normalize them to uptime microseconds.
-        if (baseTimestampUs == 0) {
-            baseTimestampUs = (SystemClock.uptimeMillis() * 1000) - enqueueTimeUs;
-        }
-
-        long timestampUs = baseTimestampUs + enqueueTimeUs;
+        long timestampUs = presentationTimeUs;
         if (timestampUs <= lastTimestampUs) {
             // We can't submit multiple buffers with the same timestamp
             // so bump it up by one before queuing
