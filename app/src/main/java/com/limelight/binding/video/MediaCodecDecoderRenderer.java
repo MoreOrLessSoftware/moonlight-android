@@ -1441,7 +1441,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     @Override
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
-                                long receiveTimeMs, long enqueueTimeMs) {
+                                long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs) {
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
@@ -1740,7 +1740,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             // Count time from first packet received to enqueue time as receive time
             // We will count DU queue time as part of decoding, because it is directly
             // caused by a slow decoder.
-            activeWindowVideoStats.totalTimeMs += enqueueTimeMs - receiveTimeMs;
+            activeWindowVideoStats.totalTimeMs += (enqueueTimeUs - receiveTimeUs) / 1000;
         }
 
         if (!fetchNextInputBuffer()) {
@@ -1766,7 +1766,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
         }
 
-        long timestampUs = enqueueTimeMs * 1000;
+        long timestampUs = presentationTimeUs;
         if (timestampUs <= lastTimestampUs) {
             // We can't submit multiple buffers with the same timestamp
             // so bump it up by one before queuing

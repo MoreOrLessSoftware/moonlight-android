@@ -28,7 +28,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/SimpleStun.c \
                    moonlight-common-c/src/VideoDepacketizer.c \
                    moonlight-common-c/src/VideoStream.c \
-                   moonlight-common-c/reedsolomon/rs.c \
+                   moonlight-common-c/src/rswrapper.c \
                    moonlight-common-c/enet/callbacks.c \
                    moonlight-common-c/enet/compress.c \
                    moonlight-common-c/enet/host.c \
@@ -43,11 +43,15 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    minisdl.c \
 
 
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/moonlight-common-c/enet/include \
-                    $(LOCAL_PATH)/moonlight-common-c/reedsolomon \
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/include \
+                    $(LOCAL_PATH)/moonlight-common-c/enet/include \
+                    $(LOCAL_PATH)/moonlight-common-c/nanors \
+                    $(LOCAL_PATH)/moonlight-common-c/nanors/deps \
+                    $(LOCAL_PATH)/moonlight-common-c/nanors/deps/obl \
+                    $(LOCAL_PATH)/moonlight-common-c/nanors/deps/simde \
                     $(LOCAL_PATH)/moonlight-common-c/src \
 
-LOCAL_CFLAGS := -DHAS_SOCKLEN_T=1 -DLC_ANDROID -DHAVE_CLOCK_GETTIME=1
+LOCAL_CFLAGS := -DHAS_SOCKLEN_T=1 -DLC_ANDROID -DHAVE_CLOCK_GETTIME=1 -DNDEBUG
 
 ifeq ($(NDK_DEBUG),1)
 LOCAL_CFLAGS += -DLC_DEBUG
