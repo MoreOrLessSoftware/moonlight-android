@@ -2511,10 +2511,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
      * @param isRemoteBack True if triggered by remote control back button
      */
     private void checkOverlayTrigger(InputDeviceContext context, int buttonFlag, long eventTime, boolean isRemoteBack) {
-        // Check if this button is part of the trigger
-        if ((buttonFlag & overlayTriggerButtonFlag) != 0) {
-            // Check if ALL required trigger buttons are now pressed
-            if ((context.inputMap & overlayTriggerButtonFlag) == overlayTriggerButtonFlag) {
+        // Check if this button is part of the trigger, or if it's the back button on a remote
+        if ((buttonFlag & overlayTriggerButtonFlag) != 0 || (isRemoteBack && buttonFlag == ControllerPacket.BACK_FLAG)) {
+            // Check if ALL required trigger buttons are now pressed, or if it's the back button on a remote
+            if ((context.inputMap & overlayTriggerButtonFlag) == overlayTriggerButtonFlag || isRemoteBack) {
                 overlayTriggeredByRemoteBack = isRemoteBack;
                 startOverlayMenuHoldDetection(eventTime);
             }
@@ -2526,7 +2526,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
      * Uses bitwise operations to check if the button is part of the configured trigger.
      */
     private void checkOverlayTriggerRelease(int buttonFlag) {
-        if ((buttonFlag & overlayTriggerButtonFlag) != 0) {
+        if ((buttonFlag & overlayTriggerButtonFlag) != 0 || (overlayTriggeredByRemoteBack && buttonFlag == ControllerPacket.BACK_FLAG)) {
             cancelOverlayMenuHoldDetection();
         }
     }
