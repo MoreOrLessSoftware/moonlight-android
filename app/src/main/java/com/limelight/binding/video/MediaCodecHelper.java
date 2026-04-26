@@ -77,6 +77,7 @@ public class MediaCodecHelper {
         refFrameInvalidationHevcPrefixes = new LinkedList<>();
         refFrameInvalidationHevcPrefixes.add("omx.exynos");
         refFrameInvalidationHevcPrefixes.add("c2.exynos");
+        refFrameInvalidationHevcPrefixes.add("c2.amlogic");
 
         // Qualcomm and NVIDIA may be added at runtime
     }
@@ -256,7 +257,7 @@ public class MediaCodecHelper {
         amlogicDecoderPrefixes = new LinkedList<>();
 
         amlogicDecoderPrefixes.add("omx.amlogic");
-        amlogicDecoderPrefixes.add("c2.amlogic"); // Unconfirmed
+        amlogicDecoderPrefixes.add("c2.amlogic");
     }
 
     private static boolean isPowerVR(String glRenderer) {
@@ -643,9 +644,12 @@ public class MediaCodecHelper {
             }
             else if (isDecoderInList(amlogicDecoderPrefixes, decoderInfo.getName())) {
                 if (tryNumber < 4) {
-                    // Amlogic low latency vendor extension
+                    // Amlogic low latency vendor extensions
                     // https://github.com/codewalkerster/android_vendor_amlogic_common_prebuilt_libstagefrighthw/commit/41fefc4e035c476d58491324a5fe7666bfc2989e
-                    videoFormat.setInteger("vendor.low-latency.enable", 1);
+                    safeSet(videoFormat, "vendor.low-latency.enable", 1);
+                    safeSet(videoFormat, "vendor.amlogic.low-latency", 1);
+                    safeSet(videoFormat, "vendor.media.omx.gamemode", 1);
+                    safeSet(videoFormat, "vendor.amlogic.vdec.boost", 1);
                     setNewOption = true;
                 }
             }
