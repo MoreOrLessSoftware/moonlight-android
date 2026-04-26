@@ -3,7 +3,14 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+
+    <!-- Viewfinder corners for screenshot -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M17,19H7V5h10v14zM17,1H7C5.9,1 5,1.9 5,3v18c0,1.1 0.9,2 2,2h10c1.1,0 2,-0.9 2,-2V3C19,1.9 18.1,1 17,1zM12,23c-0.83,0 -1.5,-0.67 -1.5,-1.5S11.17,20 12,20s1.5,0.67 1.5,1.5S12.83,23 12,23z" />
+        android:pathData="M15,21h5c1.1,0 2,-0.9 2,-2v-5h-2v4c0,0.55 -0.45,1 -1,1h-4v2zM9,21H4c-1.1,0 -2,-0.9 -2,-2v-5h2v4c0,0.55 0.45,1 1,1h4v2zM15,3h5c1.1,0 2,0.9 2,2v5h-2V6c0,-0.55 -0.45,-1 -1,-1h-4V3zM9,3H4C2.9,3 2,3.9 2,5v5h2V6c0,-0.55 0.45,-1 1,-1h4V3z" />
+    
+    <!-- Shutter button in the center -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,12m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
 </vector>
