@@ -2960,15 +2960,6 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             // Wait for the combo to lift and then finish the activity
             context.pendingExit = true;
         }
-        // LB+RB+Down+Right is the quit (session + host app) combo
-        if (context.inputMap == (ControllerPacket.LB_FLAG | ControllerPacket.RB_FLAG |
-                                 ControllerPacket.DOWN_FLAG | ControllerPacket.RIGHT_FLAG)) {
-            // Wait for the combo to lift and then finish the activity
-            context.pendingExit = true;
-
-            // Also indicate that the user wants to quit the streaming app
-            this.pendingApplicationQuit = true;
-        }
 
         // Start+LB acts like select for controllers with one button
         if (!context.hasSelect) {
