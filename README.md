@@ -33,45 +33,35 @@ These overrides will supersede any per-app or Quick Launch settings when enabled
 
 ![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides4.png)
 
-### 5. New gamepad button chord for quitting host app
+### 5. Ultra low latency flags for Exynos and Amlogic decoders
 
-To end the session AND quit the app on the host machine, use a new button chord (made with macros in mind):
+Added some additional decoder flags/options to potentially reduce latency on devices with Exynos (tested on Google Pixel 7a), and Amlogic (tested on Chromecast w/Google TV) SoCs.
 
-```LB``` + ```RB``` + ```D-pad right``` + ```D-pad down```
+Recommend **Balanced** frame pacing and the **Ultra low latency** option enabled for these devices.
 
-### 6. Ultra low latency flags for Exynos
-
-Tried some [new flags for the Exynos decoder](https://github.com/MoreOrLessSoftware/moonlight-android/commit/77cd72c427dff7250b8e10b007d1ece2db9f7ddb):
-
-```java
-videoFormat.setInteger("vendor.rtc-ext-dec-output-queue-depth.value", 2); // Minimal queue depth for lower latency
-videoFormat.setInteger("vendor.sec-dec-output.delay", 0); // Minimal output delay
-```
-
-These seem to reduce latency by a couple ms on my Pixel 7a and also actual rendering latency by 1 or 2 frames in my tests. To use, enable the "Ultra Low Latency" setting and I would suggest Balanced frame pacing.
-
-### 7. Force HDR (10-bit SDR) streaming on devices that don't support HDR (Experimental)
+### 6. Force HDR (10-bit SDR) streaming on devices that don't support HDR (Experimental)
 
 Some non-HDR devices can still stream 10-bit SDR if Sunshine sends it. This simple hack bypasses the HEVC decoder check for HDR10 when you have the "Enable HDR" setting activated.
 
-### 8. In-Stream Overlay Menu
+### 7. In-Stream Overlay Menu
 
 Access quick actions and custom commands during streaming with a customizable overlay menu:
 
 ![In-stream overlay menu](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overlay-menu-3.png)
 
 **Features:**
-- **Quick Actions**: Disconnect, quit session, toggle stats, mouse mode, and show keyboard
-- **Custom Commands**: Create unlimited custom keyboard shortcuts
-- **Multiple Trigger Options**:
+- **Quick Actions**: Disconnect, quit session, toggle stats, mouse mode, and show keyboard (except Google TV)
+- **Custom Commands**: Create custom keyboard shortcuts
+- **Multiple Long-Press Trigger Options**:
   - Select button (default)
   - Start button
-  - Guide button (might not be supported on all devices)
+  - Guide button (not be supported on all devices)
   - LB + RB combination
+  - Back button on remote (Shield, CCwGTV, etc - always available)
 - **Customizable Hold Duration**: Choose how long to hold (0.5s to 3s)
 - **Touch Gesture**: 3-finger tap also opens the menu
 
-**Note:** Start button long-press mouse emulation has been removed - use the overlay menu "Mouse Mode" button instead.
+**Note:** Start button long-press for mouse emulation and 3-button keyboard shortcut have been removed in favor of the quick actions in the overlay menu.
 
 ## Features and Improvements Merged from Artemis
 
