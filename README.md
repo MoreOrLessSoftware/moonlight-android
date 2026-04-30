@@ -65,9 +65,10 @@ Access quick actions and custom commands during streaming with a customizable ov
 
 ### 8. Improved Stats Overlay
 
-Tweaked the formatting and added variance between incoming and rendered FPS (will show > 0% when the difference is greater than 1 FPS):
+- Tweaked the formatting and simplified labels
+- Added variance between incoming and rendered FPS (will show > 0% when the values differ by 1 or more FPS)
 
-<img width="2560" height="1600" alt="Screenshot_20260430-081011" src="https://github.com/user-attachments/assets/a27bcebf-fd83-41b3-9501-eb017cdeecba" />
+<img width="2560" height="1600" alt="Improved stats overlay" src="https://github.com/user-attachments/assets/3c78519c-9016-4105-a659-670807c4c08e" />
 
 ## Features and Improvements Merged from Artemis
 
@@ -76,7 +77,7 @@ Tweaked the formatting and added variance between incoming and rendered FPS (wil
 - Revised decode latency calculation (typically a few ms less than Moonlight reports)
 
 ## Downloads
-[Download APK directly](https://github.com/MoreOrLessSoftware/moonlight-android/releases)
+[Download APK from releases](https://github.com/MoreOrLessSoftware/moonlight-android/releases)
 
 ## Building
 * Install Android Studio and the Android NDK
@@ -84,12 +85,5 @@ Tweaked the formatting and added variance between incoming and rendered FPS (wil
 * In moonlight-android/, create a file called ‘local.properties’. Add an ‘ndk.dir=’ property to the local.properties file and set it equal to your NDK directory.
 * Build the APK using Android Studio or gradle
 
-## Authors
-
-* [Cameron Gutman](https://github.com/cgutman)  
-* [Diego Waxemberg](https://github.com/dwaxemberg)  
-* [Aaron Neyer](https://github.com/Aaronneyer)  
-* [Andrew Hennessy](https://github.com/yetanothername)
-
-Moonlight is the work of students at [Case Western](http://case.edu) and was
-started as a project at [MHacks](http://mhacks.org).
+## Credits
+Moonlight X is a fork of the original [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) which is authored by [Cameron Gutman](https://github.com/cgutman) and others.
