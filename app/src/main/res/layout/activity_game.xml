@@ -26,16 +26,18 @@
         android:id="@+id/performanceOverlay"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="10dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="10dp"
+        android:layout_marginLeft="5dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
         android:layout_gravity="left"
-        android:textSize="11sp"
+        android:padding="2dp"
+        android:textSize="10sp"
         android:typeface="monospace"
         android:gravity="left"
-        android:background="#80000000"
+        android:background="#60000000"
         android:preferKeepClear="true"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:text="..." />
 
     <TextView
         android:id="@+id/notificationOverlay"
