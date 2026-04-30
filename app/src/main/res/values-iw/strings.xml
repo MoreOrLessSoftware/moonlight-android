@@ -54,7 +54,7 @@
     <string name="title_details">פרטים</string>
     <string name="poor_connection_msg">חיבור חלש למחשב</string>
     <string name="perf_overlay_decoder">מפענח: %1$s</string>
-    <string name="perf_overlay_incomingfps">פריימים לשניה מהרשת: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netdrops">פריימים שנפלו בחיבור רשת: %1$.2f%%</string>
     <string name="perf_overlay_dectime">זמן פענוח ממוצע: %1$.2f ms</string>
     <string name="applist_connect_msg">מתחבר למחשב…</string>
@@ -113,7 +113,6 @@
     <string name="no">לא</string>
     <string name="help">עזרה</string>
     <string name="perf_overlay_streamdetails">הזרמת וידיאו: %1$s %2$.2f FPS</string>
-    <string name="perf_overlay_renderingfps">פריימים מרונדרים: %1$.2f FPS</string>
     <string name="applist_menu_hide_app">הסתר אפליקציה</string>
     <string name="perf_overlay_netlatency">מהירות תגובה ממוצעת: %1$d ms (שונות: %2$d ms)</string>
     <string name="applist_menu_quit">הפסק שידור</string>

@@ -74,8 +74,7 @@
 \n 請降低位元速率</string>
     <string name="poor_connection_msg">與電腦連線不良</string>
     <string name="perf_overlay_decoder">解碼器：%1$s</string>
-    <string name="perf_overlay_incomingfps">網路接收影格速率：%1$.2f FPS</string>
-    <string name="perf_overlay_renderingfps">轉譯影格速率：%1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netdrops">網路丟失影格：%1$.2f%%</string>
     <string name="perf_overlay_dectime">平均解碼時間：%1$.2f ms</string>
     <!-- AppList activity -->

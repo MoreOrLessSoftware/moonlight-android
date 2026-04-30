@@ -237,8 +237,7 @@
 \nNon saremo responsabili per qualsiasi problema risultante dalla creazione di una risoluzione personalizzata sul tuo PC.
 \n
 \nPuò capitare che il tuo monitor potrebbe non supportare una risoluzione dello schermo richiesta. In questo caso, prova a impostare un monitor virtuale. Infine, se il tuo dispositivo o PC sorgente non supportano la trasmissione ad una specifica risoluzione dello schermo o della frequenza di aggiornamento, sfortunatamente non ci sono altre soluzioni.</string>
-    <string name="perf_overlay_incomingfps">Frame rate in ingresso dalla rete: %1$.2f FPS</string>
-    <string name="perf_overlay_renderingfps">Frame rate renderizzato: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netdrops">Frame scartati dalla tua connessione di rete: %1$.2f%%</string>
     <string name="perf_overlay_netlatency">Latenza media della rete: %1$d ms (varianza: %2$d ms)</string>
     <string name="category_help">Aiuto</string>

@@ -67,7 +67,7 @@
     <string name="yes">Ναί</string>
     <string name="perf_overlay_streamdetails">Ροή βίντεο: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Αποκωδικοποιητής: %1$s</string>
-    <string name="perf_overlay_incomingfps">Ρυθμός εισερχόμενων καρέ από το δίκτυο: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="applist_menu_cancel">Ακύρωση</string>
     <string name="applist_menu_tv_channel">Προσθήκη στο κανάλι</string>
     <string name="applist_refresh_msg">Ανανέωση εφαρμογών…</string>

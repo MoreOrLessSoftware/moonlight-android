@@ -88,8 +88,7 @@
     <string name="slow_connection_msg">Connexion lente au PC\nRéduisez votre débit</string>
     <string name="poor_connection_msg">Mauvaise connexion au PC</string>
     <string name="perf_overlay_decoder">Décodeur : %1$s</string>
-    <string name="perf_overlay_incomingfps">Fréquence d\'images entrantes du réseau : %1$.2f FPS</string>
-    <string name="perf_overlay_renderingfps">Fréquence d\'images de rendu : %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netdrops">Images perdues par votre connexion réseau : %1$.2f%%</string>
     <string name="perf_overlay_dectime">Temps moyen de décodage : %1$.2f ms</string>
     <!-- AppList activity -->

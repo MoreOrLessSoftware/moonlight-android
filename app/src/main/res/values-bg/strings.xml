@@ -91,10 +91,9 @@
     <string name="perf_overlay_streamdetails">Видео поток: %1$s %2$.2f кадъра/сек</string>
     <string name="perf_overlay_decoder">Декодер: %1$s</string>
     <string name="perf_overlay_netdrops">Кадри, пропуснати от мрежовата връзка: %1$.2f%%</string>
-    <string name="perf_overlay_incomingfps">Входяща честота на кадрите от мрежата: %1$.2f кадъра/сек</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netlatency">Средно забавяне на мрежата: %1$d мсек (отклонение: %2$d мсек)</string>
     <string name="applist_connect_msg">Свързване с компютъра…</string>
-    <string name="perf_overlay_renderingfps">Честота на изобразяване на кадрите: %1$.2f кадъра/сек</string>
     <string name="perf_overlay_dectime">Средно време за декодиране: %1$.2f мсек</string>
     <string name="applist_menu_quit">Прекратяване на сесията</string>
     <string name="msg_add_pc">Свързване към компютъра…</string>
