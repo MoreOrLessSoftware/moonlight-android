@@ -689,6 +689,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         adaptivePlayback = MediaCodecHelper.decoderSupportsAdaptivePlayback(selectedDecoderInfo, mimeType);
         fusedIdrFrame = MediaCodecHelper.decoderSupportsFusedIdrFrame(selectedDecoderInfo, mimeType);
 
+        MediaCodecHelper.resetLog();
+
         for (int tryNumber = 0;; tryNumber++) {
             LimeLog.info("Decoder configuration try: "+tryNumber);
 
@@ -708,6 +710,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 return -5;
             }
         }
+
+        LimeLog.info(MediaCodecHelper.getMediaFormatLog());
 
         if (USE_FRAME_RENDER_TIME && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             videoDecoder.setOnFrameRenderedListener(new MediaCodec.OnFrameRenderedListener() {

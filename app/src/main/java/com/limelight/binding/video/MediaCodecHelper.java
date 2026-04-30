@@ -518,8 +518,7 @@ public class MediaCodecHelper {
 
         if (tryNumber < 1) {
             // Official Android 11+ low latency option (KEY_LOW_LATENCY).
-            videoFormat.setInteger("low-latency", 1);
-            setNewOption = true;
+            setNewOption |= safeSet(videoFormat, "low-latency", 1, tryNumber, true);
 
             // If this decoder officially supports FEATURE_LowLatency, we will just use that alone
             // for try 0. Otherwise, we'll include it as best effort with other options.
@@ -543,18 +542,15 @@ public class MediaCodecHelper {
             //
             // https://github.com/yuan1617/Framwork/blob/master/frameworks/av/media/libstagefright/ACodec.cpp
             // https://github.com/iykex/vendor_mediatek_proprietary_hardware/blob/master/libomx/video/MtkOmxVdecEx/MtkOmxVdecEx.h
-            videoFormat.setInteger("vdec-lowlatency", 1);
-            setNewOption = true;
+            setNewOption |= safeSet(videoFormat, "vdec-lowlatency", 1, tryNumber, true);
         }
 
         if (tryNumber < 3) {
             if (MediaCodecHelper.decoderSupportsMaxOperatingRate(decoderInfo.getName())) {
-                videoFormat.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE);
-                setNewOption = true;
+                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE, tryNumber, true);
             }
             else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                videoFormat.setInteger(MediaFormat.KEY_PRIORITY, 0);
-                setNewOption = true;
+                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, true);
             }
         }
 
@@ -575,16 +571,14 @@ public class MediaCodecHelper {
                 //
                 // We will first try both, then try vendor.qti-ext-dec-low-latency.enable alone if that fails
                 if (tryNumber < 4) {
-                    videoFormat.setInteger("vendor.qti-ext-dec-picture-order.enable", 1);
-                    setNewOption = true;
+                    setNewOption |= safeSet(videoFormat, "vendor.qti-ext-dec-picture-order.enable", 1, tryNumber, true);
                 }
                 if (tryNumber < 5) {
-                    videoFormat.setInteger("vendor.qti-ext-dec-low-latency.enable", 1);
+                    setNewOption |= safeSet(videoFormat, "vendor.qti-ext-dec-low-latency.enable", 1, tryNumber, true);
                     // Latency-wise, software fencing is the most important flag for latest Snapdragons
-                    videoFormat.setInteger("vendor.qti-ext-output-sw-fence-enable.value", 1); //Snapdragon 8 Gen 2
-                    videoFormat.setInteger("vendor.qti-ext-output-fence.enable", 1); // Snapdragon 8 Gen 3 and Elite
-                    videoFormat.setInteger("vendor.qti-ext-output-fence.fence_type", 1); // Snapdragon 8 Gen 3 and Elite / 0 = none, 1 = sw, 2 = hw, 3 = hybrid. Best option = 1
-                    setNewOption = true;
+                    setNewOption |= safeSet(videoFormat, "vendor.qti-ext-output-sw-fence-enable.value", 1, tryNumber, true); //Snapdragon 8 Gen 2
+                    setNewOption |= safeSet(videoFormat, "vendor.qti-ext-output-fence.enable", 1, tryNumber, true); // Snapdragon 8 Gen 3 and Elite
+                    setNewOption |= safeSet(videoFormat, "vendor.qti-ext-output-fence.fence_type", 1, tryNumber, true); // Snapdragon 8 Gen 3 and Elite / 0 = none, 1 = sw, 2 = hw, 3 = hybrid. Best option = 1
                 }
             }
             else if (isDecoderInList(mtkDecoderPrefixes, decoderInfo.getName())) {
@@ -592,65 +586,62 @@ public class MediaCodecHelper {
                     // --- PRESET: MTK Low-Latency (safe & balanced, no duplicates) ---
 
                     // Boost/DVFS: moderate profile
-                    safeSet(videoFormat, "vdec-lowlatency", 1);
-                    safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode", 1);
-                    safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode.value", 1);
-                    safeSet(videoFormat, "vendor.mtk.vdec.dvfs.mode", 1);
-                    safeSet(videoFormat, "vendor.mtk.vdec.dvfs.level", 1);
+                    setNewOption |= safeSet(videoFormat, "vdec-lowlatency", 1, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode", 1, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.cpu.boost.mode.value", 1, tryNumber, false); // 100% max boost
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.dvfs.mode", 1, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.dvfs.level", 1, tryNumber, false);
 
                     // Pipeline / code path
-                    safeSet(videoFormat, "vendor.mtk.vdec.low-latency.mode", 1);    // Enable low-latency path
-                    safeSet(videoFormat, "vendor.mtk.vdec.ultra-low-latency", 0);   // ULL off for stability
-                    safeSet(videoFormat, "vendor.mtk.vdec.disable-idle", 1);        // Prevent clock downscaling
-                    safeSet(videoFormat, "vendor.mtk.vdec.preload.frame.count", 1); // Light prebuffering
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.low-latency.mode", 1, tryNumber, false);    // Enable low-latency path
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.ultra-low-latency", 0, tryNumber, false);   // ULL off for stability
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.disable-idle", 1, tryNumber, false);        // Prevent clock downscaling
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.preload.frame.count", 1, tryNumber, false); // Light prebuffering
 
                     // Queue / timeouts (moderate)
-                    safeSet(videoFormat, "vendor.mtk.vdec.buffer.fetch.timeout.ms", 4);
-                    safeSet(videoFormat, "vendor.mtk.vdec.bq.guard.interval.time", 4);
-                    safeSet(videoFormat, "vendor.mtk.vdec.input.max.queue.depth", 3);
-                    safeSet(videoFormat, "vendor.mtk.vdec.output.max.queue.depth", 3);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.buffer.fetch.timeout.ms", 4, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.bq.guard.interval.time", 4, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.input.max.queue.depth", 3, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.output.max.queue.depth", 3, tryNumber, false);
 
                     // Pacing: controlled by the app
-                    safeSet(videoFormat, "vendor.mtk.vdec.vsync.adjust.enable", 0);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.vsync.adjust.enable", 0, tryNumber, false);
 
                     // Skip/drop: only NVOP
-                    safeSet(videoFormat, "vendor.mtk.vdec.nvop.skip", 1);
-                    safeSet(videoFormat, "vendor.mtk.vdec.skip.mode", 0);
-                    safeSet(videoFormat, "vendor.mtk.vdec.drop.nonref.frame", 0);
-                    safeSet(videoFormat, "vendor.mtk.vdec.frame-drop.policy", 0);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.nvop.skip", 1, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.skip.mode", 0, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.drop.nonref.frame", 0, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.mtk.vdec.frame-drop.policy", 0, tryNumber, false);
 
                     // Standard Android hints
-                    safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, (int) Short.MAX_VALUE);
-                    safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0);
+                    setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, (int) Short.MAX_VALUE, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, false);
                 }
             }
             else if (isDecoderInList(kirinDecoderPrefixes, decoderInfo.getName())) {
                 if (tryNumber < 4) {
                     // Kirin low latency options
                     // https://developer.huawei.com/consumer/cn/forum/topic/0202325564295980115
-                    videoFormat.setInteger("vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-req", 1);
-                    videoFormat.setInteger("vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-rdy", -1);
-                    setNewOption = true;
+                    setNewOption |= safeSet(videoFormat, "vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-req", 1, tryNumber, true);
+                    setNewOption |= safeSet(videoFormat, "vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-rdy", -1, tryNumber, true);
                 }
             }
             else if (isDecoderInList(exynosDecoderPrefixes, decoderInfo.getName())) {
                 if (tryNumber < 4) {
                     // Exynos low latency options for H.264 and HEVC decoders
-                    videoFormat.setInteger("vendor.rtc-ext-dec-low-latency.enable", 1);
-                    videoFormat.setInteger("vendor.rtc-ext-dec-output-queue-depth.value", 2); // Minimal queue depth for lower latency
-                    videoFormat.setInteger("vendor.sec-dec-output.delay", 0); // Minimal output delay
-                    setNewOption = true;
+                    setNewOption |= safeSet(videoFormat, "vendor.rtc-ext-dec-low-latency.enable", 1, tryNumber, true);
+                    setNewOption |= safeSet(videoFormat, "vendor.rtc-ext-dec-output-queue-depth.value", 2, tryNumber, true); // Minimal queue depth for lower latency
+                    setNewOption |= safeSet(videoFormat, "vendor.sec-dec-output.delay", 0, tryNumber, true); // Minimal output delay
                 }
             }
             else if (isDecoderInList(amlogicDecoderPrefixes, decoderInfo.getName())) {
                 if (tryNumber < 4) {
                     // Amlogic low latency vendor extensions
                     // https://github.com/codewalkerster/android_vendor_amlogic_common_prebuilt_libstagefrighthw/commit/41fefc4e035c476d58491324a5fe7666bfc2989e
-                    safeSet(videoFormat, "vendor.low-latency.enable", 1);
-                    safeSet(videoFormat, "vendor.amlogic.low-latency", 1);
-                    safeSet(videoFormat, "vendor.media.omx.gamemode", 1);
-                    safeSet(videoFormat, "vendor.amlogic.vdec.boost", 1);
-                    setNewOption = true;
+                    setNewOption |= safeSet(videoFormat, "vendor.low-latency.enable", 1, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.amlogic.low-latency", 1, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.media.omx.gamemode", 1, tryNumber, false);
+                    setNewOption |= safeSet(videoFormat, "vendor.amlogic.vdec.boost", 1, tryNumber, false);
                 }
             }
         }
@@ -1080,36 +1071,27 @@ public class MediaCodecHelper {
     }
 
     // --- Helpers to safely set vendor-specific flags without crashing ---
+    private static StringBuilder mediaFormatLog = new StringBuilder();
 
-    private static void safeSet(MediaFormat format, String key, int value) {
+    public static String getMediaFormatLog() {
+        return mediaFormatLog.toString();
+    }
+
+    public static void resetLog() {
+        mediaFormatLog = new StringBuilder();
+    }
+
+    private static boolean safeSet(MediaFormat format, String key, int value, int tryNumber, boolean throwError) {
         try {
             format.setInteger(key, value);
-        } catch (Throwable ignored) {
-            // key not supported, ignore
-        }
-    }
-
-    private static void safeSet(MediaFormat format, String key, boolean value) {
-        try {
-            format.setInteger(key, value ? 1 : 0);
-        } catch (Throwable ignored) {
-            // key not supported, ignore
-        }
-    }
-
-    private static void safeSet(MediaFormat format, String key, long value) {
-        try {
-            format.setLong(key, value);
-        } catch (Throwable ignored) {
-            // key not supported, ignore
-        }
-    }
-
-    private static void safeSet(MediaFormat format, String key, String value) {
-        try {
-            format.setString(key, value);
-        } catch (Throwable ignored) {
-            // key not supported, ignore
+            mediaFormatLog.append(String.format("✓ OK  [try %d]: %s = %d", tryNumber, key, value) + System.lineSeparator());
+            return true;
+        } catch (Throwable codecError) {
+            mediaFormatLog.append(String.format("✗ ERR [try %d]: %s = %d", tryNumber, key, value) + System.lineSeparator());
+            if (throwError) {
+                throw codecError;
+            }
+            return false;
         }
     }
 }
