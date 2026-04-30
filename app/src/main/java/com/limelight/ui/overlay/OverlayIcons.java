@@ -61,7 +61,6 @@ public class OverlayIcons {
         new IconOption(R.drawable.ic_overlay_snap_left, "Snap Left"),
         new IconOption(R.drawable.ic_overlay_snap_right, "Snap Right"),
         new IconOption(R.drawable.ic_overlay_task_manager, "Task Manager"),
-        new IconOption(R.drawable.ic_overlay_task_switcher, "Task Switcher"),
         new IconOption(R.drawable.ic_overlay_desktop, "Show Desktop"),
         new IconOption(R.drawable.ic_overlay_window_menu, "Window Menu")
     };
