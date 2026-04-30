@@ -19,6 +19,7 @@ import com.limelight.R;
 import com.limelight.nvstream.av.video.VideoDecoderRenderer;
 import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.utils.TrafficStatsHelper;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -117,6 +118,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int lastFrameNumber;
     private int refreshRate;
     private PreferenceConfiguration prefs;
+
+    private long lastNetDataNum = 0;
+    private float smoothedFpsVariance = 0;
+    private boolean fpsVarianceInitialized = false;
+    private static final float VARIANCE_SMOOTHING_FACTOR = 0.7f;
 
     private LinkedBlockingQueue<Integer> outputBufferQueue = new LinkedBlockingQueue<>();
     private static final int OUTPUT_BUFFER_QUEUE_LIMIT = 2;
@@ -1486,20 +1492,40 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
                     decoder = av1Decoder.getName();
                 } else {
-                    decoder = "(unknown)";
+                    decoder = "(Unknown decoder)";
                 }
 
                 float decodeTimeMs = (float)lastTwo.decoderTimeMs / lastTwo.totalFramesReceived;
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
+
+                // Calculate FPS variance and apply exponential moving average for smoothing (only calculate when variance >= 1 FPS to ignore normal minor fluctuation)
+                float renderedFpsVariance = (fps.receivedFps > 0) ? (fps.renderedFps - fps.receivedFps) : 0;
+                float rawFpsVariance = (Math.abs(renderedFpsVariance) >= 1) ? renderedFpsVariance / fps.receivedFps * 100 : 0;
+                if (!fpsVarianceInitialized) {
+                    smoothedFpsVariance = rawFpsVariance;
+                    fpsVarianceInitialized = true;
+                } else {
+                    smoothedFpsVariance = (VARIANCE_SMOOTHING_FACTOR * rawFpsVariance) + ((1 - VARIANCE_SMOOTHING_FACTOR) * smoothedFpsVariance);
+                }
+
                 StringBuilder sb = new StringBuilder();
-                sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_incomingfps, fps.receivedFps)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n');
+                sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
+                sb.append(context.getString(R.string.perf_overlay_fps, fps.receivedFps, fps.renderedFps, smoothedFpsVariance)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_netdrops,
                         (float)lastTwo.framesLost / lastTwo.totalFrames * 100)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_netlatency,
                         (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
+
+                // Calculate and display bandwidth
+                long netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) + TrafficStatsHelper.getPackageTxBytes(Process.myUid());
+                if(lastNetDataNum != 0){
+                    // Convert bytes per second to megabits per second (Mbps)
+                    float realtimeNetData = (netData - lastNetDataNum) * 8 / 1000000f;
+                    sb.append(context.getString(R.string.perf_overlay_bandwidth, realtimeNetData)).append('\n');
+                }
+                lastNetDataNum = netData;
+
                 if (lastTwo.framesWithHostProcessingLatency > 0) {
                     sb.append(context.getString(R.string.perf_overlay_hostprocessinglatency,
                             (float)lastTwo.minHostProcessingLatency / 10,
