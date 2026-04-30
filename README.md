@@ -47,7 +47,7 @@ Some non-HDR devices can still stream 10-bit SDR if Sunshine sends it. This simp
 
 Access quick actions and custom commands during streaming with a customizable overlay menu:
 
-![In-stream overlay menu](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overlay-menu-3.png)
+<img width="2560" height="1600" alt="In-Stream Overlay Menu" src="https://github.com/user-attachments/assets/b4e3a1ba-82de-4eeb-aacb-78bfb2e37d13" />
 
 **Features:**
 - **Quick Actions**: Disconnect, quit session, toggle stats, mouse mode, and show keyboard (except Google TV)
@@ -62,6 +62,12 @@ Access quick actions and custom commands during streaming with a customizable ov
 - **Touch Gesture**: 3-finger tap also opens the menu
 
 **Note:** Start button long-press for mouse emulation and 3-button keyboard shortcut have been removed in favor of the quick actions in the overlay menu.
+
+### 8. Improved Stats Overlay
+
+Tweaked the formatting and added variance between incoming and rendered FPS (will show > 0% when the difference is greater than 1 FPS):
+
+<img width="2560" height="1600" alt="Screenshot_20260430-081011" src="https://github.com/user-attachments/assets/a27bcebf-fd83-41b3-9501-eb017cdeecba" />
 
 ## Features and Improvements Merged from Artemis
 
