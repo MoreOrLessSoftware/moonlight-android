@@ -22,7 +22,7 @@ public class OverridesView {
     public static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override";
     public static final String PREF_OVERRIDES_ENABLED = "overrides_enabled";
     private static final int BITRATE_STEP = 5000; // 5 Mbps steps in kbps
-    private static final int SEEKBAR_MAX = 40; // 40 steps * 5 Mbps = 200 Mbps max
+    private static final int SEEKBAR_MAX = 50; // 50 steps * 5 Mbps = 250 Mbps max
 
     private final Activity activity;
     private final LinearLayout overridesSection;
