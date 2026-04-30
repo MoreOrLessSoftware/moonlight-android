@@ -111,8 +111,7 @@
     <string name="perf_overlay_dectime">Átlagos dekódolási idő:%1$.2f ms</string>
     <string name="perf_overlay_netlatency">Átlagos hálózati késés:%1$d ms (szórás:%2$d ms)</string>
     <string name="perf_overlay_netdrops">A hálózati kapcsolat miatt elesett keretek:%1$.2f%%</string>
-    <string name="perf_overlay_renderingfps">Képkockasebesség megjelenítése:%1$.2f FPS</string>
-    <string name="perf_overlay_incomingfps">Bejövő képkockasebesség a hálózatról:%1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_decoder">Dekóder:%1$s</string>
     <string name="perf_overlay_streamdetails">Videófolyam:%1$s %2$.2f FPS</string>
     <string name="poor_connection_msg">Gyenge kapcsolat a PC-vel</string>

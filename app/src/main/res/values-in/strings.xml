@@ -70,7 +70,7 @@
     <string name="poor_connection_msg">Koneksi dengan komputer buruk</string>
     <string name="perf_overlay_streamdetails">Stream video: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Dekoder: %1$s</string>
-    <string name="perf_overlay_incomingfps">Kecepatan bingkai masuk dari jaringan: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="scut_deleted_pc">Komputer dihapus</string>
     <string name="scut_invalid_app_id">Aplikasi yang diberikan tidak valid</string>
     <string name="pcview_menu_test_network">Uji koneksi jaringan</string>
@@ -186,7 +186,6 @@
     <string name="applist_refresh_error_title">Kesalahan</string>
     <string name="pair_pairing_help">Jika PC host Anda menjalankan Sunshine, buka UI web Sunshine untuk memasukkan PIN.</string>
     <string name="applist_quit_app">Berhenti</string>
-    <string name="perf_overlay_renderingfps">Frekuensi gambar rendering: %1$.2f FPS</string>
     <string name="perf_overlay_netlatency">Rata-rata latensi jaringan: %1$d ms (variasi: %2$d ms)</string>
     <string name="perf_overlay_netdrops">Bingkai hilang oleh koneksi jaringan Anda: %1$.2f%%</string>
     <string name="applist_connect_msg">Menghubungkan ke PC…</string>

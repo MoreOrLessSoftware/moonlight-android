@@ -180,7 +180,7 @@
     <string name="resolution_prefix_native_fullscreen">Oorspronkelijk Volledig Scherm</string>
     <string name="help">Help</string>
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
-    <string name="perf_overlay_incomingfps">Binnenkomende frame rate van het netwerk: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="early_termination_error">Er is iets misgegaan op de host PC bij het starten van de stream.
 \n
 \nControleer of u geen DRM-beschermde inhoud heeft geopend op uw host PC. U kan ook de host PC proberen opnieuw op te starten.
@@ -217,7 +217,6 @@
     <string name="summary_enable_post_stream_toast">Toon een informatiebericht van de vertraging na de stream beëindigd is</string>
     <string name="help_loading_title">Hulpwijzer</string>
     <string name="perf_overlay_decoder">Decoder: %1$s</string>
-    <string name="perf_overlay_renderingfps">Rendering frame rate: %1$.2f FPS</string>
     <string name="perf_overlay_netdrops">Frames overgeslagen door uw netwerkverbinding: %1$.2f%%</string>
     <string name="perf_overlay_dectime">Gemiddelde decodeertijd: %1$.2f ms</string>
     <string name="applist_menu_tv_channel">Toevoegen aan Kanaal</string>

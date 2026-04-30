@@ -153,7 +153,6 @@
     <string name="no">Ne</string>
     <string name="lost_connection">Připojení k PC bylo ztraceno</string>
     <string name="title_details">Detaily</string>
-    <string name="perf_overlay_renderingfps">Vykreslovací snímková frekvence: %1$.2f FPS</string>
     <string name="perf_overlay_netdrops">Snímky zahozeny vašim připojením: %1$.2f%%</string>
     <string name="applist_refresh_msg">Obnovování aplikací…</string>
     <string name="applist_refresh_error_title">Chyba</string>
@@ -210,7 +209,7 @@
     <string name="poor_connection_msg">Špatné připojení k PC</string>
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Dekodér: %1$s</string>
-    <string name="perf_overlay_incomingfps">Příchozí snímková frekvence po síti: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="text_native_res_dialog">GeForce Experience oficiálně nepodporuje nativní rozlišení a proto nenastaví rozlišení displeje vašeho hostitelského PC. Musíte jej nastavit ručně ve hře.
 \n
 \nPokud v NVIDIA Control Panelu vytvoříte vlastní rozlišení pro vaše zařízení, prosím ujistěte se, že jste si přečetli a že chápete varování od NVIDIE ohledně možného poškození monitoru, nestability PC a dalších možných problémů.

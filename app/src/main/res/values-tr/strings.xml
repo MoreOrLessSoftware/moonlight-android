@@ -97,8 +97,7 @@
     <string name="poor_connection_msg">Bilgisayar ile zayıf bağlantı</string>
     <string name="perf_overlay_streamdetails">Video akışı: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Kod çözücü: %1$s</string>
-    <string name="perf_overlay_incomingfps">Ağdan gelen kare hızı: %1$.2f FPS</string>
-    <string name="perf_overlay_renderingfps">İşleme kare hızı: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netdrops">Ağ bağlantınız tarafından düşen kare sayısı: %1$.2f%%</string>
     <string name="perf_overlay_dectime">Ortalama kod çözme süresi: %1$.2f ms</string>
     <string name="applist_menu_resume">Oturumu sürdür</string>
