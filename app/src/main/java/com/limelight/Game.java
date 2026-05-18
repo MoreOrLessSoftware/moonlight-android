@@ -506,7 +506,17 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
-        StreamConfiguration config = new StreamConfiguration.Builder()
+        // Use the "actual display refresh rate" preference for the X100 refresh rate
+        //int refreshRateX100 = (int)(displayRefreshRate * 100);
+        int refreshRateX100 = 0;
+        if (prefConfig.actualDisplayRefreshRate != null && !prefConfig.actualDisplayRefreshRate.isBlank()) {
+            float actualDisplayRefreshRateFloat = Float.parseFloat(prefConfig.actualDisplayRefreshRate);
+            if (actualDisplayRefreshRateFloat > 0) {
+                refreshRateX100 = (int)(actualDisplayRefreshRateFloat * 100);
+            }
+        }
+
+        var configBuilder = new StreamConfiguration.Builder()
                 .setResolution(prefConfig.width, prefConfig.height)
                 .setLaunchRefreshRate(prefConfig.fps)
                 .setRefreshRate(chosenFrameRate)
@@ -519,12 +529,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setRemoteConfiguration(StreamConfiguration.STREAM_CFG_AUTO) // NvConnection will perform LAN and VPN detection
                 .setSupportedVideoFormats(supportedVideoFormats)
                 .setAttachedGamepadMask(gamepadMask)
-                .setClientRefreshRateX100((int)(displayRefreshRate * 100))
                 .setAudioConfiguration(prefConfig.audioConfiguration)
                 .setColorSpace(decoderRenderer.getPreferredColorSpace())
                 .setColorRange(decoderRenderer.getPreferredColorRange())
-                .setPersistGamepadsAfterDisconnect(!prefConfig.multiController)
-                .build();
+                .setPersistGamepadsAfterDisconnect(!prefConfig.multiController);
+
+        if (refreshRateX100 > 0) {
+            configBuilder.setClientRefreshRateX100(refreshRateX100);
+        }
+
+        StreamConfiguration config = configBuilder.build();
 
         // Initialize the connection
         conn = new NvConnection(getApplicationContext(),

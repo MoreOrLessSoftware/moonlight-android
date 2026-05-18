@@ -321,6 +321,8 @@
     <string name="overlay_duration_3000">3 seconds</string>
 
     <!-- New strings -->
+    <string name="title_actual_display_refresh_rate">Actual display refresh rate</string>
+    <string name="summary_actual_display_refresh_rate">If your client refresh rate does not exactly match your host refresh rate, use this value to request a custom capture rate on the host. (Experimental)</string>
     <string name="title_checkbox_ultra_low_latency">Ultra low latency (Experimental)</string>
     <string name="summary_checkbox_ultra_low_latency">Apply additional decoder flags for SD8Gen2/8(s)Gen3/8Elite, Exynos and MTK devices that may reduce latency</string>
     
