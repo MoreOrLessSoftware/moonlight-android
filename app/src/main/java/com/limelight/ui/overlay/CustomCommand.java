@@ -14,20 +14,31 @@ import java.util.UUID;
  * Supports key combinations with modifiers (Ctrl, Alt, Shift, Win/Meta) and special keys.
  */
 public class CustomCommand {
+    public static final int POST_ACTION_NONE       = 0;
+    public static final int POST_ACTION_CLOSE_MENU = 1;
+    public static final int POST_ACTION_DISCONNECT = 2;
+    public static final int POST_ACTION_QUIT       = 3;
+
     private String id;
     private String name;
     private int iconResId;
     private KeyCombination keyCombination;
+    private int postAction;
 
-    public CustomCommand(String id, String name, int iconResId, KeyCombination keyCombination) {
+    public CustomCommand(String id, String name, int iconResId, KeyCombination keyCombination, int postAction) {
         this.id = id;
         this.name = name;
         this.iconResId = iconResId;
         this.keyCombination = keyCombination;
+        this.postAction = postAction;
+    }
+
+    public CustomCommand(String id, String name, int iconResId, KeyCombination keyCombination) {
+        this(id, name, iconResId, keyCombination, POST_ACTION_NONE);
     }
 
     public CustomCommand(String name, int iconResId, KeyCombination keyCombination) {
-        this(UUID.randomUUID().toString(), name, iconResId, keyCombination);
+        this(UUID.randomUUID().toString(), name, iconResId, keyCombination, POST_ACTION_NONE);
     }
 
     public String getId() {
@@ -62,6 +73,14 @@ public class CustomCommand {
         this.keyCombination = keyCombination;
     }
 
+    public int getPostAction() {
+        return postAction;
+    }
+
+    public void setPostAction(int postAction) {
+        this.postAction = postAction;
+    }
+
     /**
      * Serialize to JSON for storage
      */
@@ -69,8 +88,9 @@ public class CustomCommand {
         JSONObject json = new JSONObject();
         json.put("id", id);
         json.put("name", name);
-        json.put("iconResId", iconResId);
+        json.put("iconName", OverlayIcons.getIconName(iconResId));
         json.put("keyCombination", keyCombination.toJson());
+        json.put("postAction", postAction);
         return json;
     }
 
@@ -81,8 +101,9 @@ public class CustomCommand {
         return new CustomCommand(
             json.getString("id"),
             json.getString("name"),
-            json.getInt("iconResId"),
-            KeyCombination.fromJson(json.getJSONObject("keyCombination"))
+            OverlayIcons.getIconByName(json.getString("iconName")),
+            KeyCombination.fromJson(json.getJSONObject("keyCombination")),
+            json.optInt("postAction", POST_ACTION_NONE)
         );
     }
 
