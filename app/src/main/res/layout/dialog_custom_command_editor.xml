@@ -56,18 +56,12 @@
                 android:contentDescription="Selected icon" />
 
             <TextView
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
                 android:text="@string/editor_icon_select"
                 android:layout_marginLeft="16dp"
                 android:layout_marginStart="16dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=">"
-                android:textSize="18sp" />
         </LinearLayout>
 
         <!-- Key Combination -->
@@ -96,16 +90,16 @@
 
             <CheckBox
                 android:id="@+id/modifier_ctrl"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
                 android:text="@string/editor_modifier_ctrl" />
 
             <CheckBox
                 android:id="@+id/modifier_alt"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
                 android:text="@string/editor_modifier_alt" />
         </LinearLayout>
 
@@ -117,16 +111,16 @@
 
             <CheckBox
                 android:id="@+id/modifier_shift"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
                 android:text="@string/editor_modifier_shift" />
 
             <CheckBox
                 android:id="@+id/modifier_meta"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
                 android:text="@string/editor_modifier_meta" />
         </LinearLayout>
 
@@ -145,6 +139,54 @@
             android:layout_height="wrap_content"
             android:text="@string/editor_key_code_hint"
             android:textAllCaps="false" />
+
+        <!-- Then Action -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/editor_then"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <RadioGroup
+            android:id="@+id/then_action_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <RadioButton
+                android:id="@+id/then_nothing"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:text="@string/editor_then_nothing"
+                android:checked="true" />
+
+            <RadioButton
+                android:id="@+id/then_close_menu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:text="@string/editor_then_close_menu" />
+
+            <RadioButton
+                android:id="@+id/then_disconnect"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:text="@string/editor_then_disconnect" />
+
+            <RadioButton
+                android:id="@+id/then_quit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:text="@string/editor_then_quit" />
+
+        </RadioGroup>
 
     </LinearLayout>
 </ScrollView>

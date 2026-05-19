@@ -388,6 +388,11 @@
     <string name="editor_error_name_empty">Please enter a command name</string>
     <string name="editor_error_key_empty">Please select a key</string>
     <string name="editor_command_saved">Command saved</string>
+    <string name="editor_then">Then</string>
+    <string name="editor_then_nothing">Nothing</string>
+    <string name="editor_then_close_menu">Close Menu</string>
+    <string name="editor_then_disconnect">Disconnect</string>
+    <string name="editor_then_quit">Quit Session</string>
 
     <!-- Overlay Menu Preferences -->
     <string name="title_overlay_custom_commands">Overlay menu commands</string>

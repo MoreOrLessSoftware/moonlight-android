@@ -78,6 +78,18 @@ public class OverlayIcons {
     }
 
     /**
+     * Get the resource ID of an icon by its name, falling back to the default icon if not found.
+     */
+    public static int getIconByName(String name) {
+        for (IconOption icon : AVAILABLE_ICONS) {
+            if (icon.name.equals(name)) {
+                return icon.resourceId;
+            }
+        }
+        return getDefaultIcon();
+    }
+
+    /**
      * Get the default icon (key press)
      */
     public static int getDefaultIcon() {

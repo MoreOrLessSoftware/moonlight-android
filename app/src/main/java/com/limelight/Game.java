@@ -2888,8 +2888,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onCustomCommand(CustomCommand command) {
-                // Send custom key combination to server
-                sendCustomKeyCommand(command);
+                sendCustomKeyCommand(command, buildPostActionRunnable(command));
             }
 
             @Override
@@ -2929,10 +2928,30 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         Toast.makeText(this, Html.fromHtml(message), Toast.LENGTH_LONG).show();
     }
 
+    private Runnable buildPostActionRunnable(CustomCommand command) {
+        switch (command.getPostAction()) {
+            case CustomCommand.POST_ACTION_CLOSE_MENU:
+                return () -> overlayMenuView.closeMenu();
+            case CustomCommand.POST_ACTION_DISCONNECT:
+                return () -> {
+                    stopConnection();
+                    finish();
+                };
+            case CustomCommand.POST_ACTION_QUIT:
+                return () -> {
+                    controllerHandler.pendingApplicationQuit = true;
+                    stopConnection();
+                    finish();
+                };
+            default:
+                return null;
+        }
+    }
+
     /**
      * Send a custom key command to the server
      */
-    private void sendCustomKeyCommand(CustomCommand command) {
+    private void sendCustomKeyCommand(CustomCommand command, Runnable onComplete) {
         CustomCommand.KeyCombination keyCombination = command.getKeyCombination();
 
         // Windows virtual key codes for modifier keys
@@ -3002,6 +3021,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     }
                     if (keyCombination.isCtrl()) {
                         conn.sendKeyboardInput(VK_CONTROL, KeyboardPacket.KEY_UP, (byte) 0, (byte) 0);
+                    }
+
+                    if (onComplete != null) {
+                        handler.postDelayed(onComplete, 200);
                     }
                 }, 50);
             }, 50);
