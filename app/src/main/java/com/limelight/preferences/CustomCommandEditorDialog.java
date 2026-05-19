@@ -15,7 +15,7 @@ import android.widget.EditText;
 import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.RadioGroup;
+import android.widget.Spinner;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -41,7 +41,7 @@ public class CustomCommandEditorDialog extends DialogFragment {
     private CheckBox shiftCheckbox;
     private CheckBox metaCheckbox;
     private Button keyPickerButton;
-    private RadioGroup thenActionGroup;
+    private Spinner thenActionSpinner;
 
     private CustomCommand editingCommand;
     private boolean isEditMode;
@@ -104,7 +104,7 @@ public class CustomCommandEditorDialog extends DialogFragment {
         shiftCheckbox = view.findViewById(R.id.modifier_shift);
         metaCheckbox = view.findViewById(R.id.modifier_meta);
         keyPickerButton = view.findViewById(R.id.key_picker_button);
-        thenActionGroup = view.findViewById(R.id.then_action_group);
+        thenActionSpinner = view.findViewById(R.id.then_action_spinner);
 
         // Add listeners to modifier checkboxes to update hint
         CompoundButton.OnCheckedChangeListener modifierChangeListener = new CompoundButton.OnCheckedChangeListener() {
@@ -150,15 +150,7 @@ public class CustomCommandEditorDialog extends DialogFragment {
             keyPickerButton.setText(selectedKeyName);
 
             int postAction = editingCommand.getPostAction();
-            if (postAction == CustomCommand.POST_ACTION_CLOSE_MENU) {
-                thenActionGroup.check(R.id.then_close_menu);
-            } else if (postAction == CustomCommand.POST_ACTION_DISCONNECT) {
-                thenActionGroup.check(R.id.then_disconnect);
-            } else if (postAction == CustomCommand.POST_ACTION_QUIT) {
-                thenActionGroup.check(R.id.then_quit);
-            } else {
-                thenActionGroup.check(R.id.then_nothing);
-            }
+            thenActionSpinner.setSelection(postAction);
         } else {
             selectedIconView.setImageResource(selectedIconResId);
             keyPickerButton.setText(R.string.editor_key_code_hint);
@@ -223,18 +215,7 @@ public class CustomCommandEditorDialog extends DialogFragment {
             selectedKeyCode
         );
 
-        // Map selected radio button to post-action constant
-        int postAction;
-        int checkedId = thenActionGroup.getCheckedRadioButtonId();
-        if (checkedId == R.id.then_close_menu) {
-            postAction = CustomCommand.POST_ACTION_CLOSE_MENU;
-        } else if (checkedId == R.id.then_disconnect) {
-            postAction = CustomCommand.POST_ACTION_DISCONNECT;
-        } else if (checkedId == R.id.then_quit) {
-            postAction = CustomCommand.POST_ACTION_QUIT;
-        } else {
-            postAction = CustomCommand.POST_ACTION_NONE;
-        }
+        int postAction = thenActionSpinner.getSelectedItemPosition();
 
         // Create or update command
         String id = isEditMode ? editingCommand.getId() : UUID.randomUUID().toString();
@@ -243,6 +224,22 @@ public class CustomCommandEditorDialog extends DialogFragment {
         // Notify listener
         if (listener != null) {
             listener.onCommandSaved(command);
+        }
+
+        if (postAction == CustomCommand.POST_ACTION_SLEEP) {
+            android.app.admin.DevicePolicyManager dpm =
+                (android.app.admin.DevicePolicyManager) getActivity().getSystemService(
+                    android.content.Context.DEVICE_POLICY_SERVICE);
+            android.content.ComponentName adminComponent =
+                new android.content.ComponentName(getActivity(), com.limelight.SleepDeviceAdmin.class);
+            if (!dpm.isAdminActive(adminComponent)) {
+                android.content.Intent intent = new android.content.Intent(
+                    android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+                intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    getString(R.string.sleep_admin_explanation));
+                getActivity().startActivity(intent);
+            }
         }
 
         return true;
