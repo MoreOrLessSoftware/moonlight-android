@@ -62,7 +62,7 @@ public class OverlayMenuButton extends LinearLayout {
         background = new GradientDrawable();
         background.setShape(GradientDrawable.RECTANGLE);
         background.setCornerRadius(CORNER_RADIUS_DP * density);
-        background.setColor(0xA0000000); // Semi-transparent black
+        background.setColor(0xD9000000); // Semi-transparent black
         setBackground(background);
 
         // Create icon view
@@ -139,7 +139,7 @@ public class OverlayMenuButton extends LinearLayout {
             labelView.setTextColor(Color.BLACK);
         } else {
             // Normal state
-            background.setColor(0xA0000000); // Semi-transparent black
+            background.setColor(0xD9000000); // Semi-transparent black
             background.setStroke(0, 0); // No border
             iconView.setImageTintList(ColorStateList.valueOf(0xFFFFFFFF)); // White icon
             labelView.setTextColor(Color.WHITE);
