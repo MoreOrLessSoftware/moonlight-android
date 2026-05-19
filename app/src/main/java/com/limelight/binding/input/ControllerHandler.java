@@ -89,6 +89,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     private static final int MINIMUM_BUTTON_DOWN_TIME_MS = 25;
 
+    private static final int OVERLAY_TRIGGER_TAP_RELEASE_DELAY_MS = 25;
+
     private int overlayMenuOpenMs = 1500;
 
     private static final int EMULATING_SPECIAL = 0x1;
@@ -2558,20 +2560,65 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         switch (keyCode) {
         case KeyEvent.KEYCODE_BUTTON_MODE:
-            context.inputMap &= ~ControllerPacket.SPECIAL_BUTTON_FLAG;
+            if (context.pendingOverlayTriggerPressFlag == ControllerPacket.SPECIAL_BUTTON_FLAG) {
+                context.pendingOverlayTriggerPressFlag = 0;
+                if (selectDownTime > 0) {
+                    // Tapped before hold time - let natural sendControllerInputPacket send the press,
+                    // then post the release to the next message loop iteration so the host sees both.
+                    context.inputMap |= ControllerPacket.SPECIAL_BUTTON_FLAG;
+                    mainThreadHandler.postDelayed(() -> {
+                        context.inputMap &= ~ControllerPacket.SPECIAL_BUTTON_FLAG;
+                        sendControllerInputPacket(context);
+                    }, OVERLAY_TRIGGER_TAP_RELEASE_DELAY_MS);
+                }
+                // else: overlay menu already opened, send nothing
+            } else {
+                context.inputMap &= ~ControllerPacket.SPECIAL_BUTTON_FLAG;
+            }
             checkOverlayTriggerRelease(ControllerPacket.SPECIAL_BUTTON_FLAG);
             break;
         case KeyEvent.KEYCODE_BUTTON_START:
         case KeyEvent.KEYCODE_MENU:
-            context.inputMap &= ~ControllerPacket.PLAY_FLAG;
+            if (context.pendingOverlayTriggerPressFlag == ControllerPacket.PLAY_FLAG) {
+                context.pendingOverlayTriggerPressFlag = 0;
+                if (selectDownTime > 0) {
+                    context.inputMap |= ControllerPacket.PLAY_FLAG;
+                    mainThreadHandler.postDelayed(() -> {
+                        context.inputMap &= ~ControllerPacket.PLAY_FLAG;
+                        sendControllerInputPacket(context);
+                    }, OVERLAY_TRIGGER_TAP_RELEASE_DELAY_MS);
+                }
+            } else {
+                context.inputMap &= ~ControllerPacket.PLAY_FLAG;
+            }
             checkOverlayTriggerRelease(ControllerPacket.PLAY_FLAG);
             break;
         case KeyEvent.KEYCODE_BUTTON_SELECT:
-            context.inputMap &= ~ControllerPacket.BACK_FLAG;
+            if (context.pendingOverlayTriggerPressFlag == ControllerPacket.BACK_FLAG) {
+                context.pendingOverlayTriggerPressFlag = 0;
+                if (selectDownTime > 0) {
+                    context.inputMap |= ControllerPacket.BACK_FLAG;
+                    mainThreadHandler.postDelayed(() -> {
+                        context.inputMap &= ~ControllerPacket.BACK_FLAG;
+                        sendControllerInputPacket(context);
+                    }, OVERLAY_TRIGGER_TAP_RELEASE_DELAY_MS);
+                }
+            } else {
+                context.inputMap &= ~ControllerPacket.BACK_FLAG;
+            }
             checkOverlayTriggerRelease(ControllerPacket.BACK_FLAG);
             break;
         case KeyEvent.KEYCODE_BACK:
-            if (!context.ignoreBack) {
+            if (context.pendingOverlayTriggerPressFlag == ControllerPacket.BACK_FLAG) {
+                context.pendingOverlayTriggerPressFlag = 0;
+                if (selectDownTime > 0) {
+                    context.inputMap |= ControllerPacket.BACK_FLAG;
+                    mainThreadHandler.postDelayed(() -> {
+                        context.inputMap &= ~ControllerPacket.BACK_FLAG;
+                        sendControllerInputPacket(context);
+                    }, OVERLAY_TRIGGER_TAP_RELEASE_DELAY_MS);
+                }
+            } else if (!context.ignoreBack) {
                 // Only clear flag if it was set (gamepad case)
                 context.inputMap &= ~ControllerPacket.BACK_FLAG;
             }
@@ -2779,24 +2826,56 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         switch (keyCode) {
         case KeyEvent.KEYCODE_BUTTON_MODE:
             context.hasMode = true;
-            context.inputMap |= ControllerPacket.SPECIAL_BUTTON_FLAG;
-            if (event.getRepeatCount() == 0) {
-                checkOverlayTrigger(context, ControllerPacket.SPECIAL_BUTTON_FLAG, event.getEventTime(), false);
+            if (overlayTriggerButtonFlag == ControllerPacket.SPECIAL_BUTTON_FLAG) {
+                // Guide is the overlay trigger - delay sending to host until the outcome is known
+                if (event.getRepeatCount() == 0) {
+                    LimeLog.info("Guide button down @ 0 repeat");
+                    // Temporarily set flag so checkOverlayTrigger's inputMap check passes, then clear it
+                    context.inputMap |= ControllerPacket.SPECIAL_BUTTON_FLAG;
+                    checkOverlayTrigger(context, ControllerPacket.SPECIAL_BUTTON_FLAG, event.getEventTime(), false);
+                    context.inputMap &= ~ControllerPacket.SPECIAL_BUTTON_FLAG;
+                    context.pendingOverlayTriggerPressFlag = ControllerPacket.SPECIAL_BUTTON_FLAG;
+                }
+                // Don't set inputMap flag - suppress sending to host until release
+            } else {
+                context.inputMap |= ControllerPacket.SPECIAL_BUTTON_FLAG;
+                if (event.getRepeatCount() == 0) {
+                    checkOverlayTrigger(context, ControllerPacket.SPECIAL_BUTTON_FLAG, event.getEventTime(), false);
+                }
             }
             break;
         case KeyEvent.KEYCODE_BUTTON_START:
         case KeyEvent.KEYCODE_MENU:
-            context.inputMap |= ControllerPacket.PLAY_FLAG;
-            if (event.getRepeatCount() == 0) {
-                context.startDownTime = event.getEventTime();
-                checkOverlayTrigger(context, ControllerPacket.PLAY_FLAG, event.getEventTime(), false);
+            if (overlayTriggerButtonFlag == ControllerPacket.PLAY_FLAG) {
+                if (event.getRepeatCount() == 0) {
+                    context.startDownTime = event.getEventTime();
+                    context.inputMap |= ControllerPacket.PLAY_FLAG;
+                    checkOverlayTrigger(context, ControllerPacket.PLAY_FLAG, event.getEventTime(), false);
+                    context.inputMap &= ~ControllerPacket.PLAY_FLAG;
+                    context.pendingOverlayTriggerPressFlag = ControllerPacket.PLAY_FLAG;
+                }
+            } else {
+                context.inputMap |= ControllerPacket.PLAY_FLAG;
+                if (event.getRepeatCount() == 0) {
+                    context.startDownTime = event.getEventTime();
+                    checkOverlayTrigger(context, ControllerPacket.PLAY_FLAG, event.getEventTime(), false);
+                }
             }
             break;
         case KeyEvent.KEYCODE_BUTTON_SELECT:
             context.hasSelect = true;
-            context.inputMap |= ControllerPacket.BACK_FLAG;
-            if (event.getRepeatCount() == 0) {
-                checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+            if (overlayTriggerButtonFlag == ControllerPacket.BACK_FLAG) {
+                if (event.getRepeatCount() == 0) {
+                    context.inputMap |= ControllerPacket.BACK_FLAG;
+                    checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+                    context.inputMap &= ~ControllerPacket.BACK_FLAG;
+                    context.pendingOverlayTriggerPressFlag = ControllerPacket.BACK_FLAG;
+                }
+            } else {
+                context.inputMap |= ControllerPacket.BACK_FLAG;
+                if (event.getRepeatCount() == 0) {
+                    checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+                }
             }
             break;
         case KeyEvent.KEYCODE_BACK:
@@ -2812,9 +2891,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 }
             } else {
                 // Gamepad - send to host and check overlay trigger
-                context.inputMap |= ControllerPacket.BACK_FLAG;
-                if (event.getRepeatCount() == 0) {
-                    checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+                if (overlayTriggerButtonFlag == ControllerPacket.BACK_FLAG) {
+                    if (event.getRepeatCount() == 0) {
+                        context.inputMap |= ControllerPacket.BACK_FLAG;
+                        checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+                        context.inputMap &= ~ControllerPacket.BACK_FLAG;
+                        context.pendingOverlayTriggerPressFlag = ControllerPacket.BACK_FLAG;
+                    }
+                } else {
+                    context.inputMap |= ControllerPacket.BACK_FLAG;
+                    if (event.getRepeatCount() == 0) {
+                        checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
+                    }
                 }
             }
             break;
@@ -3224,6 +3312,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         public int emulatingButtonFlags = 0;
         public boolean hasSelect;
         public boolean hasMode;
+        public int pendingOverlayTriggerPressFlag;
         public boolean hasPaddles;
         public boolean hasShare;
         public boolean needsClickpadEmulation;
