@@ -299,7 +299,8 @@ public class CustomCommandEditorDialog extends DialogFragment {
             "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
             "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
             "Win/Cmd", "Space", "Enter", "Tab", "Escape", "Backspace", "Delete",
-            "Left", "Right", "Up", "Down", "Home", "End", "Page Up", "Page Down"
+            "Left", "Right", "Up", "Down", "Insert", "Home", "End", "Page Up", "Page Down",
+            "Print Screen", "Pause/Break"
         };
 
         final int[] keyCodes = {
@@ -319,8 +320,9 @@ public class CustomCommandEditorDialog extends DialogFragment {
             KeyEvent.KEYCODE_META_LEFT, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB,
             KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_FORWARD_DEL,
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_MOVE_HOME, KeyEvent.KEYCODE_MOVE_END,
-            KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_PAGE_DOWN
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_INSERT, KeyEvent.KEYCODE_MOVE_HOME,
+            KeyEvent.KEYCODE_MOVE_END, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_PAGE_DOWN,
+            KeyEvent.KEYCODE_SYSRQ, KeyEvent.KEYCODE_BREAK
         };
 
         builder.setItems(keyNames, new DialogInterface.OnClickListener() {
@@ -358,6 +360,9 @@ public class CustomCommandEditorDialog extends DialogFragment {
             case KeyEvent.KEYCODE_MOVE_END: return "End";
             case KeyEvent.KEYCODE_PAGE_UP: return "Page Up";
             case KeyEvent.KEYCODE_PAGE_DOWN: return "Page Down";
+            case KeyEvent.KEYCODE_INSERT: return "Insert";
+            case KeyEvent.KEYCODE_SYSRQ: return "Print Screen";
+            case KeyEvent.KEYCODE_BREAK: return "Pause/Break";
             default:
                 // For letter/number keys, use KeyEvent.keyCodeToString
                 String keyName = KeyEvent.keyCodeToString(keyCode);
