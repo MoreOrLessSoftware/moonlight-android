@@ -179,4 +179,12 @@
         <item>true</item>
         <item>false</item>
     </string-array>
+
+    <string-array name="custom_command_post_actions">
+        <item>@string/editor_then_nothing</item>
+        <item>@string/editor_then_close_menu</item>
+        <item>@string/editor_then_disconnect</item>
+        <item>@string/editor_then_quit</item>
+        <item>@string/editor_then_sleep</item>
+    </string-array>
 </resources>

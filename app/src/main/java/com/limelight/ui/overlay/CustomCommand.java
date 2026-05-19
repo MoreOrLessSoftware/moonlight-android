@@ -18,6 +18,7 @@ public class CustomCommand {
     public static final int POST_ACTION_CLOSE_MENU = 1;
     public static final int POST_ACTION_DISCONNECT = 2;
     public static final int POST_ACTION_QUIT       = 3;
+    public static final int POST_ACTION_SLEEP      = 4;
 
     private String id;
     private String name;

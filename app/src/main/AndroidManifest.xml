@@ -217,6 +217,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- Device admin receiver for Sleep post-action (lockNow) -->
+        <receiver
+            android:name=".SleepDeviceAdmin"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".HelpActivity"
             android:resizeableActivity="true"

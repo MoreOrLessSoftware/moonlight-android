@@ -395,6 +395,8 @@
     <string name="editor_then_close_menu">Close Menu</string>
     <string name="editor_then_disconnect">Disconnect</string>
     <string name="editor_then_quit">Quit Session</string>
+    <string name="editor_then_sleep">Sleep</string>
+    <string name="sleep_admin_explanation">Required to lock the screen when the Sleep post-action is used in a custom command.</string>
 
     <!-- Overlay Menu Preferences -->
     <string name="title_overlay_custom_commands">Overlay menu commands</string>

@@ -150,43 +150,12 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp" />
 
-        <RadioGroup
-            android:id="@+id/then_action_group"
+        <Spinner
+            android:id="@+id/then_action_spinner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-
-            <RadioButton
-                android:id="@+id/then_nothing"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:text="@string/editor_then_nothing"
-                android:checked="true" />
-
-            <RadioButton
-                android:id="@+id/then_close_menu"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:text="@string/editor_then_close_menu" />
-
-            <RadioButton
-                android:id="@+id/then_disconnect"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:text="@string/editor_then_disconnect" />
-
-            <RadioButton
-                android:id="@+id/then_quit"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:text="@string/editor_then_quit" />
-
-        </RadioGroup>
+            android:layout_marginBottom="8dp"
+            android:entries="@array/custom_command_post_actions" />
 
     </LinearLayout>
 </ScrollView>

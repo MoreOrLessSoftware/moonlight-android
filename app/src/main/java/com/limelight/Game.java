@@ -2959,6 +2959,22 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     stopConnection();
                     finish();
                 };
+            case CustomCommand.POST_ACTION_SLEEP:
+                return () -> {
+                    android.app.admin.DevicePolicyManager dpm =
+                        (android.app.admin.DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+                    android.content.ComponentName adminComponent =
+                        new android.content.ComponentName(this, SleepDeviceAdmin.class);
+                    if (dpm.isAdminActive(adminComponent)) {
+                        dpm.lockNow();
+                    } else {
+                        Intent intent = new Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                        intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+                        intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                            getString(R.string.sleep_admin_explanation));
+                        startActivity(intent);
+                    }
+                };
             default:
                 return null;
         }
