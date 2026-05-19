@@ -37,6 +37,7 @@ import com.limelight.ui.overlay.CustomCommand;
 import com.limelight.ui.overlay.OverlayMenuView;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ServerHelper;
+import com.limelight.utils.SessionResumeManager;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
@@ -61,6 +62,7 @@ import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.os.PowerManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -127,6 +129,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean displayedFailureDialog = false;
     private boolean connecting = false;
     private boolean connected = false;
+    private boolean userInitiatedDisconnect = false;
     private boolean autoEnterPip = false;
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
@@ -1144,6 +1147,19 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     protected void onPause() {
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (!pm.isInteractive() && connected && !userInitiatedDisconnect) {
+            if (PreferenceConfiguration.readPreferences(this).autoResumeStream) {
+                android.util.Log.d("SessionResume", "onPause: screen going off, saving session");
+                SessionResumeManager.save(this, getIntent());
+            } else {
+                android.util.Log.d("SessionResume", "onPause: auto-resume disabled by preference");
+            }
+        } else {
+            android.util.Log.d("SessionResume", "onPause: not saving — isInteractive=" + pm.isInteractive()
+                    + " connected=" + connected + " userInitiatedDisconnect=" + userInitiatedDisconnect);
+        }
+
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
             if (controllerHandler != null) {
@@ -2843,14 +2859,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         overlayMenuView.setMenuActionListener(new OverlayMenuView.MenuActionListener() {
             @Override
             public void onDisconnect() {
-                // Stop connection and finish activity
+                userInitiatedDisconnect = true;
                 stopConnection();
                 finish();
             }
 
             @Override
             public void onQuitSession() {
-                // Set flag to quit app on server, then disconnect
+                userInitiatedDisconnect = true;
                 controllerHandler.pendingApplicationQuit = true;
                 stopConnection();
                 finish();

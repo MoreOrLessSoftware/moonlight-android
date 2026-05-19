@@ -27,6 +27,7 @@ import com.limelight.ui.QuickLaunchView;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.HelpLauncher;
 import com.limelight.utils.ServerHelper;
+import com.limelight.utils.SessionResumeManager;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.UiHelper;
 
@@ -36,11 +37,13 @@ import android.app.Service;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.text.Html;
 import android.view.ContextMenu;
@@ -71,6 +74,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     private ShortcutHelper shortcutHelper;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
+    private int autoResumeNoGamePollCount = 0;
     private boolean hasShownRefreshRateToast = false;
     private QuickLaunchView quickLaunchView;
     private OverridesView overridesView;
@@ -196,6 +200,21 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             overridesView.setupToggleButton(overridesToggleButton);
         }
 
+        // Setup auto-resume toggle button
+        ImageButton autoResumeToggleButton = findViewById(R.id.autoResumeToggleButton);
+        if (autoResumeToggleButton != null) {
+            updateAutoResumeButtonIcon(autoResumeToggleButton);
+            autoResumeToggleButton.setOnClickListener(v -> {
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+                boolean current = prefs.getBoolean("checkbox_auto_resume_stream", false);
+                boolean newValue = !current;
+                prefs.edit().putBoolean("checkbox_auto_resume_stream", newValue).apply();
+                updateAutoResumeButtonIcon(autoResumeToggleButton);
+                String label = newValue ? "ON" : "OFF";
+                Toast.makeText(this, Html.fromHtml("Auto-resume stream <b>" + label + "</b>", Html.FROM_HTML_MODE_LEGACY), Toast.LENGTH_SHORT).show();
+            });
+        }
+
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
         if (pcGridAdapter.getCount() == 0) {
             noPcFoundLayout.setVisibility(View.VISIBLE);
@@ -267,6 +286,12 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         pcGridAdapter = new PcGridAdapter(this, PreferenceConfiguration.readPreferences(this));
 
         initializeViews();
+    }
+
+    private void updateAutoResumeButtonIcon(ImageButton button) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean enabled = prefs.getBoolean("checkbox_auto_resume_stream", false);
+        button.setImageResource(enabled ? R.drawable.ic_auto_resume_enabled : R.drawable.ic_auto_resume);
     }
 
     private void startComputerUpdates() {
@@ -350,6 +375,12 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
         inForeground = true;
         startComputerUpdates();
+
+        // Sync auto-resume button in case preference changed in Settings
+        ImageButton autoResumeBtn = findViewById(R.id.autoResumeToggleButton);
+        if (autoResumeBtn != null) {
+            updateAutoResumeButtonIcon(autoResumeBtn);
+        }
 
         // Notify QuickLaunchView of resume
         if (quickLaunchView != null) {
@@ -815,6 +846,42 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         // Update Quick Launch running status
         if (quickLaunchView != null) {
             quickLaunchView.updateRunningStatus(details.runningGameId, details.uuid);
+        }
+
+        // Check for a session to resume after device sleep — only when PcView is fully visible
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm.isInteractive() && inForeground && SessionResumeManager.hasPendingSession(this)) {
+            String pendingUuid = SessionResumeManager.getPendingPcUuid(this);
+            int pendingAppId = SessionResumeManager.getPendingAppId(this);
+            android.util.Log.d("SessionResume", "updateComputer: pending uuid=" + pendingUuid
+                    + " appId=" + pendingAppId
+                    + " | computer uuid=" + details.uuid
+                    + " runningGameId=" + details.runningGameId
+                    + " state=" + details.state);
+            if (details.uuid.equals(pendingUuid)) {
+                if (details.runningGameId == pendingAppId) {
+                    autoResumeNoGamePollCount = 0;
+                    android.util.Log.d("SessionResume", "Match — launching resume");
+                    startActivity(SessionResumeManager.buildResumeIntent(this));
+                    SessionResumeManager.clear(this);
+                } else if (details.runningGameId != 0) {
+                    autoResumeNoGamePollCount = 0;
+                    android.util.Log.d("SessionResume", "Different app running — discarding");
+                    SessionResumeManager.clear(this);
+                } else if (details.state != ComputerDetails.State.OFFLINE) {
+                    autoResumeNoGamePollCount++;
+                    android.util.Log.d("SessionResume", "runningGameId=0, online — waiting (poll " + autoResumeNoGamePollCount + "/3)");
+                    if (autoResumeNoGamePollCount >= 3) {
+                        autoResumeNoGamePollCount = 0;
+                        android.util.Log.d("SessionResume", "No game after 3 polls — discarding");
+                        SessionResumeManager.clear(this);
+                    }
+                } else {
+                    android.util.Log.d("SessionResume", "Computer offline — waiting for next poll");
+                }
+            } else {
+                android.util.Log.d("SessionResume", "UUID mismatch — not this computer");
+            }
         }
     }
 

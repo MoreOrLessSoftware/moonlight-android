@@ -72,6 +72,7 @@ public class PreferenceConfiguration {
     private static final String GAMEPAD_MOTION_FALLBACK_PREF_STRING = "checkbox_gamepad_motion_fallback";
     private static final String OVERLAY_TRIGGER_BUTTON_PREF_STRING = "overlay_trigger_button";
     private static final String OVERLAY_HOLD_DURATION_PREF_STRING = "overlay_hold_duration";
+    private static final String AUTO_RESUME_STREAM_PREF_STRING = "checkbox_auto_resume_stream";
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
@@ -116,6 +117,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_GAMEPAD_MOTION_FALLBACK = false;
     private static final String DEFAULT_OVERLAY_TRIGGER_BUTTON = "select";
     private static final String DEFAULT_OVERLAY_HOLD_DURATION = "1500";
+    private static final boolean DEFAULT_AUTO_RESUME_STREAM = false;
 
     public static final int FRAME_PACING_MIN_LATENCY = 0;
     public static final int FRAME_PACING_BALANCED = 1;
@@ -167,6 +169,7 @@ public class PreferenceConfiguration {
     public boolean gamepadMotionSensorsFallbackToDevice;
     public String overlayTriggerButton;
     public int overlayHoldDurationMs;
+    public boolean autoResumeStream;
 
     public static boolean isNativeResolution(int width, int height) {
         // It's not a native resolution if it matches an existing resolution option
@@ -617,6 +620,7 @@ public class PreferenceConfiguration {
         config.gamepadMotionSensorsFallbackToDevice = prefs.getBoolean(GAMEPAD_MOTION_FALLBACK_PREF_STRING, DEFAULT_GAMEPAD_MOTION_FALLBACK);
         config.overlayTriggerButton = prefs.getString(OVERLAY_TRIGGER_BUTTON_PREF_STRING, DEFAULT_OVERLAY_TRIGGER_BUTTON);
         config.overlayHoldDurationMs = Integer.parseInt(prefs.getString(OVERLAY_HOLD_DURATION_PREF_STRING, DEFAULT_OVERLAY_HOLD_DURATION));
+        config.autoResumeStream = prefs.getBoolean(AUTO_RESUME_STREAM_PREF_STRING, DEFAULT_AUTO_RESUME_STREAM);
 
         return config;
     }
