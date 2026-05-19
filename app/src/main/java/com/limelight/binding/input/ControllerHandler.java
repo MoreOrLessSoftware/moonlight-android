@@ -2823,10 +2823,13 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             keyCode = handleFlipFaceButtons(keyCode);
         }
 
+        boolean isPendingTriggerButton = false;
+
         switch (keyCode) {
         case KeyEvent.KEYCODE_BUTTON_MODE:
             context.hasMode = true;
             if (overlayTriggerButtonFlag == ControllerPacket.SPECIAL_BUTTON_FLAG) {
+                isPendingTriggerButton = true;
                 // Guide is the overlay trigger - delay sending to host until the outcome is known
                 if (event.getRepeatCount() == 0) {
                     LimeLog.info("Guide button down @ 0 repeat");
@@ -2847,6 +2850,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         case KeyEvent.KEYCODE_BUTTON_START:
         case KeyEvent.KEYCODE_MENU:
             if (overlayTriggerButtonFlag == ControllerPacket.PLAY_FLAG) {
+                isPendingTriggerButton = true;
                 if (event.getRepeatCount() == 0) {
                     context.startDownTime = event.getEventTime();
                     context.inputMap |= ControllerPacket.PLAY_FLAG;
@@ -2865,6 +2869,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         case KeyEvent.KEYCODE_BUTTON_SELECT:
             context.hasSelect = true;
             if (overlayTriggerButtonFlag == ControllerPacket.BACK_FLAG) {
+                isPendingTriggerButton = true;
                 if (event.getRepeatCount() == 0) {
                     context.inputMap |= ControllerPacket.BACK_FLAG;
                     checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
@@ -2892,6 +2897,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             } else {
                 // Gamepad - send to host and check overlay trigger
                 if (overlayTriggerButtonFlag == ControllerPacket.BACK_FLAG) {
+                    isPendingTriggerButton = true;
                     if (event.getRepeatCount() == 0) {
                         context.inputMap |= ControllerPacket.BACK_FLAG;
                         checkOverlayTrigger(context, ControllerPacket.BACK_FLAG, event.getEventTime(), false);
@@ -3096,6 +3102,14 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                     context.emulatingButtonFlags |= ControllerHandler.EMULATING_SPECIAL;
                 }
             }
+        }
+
+        // If another button was pressed while the overlay trigger was pending,
+        // immediately send the trigger + new button combo and cancel the overlay timer.
+        if (!isPendingTriggerButton && context.pendingOverlayTriggerPressFlag != 0 && selectDownTime > 0) {
+            context.inputMap |= context.pendingOverlayTriggerPressFlag;
+            context.pendingOverlayTriggerPressFlag = 0;
+            cancelOverlayMenuHoldDetection();
         }
 
         // We don't need to send repeat key down events, but the platform
