@@ -187,6 +187,9 @@ public class CustomCommand {
                 case KeyEvent.KEYCODE_MOVE_END: return "End";
                 case KeyEvent.KEYCODE_PAGE_UP: return "Page Up";
                 case KeyEvent.KEYCODE_PAGE_DOWN: return "Page Down";
+                case KeyEvent.KEYCODE_INSERT: return "Insert";
+                case KeyEvent.KEYCODE_SYSRQ: return "Print Screen";
+                case KeyEvent.KEYCODE_BREAK: return "Pause/Break";
                 default:
                     // For letter/number keys, use KeyEvent.keyCodeToString
                     String keyName = KeyEvent.keyCodeToString(keyCode);
