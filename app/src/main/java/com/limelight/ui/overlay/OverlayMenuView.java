@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.util.AttributeSet;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -16,18 +17,11 @@ import com.limelight.R;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Overlay menu view that displays action buttons in a horizontal layout.
- * Supports gamepad navigation and custom commands.
- */
-public class OverlayMenuView extends HorizontalScrollView {
-    private static final int BUTTON_SPACING_DP = 16;
+public class OverlayMenuView extends LinearLayout {
+    private static final int BUTTON_SPACING_DP = 8;
     private static final float ANALOG_STICK_THRESHOLD = 0.5f;
     private static final long ANALOG_NAV_THROTTLE_MS = 200;
 
-    /**
-     * Interface for menu action callbacks
-     */
     public interface MenuActionListener {
         void onDisconnect();
         void onQuitSession();
@@ -39,13 +33,23 @@ public class OverlayMenuView extends HorizontalScrollView {
         void onMenuClosed();
     }
 
-    private LinearLayout buttonContainer;
-    private List<OverlayMenuButton> buttons;
-    private int selectedIndex = 0;
+    private LinearLayout verticalContainer;
+    private HorizontalScrollView horizontalScrollView;
+    private LinearLayout horizontalContainer;
+
+    private List<OverlayMenuButton> verticalButtons;
+    private List<Integer> verticalActions;
+    private List<OverlayMenuButton> horizontalButtons;
+    private List<Integer> horizontalActions;
+
+    private enum Region { VERTICAL, HORIZONTAL }
+    private Region activeRegion = Region.VERTICAL;
+    private int verticalIndex = 0;
+    private int horizontalIndex = 0;
+
     private MenuActionListener actionListener;
     private CustomCommandsManager commandsManager;
 
-    // Action types for built-in buttons
     private static final int ACTION_DISCONNECT = 0;
     private static final int ACTION_QUIT = 1;
     private static final int ACTION_TOGGLE_STATS = 2;
@@ -55,7 +59,6 @@ public class OverlayMenuView extends HorizontalScrollView {
     private static final int ACTION_SEND_GUIDE = 6;
     private static final int ACTION_CUSTOM_BASE = 100;
 
-    private List<Integer> buttonActions;
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
     private boolean isAndroidTV;
@@ -76,170 +79,175 @@ public class OverlayMenuView extends HorizontalScrollView {
     }
 
     private void init(Context context) {
-        setHorizontalScrollBarEnabled(false);
+        setOrientation(LinearLayout.HORIZONTAL);
+        setGravity(Gravity.BOTTOM);
         setFocusable(true);
         setFocusableInTouchMode(true);
         setBackgroundDrawable(null);
 
-        // Disable default focus highlight that causes white background
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setDefaultFocusHighlightEnabled(false);
         }
 
-        // Create button container
-        buttonContainer = new LinearLayout(context);
-        buttonContainer.setOrientation(LinearLayout.HORIZONTAL);
-        buttonContainer.setBackgroundDrawable(null);
+        verticalContainer = new LinearLayout(context);
+        verticalContainer.setOrientation(LinearLayout.VERTICAL);
+        verticalContainer.setBackgroundDrawable(null);
+        addView(verticalContainer, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
 
-        addView(buttonContainer);
+        horizontalScrollView = new HorizontalScrollView(context);
+        horizontalScrollView.setHorizontalScrollBarEnabled(false);
+        horizontalScrollView.setFocusable(false);
+        horizontalScrollView.setFocusableInTouchMode(false);
+        horizontalScrollView.setBackgroundDrawable(null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            horizontalScrollView.setDefaultFocusHighlightEnabled(false);
+        }
 
-        buttons = new ArrayList<>();
-        buttonActions = new ArrayList<>();
+        horizontalContainer = new LinearLayout(context);
+        horizontalContainer.setOrientation(LinearLayout.HORIZONTAL);
+        horizontalContainer.setBackgroundDrawable(null);
+        horizontalScrollView.addView(horizontalContainer);
+        addView(horizontalScrollView, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        verticalButtons = new ArrayList<>();
+        verticalActions = new ArrayList<>();
+        horizontalButtons = new ArrayList<>();
+        horizontalActions = new ArrayList<>();
+
+        activeRegion = Region.VERTICAL;
+        verticalIndex = 0;
+        horizontalIndex = 0;
+
         commandsManager = new CustomCommandsManager(context);
-
-        // Cache Android TV status (device type never changes at runtime)
         isAndroidTV = isAndroidTV();
 
         setVisibility(GONE);
     }
 
-    /**
-     * Check if the device is Android TV
-     */
     private boolean isAndroidTV() {
         UiModeManager uiModeManager = (UiModeManager) getContext().getSystemService(Context.UI_MODE_SERVICE);
         return uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
     }
 
-    /**
-     * Build the menu with built-in and custom buttons
-     */
     public void buildMenu() {
-        // Reset state to prevent issues when menu is rebuilt
-        selectedIndex = 0;
+        activeRegion = Region.VERTICAL;
+        verticalIndex = 0;
+        horizontalIndex = 0;
         clearFocus();
 
-        buttonContainer.removeAllViews();
-        buttons.clear();
-        buttonActions.clear();
+        verticalContainer.removeAllViews();
+        horizontalContainer.removeAllViews();
+        verticalButtons.clear();
+        verticalActions.clear();
+        horizontalButtons.clear();
+        horizontalActions.clear();
 
         float density = getContext().getResources().getDisplayMetrics().density;
         int spacing = (int) (BUTTON_SPACING_DP * density);
 
-        // Add built-in buttons
-        addBuiltInButton(R.drawable.ic_overlay_monitor,
-            getContext().getString(R.string.overlay_menu_disconnect), ACTION_DISCONNECT, spacing);
-        addBuiltInButton(R.drawable.ic_overlay_power,
-            getContext().getString(R.string.overlay_menu_quit_session), ACTION_QUIT, spacing);
-        addBuiltInButton(R.drawable.ic_overlay_perf,
-            getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_TOGGLE_STATS, spacing);
-        addBuiltInButton(R.drawable.ic_overlay_mouse,
-            getContext().getString(R.string.overlay_menu_mouse_emulation), ACTION_TOGGLE_MOUSE_EMULATION, spacing);
-        // Only show keyboard button on non-TV devices where it works reliably
+        // Vertical column: top → bottom
+        addVerticalButton(R.drawable.ic_overlay_guide,
+            getContext().getString(R.string.overlay_menu_guide), ACTION_SEND_GUIDE, spacing);
+        addVerticalButton(R.drawable.ic_overlay_mouse,
+                getContext().getString(R.string.overlay_menu_mouse_emulation), ACTION_TOGGLE_MOUSE_EMULATION, spacing);
         if (!isAndroidTV) {
-            addBuiltInButton(R.drawable.ic_overlay_keyboard_toggle,
+            addVerticalButton(R.drawable.ic_overlay_keyboard_toggle,
                 getContext().getString(R.string.overlay_menu_keyboard), ACTION_SHOW_KEYBOARD, spacing);
         }
-        addBuiltInButton(R.drawable.ic_overlay_guide,
-            getContext().getString(R.string.overlay_menu_guide), ACTION_SEND_GUIDE, spacing);
+        addVerticalButton(R.drawable.ic_overlay_perf,
+                getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_TOGGLE_STATS, spacing);
+        addVerticalButton(R.drawable.ic_overlay_power,
+            getContext().getString(R.string.overlay_menu_quit_session), ACTION_QUIT, spacing);
+        addVerticalButton(R.drawable.ic_overlay_monitor,
+            getContext().getString(R.string.overlay_menu_disconnect), ACTION_DISCONNECT, 0);
 
-        // Add custom command buttons
+        // Add spacing between vertical column and horizontal row
+        ((LinearLayout.LayoutParams) horizontalScrollView.getLayoutParams()).leftMargin = spacing;
+
+        // Horizontal row: custom commands then Close
         List<CustomCommand> customCommands = commandsManager.getCommands();
-        for (int i = 0; i < customCommands.size(); i++) {
-            CustomCommand command = customCommands.get(i);
-            OverlayMenuButton button = OverlayMenuButton.create(
-                getContext(),
-                command.getIconResId(),
-                command.getName()
-            );
-
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            if (i < customCommands.size() - 1 || buttonContainer.getChildCount() > 0) {
-                params.rightMargin = spacing;
-            }
-            buttonContainer.addView(button, params);
-
-            buttons.add(button);
-            buttonActions.add(ACTION_CUSTOM_BASE + i);
-
-            final int index = buttons.size() - 1;
-            final CustomCommand cmd = command;
-            button.setOnClickListener(v -> selectAndActivate(index));
-
-            // Track focus changes to update selection state
-            button.setOnFocusChangeListener((v, hasFocus) -> {
-                if (hasFocus) {
-                    selectedIndex = index;
-                    button.setSelected(true);
-                    // HorizontalScrollView automatically scrolls to keep focused items visible
-                } else {
-                    button.setSelected(false);
-                }
-            });
+        for (CustomCommand command : customCommands) {
+            addHorizontalButton(command.getIconResId(), command.getName(),
+                ACTION_CUSTOM_BASE + horizontalButtons.size(), spacing);
         }
-
-        // Add close button at the end (no right margin since it's last)
-        addBuiltInButton(R.drawable.ic_overlay_close,
+        addHorizontalButton(R.drawable.ic_overlay_close,
             getContext().getString(R.string.overlay_menu_close), ACTION_CLOSE, 0);
 
-        // Force layout refresh to ensure view hierarchy is properly updated
-        buttonContainer.invalidate();
-        buttonContainer.requestLayout();
+        verticalContainer.invalidate();
+        verticalContainer.requestLayout();
+        horizontalContainer.invalidate();
+        horizontalContainer.requestLayout();
     }
 
-    private void addBuiltInButton(int iconResId, String label, int action, int spacing) {
+    private void addVerticalButton(int iconResId, String label, int action, int bottomMarginPx) {
         OverlayMenuButton button = OverlayMenuButton.create(getContext(), iconResId, label);
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        params.rightMargin = spacing;
-        buttonContainer.addView(button, params);
+        params.bottomMargin = bottomMarginPx;
+        verticalContainer.addView(button, params);
 
-        buttons.add(button);
-        buttonActions.add(action);
+        verticalButtons.add(button);
+        verticalActions.add(action);
 
-        final int index = buttons.size() - 1;
-        button.setOnClickListener(v -> selectAndActivate(index));
-
-        // Track focus changes to update selection state
+        final int index = verticalButtons.size() - 1;
+        button.setOnClickListener(v -> selectAndActivate(Region.VERTICAL, index));
         button.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                selectedIndex = index;
+                activeRegion = Region.VERTICAL;
+                verticalIndex = index;
                 button.setSelected(true);
-                // HorizontalScrollView automatically scrolls to keep focused items visible
             } else {
                 button.setSelected(false);
             }
         });
     }
 
-    /**
-     * Set the action listener for menu events
-     */
+    private void addHorizontalButton(int iconResId, String label, int action, int rightMarginPx) {
+        OverlayMenuButton button = OverlayMenuButton.create(getContext(), iconResId, label);
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.rightMargin = rightMarginPx;
+        horizontalContainer.addView(button, params);
+
+        horizontalButtons.add(button);
+        horizontalActions.add(action);
+
+        final int index = horizontalButtons.size() - 1;
+        button.setOnClickListener(v -> selectAndActivate(Region.HORIZONTAL, index));
+        button.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                activeRegion = Region.HORIZONTAL;
+                horizontalIndex = index;
+                button.setSelected(true);
+            } else {
+                button.setSelected(false);
+            }
+        });
+    }
+
     public void setMenuActionListener(MenuActionListener listener) {
         this.actionListener = listener;
     }
 
-    /**
-     * Set whether face buttons should be flipped (A/B and X/Y swapped)
-     */
     public void setFlipFaceButtons(boolean flip) {
         this.flipFaceButtons = flip;
     }
 
-    /**
-     * Handle gamepad D-pad and button inputs
-     */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // Handle back button from keyboards, touch, and TV remotes (but not full gamepad SELECT button)
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN) {
-            // Only activate on a new press (not a repeated/held button from menu opening)
             if (!isFullGamepadEvent(event) && event.getRepeatCount() == 0) {
                 closeMenu();
             }
@@ -247,7 +255,6 @@ public class OverlayMenuView extends HorizontalScrollView {
         }
 
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            // Apply face button flipping if enabled
             int keyCode = event.getKeyCode();
             if (flipFaceButtons) {
                 keyCode = handleFlipFaceButtons(keyCode);
@@ -262,6 +269,14 @@ public class OverlayMenuView extends HorizontalScrollView {
                     navigateRight();
                     return true;
 
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    navigateUp();
+                    return true;
+
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    navigateDown();
+                    return true;
+
                 case KeyEvent.KEYCODE_BUTTON_A:
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                     activateSelected();
@@ -272,14 +287,12 @@ public class OverlayMenuView extends HorizontalScrollView {
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_X:
-                    // Only activate on a new press (not a repeated/held button from menu opening)
                     if (event.getRepeatCount() == 0) {
                         activateMouseEmulation();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_Y:
-                    // Only activate on a new press (not a repeated/held button from menu opening)
                     if (event.getRepeatCount() == 0) {
                         activateKeyboard();
                     }
@@ -287,14 +300,12 @@ public class OverlayMenuView extends HorizontalScrollView {
 
                 case KeyEvent.KEYCODE_BUTTON_START:
                 case KeyEvent.KEYCODE_MENU:
-                    // Only activate on a new press (not a repeated/held button from menu opening)
                     if (event.getRepeatCount() == 0) {
                         activateGuideButton();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_R1:
-                    // Only activate on a new press (not a repeated/held button from menu opening)
                     if (event.getRepeatCount() == 0) {
                         activateToggleStats();
                     }
@@ -302,29 +313,21 @@ public class OverlayMenuView extends HorizontalScrollView {
             }
         }
 
-        // Check if this is a gamepad event and consume it to prevent pass-through
         if (isGamepadEvent(event)) {
             return true;
         }
         return super.dispatchKeyEvent(event);
     }
 
-    /**
-     * Override onKeyDown as a fallback to consume gamepad events that might not reach dispatchKeyEvent
-     * All button actions are handled in dispatchKeyEvent() to prevent duplicate processing
-     */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Handle back button from keyboards, touch, and TV remotes (but not full gamepad SELECT button)
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // Only activate on a new press (not a repeated/held button from menu opening)
             if (!isFullGamepadEvent(event) && event.getRepeatCount() == 0) {
                 closeMenu();
             }
             return true;
         }
 
-        // Consume all gamepad events (actual handling is in dispatchKeyEvent)
         if (isGamepadEvent(event)) {
             return true;
         }
@@ -332,44 +335,44 @@ public class OverlayMenuView extends HorizontalScrollView {
         return super.onKeyDown(keyCode, event);
     }
 
-
-    /**
-     * Handle analog stick and D-pad hat input
-     */
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
-        // Check if this is a gamepad event
         if (isGamepadMotionEvent(event)) {
-            // Get left stick X-axis value
             float x = event.getAxisValue(MotionEvent.AXIS_X);
-
-            // Get D-pad hat axis value (some controllers send D-pad as hat axis)
+            float y = event.getAxisValue(MotionEvent.AXIS_Y);
             float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
+            float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
 
-            // Throttle analog navigation to prevent too-rapid movement
+            float combinedX = Math.abs(x) > Math.abs(hatX) ? x : hatX;
+            float combinedY = Math.abs(y) > Math.abs(hatY) ? y : hatY;
+
             long currentTime = System.currentTimeMillis();
             if (currentTime - lastAnalogNavTime >= ANALOG_NAV_THROTTLE_MS) {
-                // Check both analog stick and D-pad hat
-                float combinedX = Math.abs(x) > Math.abs(hatX) ? x : hatX;
-
-                if (combinedX < -ANALOG_STICK_THRESHOLD) {
-                    navigateLeft();
-                    lastAnalogNavTime = currentTime;
-                } else if (combinedX > ANALOG_STICK_THRESHOLD) {
-                    navigateRight();
-                    lastAnalogNavTime = currentTime;
+                // Dominant axis wins to prevent cross-region jumps on diagonal inputs
+                if (Math.abs(combinedX) >= Math.abs(combinedY)) {
+                    if (combinedX < -ANALOG_STICK_THRESHOLD) {
+                        navigateLeft();
+                        lastAnalogNavTime = currentTime;
+                    } else if (combinedX > ANALOG_STICK_THRESHOLD) {
+                        navigateRight();
+                        lastAnalogNavTime = currentTime;
+                    }
+                } else {
+                    if (combinedY < -ANALOG_STICK_THRESHOLD) {
+                        navigateUp();
+                        lastAnalogNavTime = currentTime;
+                    } else if (combinedY > ANALOG_STICK_THRESHOLD) {
+                        navigateDown();
+                        lastAnalogNavTime = currentTime;
+                    }
                 }
             }
 
-            // Consume all gamepad motion events
             return true;
         }
         return super.onGenericMotionEvent(event);
     }
 
-    /**
-     * Check if a key event is from a gamepad
-     */
     private boolean isGamepadEvent(KeyEvent event) {
         int source = event.getSource();
         return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
@@ -377,99 +380,149 @@ public class OverlayMenuView extends HorizontalScrollView {
                (source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD;
     }
 
-    /**
-     * Check if a key event is from a full gamepad controller (not just a TV remote/D-pad)
-     */
     private boolean isFullGamepadEvent(KeyEvent event) {
         int source = event.getSource();
         return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
                (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
     }
 
-    /**
-     * Handle face button flipping when the flipFaceButtons preference is enabled
-     */
     private int handleFlipFaceButtons(int keyCode) {
         switch (keyCode) {
-            case KeyEvent.KEYCODE_BUTTON_A:
-                return KeyEvent.KEYCODE_BUTTON_B;
-            case KeyEvent.KEYCODE_BUTTON_B:
-                return KeyEvent.KEYCODE_BUTTON_A;
-            case KeyEvent.KEYCODE_BUTTON_X:
-                return KeyEvent.KEYCODE_BUTTON_Y;
-            case KeyEvent.KEYCODE_BUTTON_Y:
-                return KeyEvent.KEYCODE_BUTTON_X;
-            default:
-                return keyCode;
+            case KeyEvent.KEYCODE_BUTTON_A: return KeyEvent.KEYCODE_BUTTON_B;
+            case KeyEvent.KEYCODE_BUTTON_B: return KeyEvent.KEYCODE_BUTTON_A;
+            case KeyEvent.KEYCODE_BUTTON_X: return KeyEvent.KEYCODE_BUTTON_Y;
+            case KeyEvent.KEYCODE_BUTTON_Y: return KeyEvent.KEYCODE_BUTTON_X;
+            default: return keyCode;
         }
     }
 
-    /**
-     * Check if a motion event is from a gamepad
-     */
     private boolean isGamepadMotionEvent(MotionEvent event) {
         int source = event.getSource();
         return (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
     }
 
-    /**
-     * Navigate to the previous button
-     */
+    private void navigateUp() {
+        if (activeRegion == Region.VERTICAL) {
+            if (!verticalButtons.isEmpty()) {
+                setVerticalIndex((verticalIndex - 1 + verticalButtons.size()) % verticalButtons.size());
+            }
+        } else {
+            // From horizontal → Up: jump to button above Disconnect (second-to-last in vertical)
+            clearHorizontalSelection();
+            activeRegion = Region.VERTICAL;
+            int target = verticalButtons.size() >= 2 ? verticalButtons.size() - 2 : 0;
+            setVerticalIndex(target);
+        }
+    }
+
+    private void navigateDown() {
+        if (activeRegion == Region.VERTICAL) {
+            if (!verticalButtons.isEmpty()) {
+                setVerticalIndex((verticalIndex + 1) % verticalButtons.size());
+            }
+        } else {
+            // From horizontal → Down: jump to topmost vertical button
+            clearHorizontalSelection();
+            activeRegion = Region.VERTICAL;
+            setVerticalIndex(0);
+        }
+    }
+
     private void navigateLeft() {
-        if (!buttons.isEmpty()) {
-            setSelectedIndex((selectedIndex - 1 + buttons.size()) % buttons.size());
+        if (activeRegion == Region.HORIZONTAL) {
+            if (horizontalIndex > 0) {
+                setHorizontalIndex(horizontalIndex - 1);
+            } else {
+                // At leftmost horizontal button — cross to Disconnect (last vertical button)
+                clearHorizontalSelection();
+                activeRegion = Region.VERTICAL;
+                setVerticalIndex(verticalButtons.size() - 1);
+            }
+        } else {
+            // In vertical region — wrap around to rightmost horizontal button
+            if (!horizontalButtons.isEmpty()) {
+                clearVerticalSelection();
+                activeRegion = Region.HORIZONTAL;
+                setHorizontalIndex(horizontalButtons.size() - 1);
+            }
         }
     }
 
-    /**
-     * Navigate to the next button
-     */
     private void navigateRight() {
-        if (!buttons.isEmpty()) {
-            setSelectedIndex((selectedIndex + 1) % buttons.size());
+        if (activeRegion == Region.VERTICAL) {
+            if (!horizontalButtons.isEmpty()) {
+                clearVerticalSelection();
+                activeRegion = Region.HORIZONTAL;
+                setHorizontalIndex(0);
+            }
+        } else {
+            if (horizontalIndex < horizontalButtons.size() - 1) {
+                setHorizontalIndex(horizontalIndex + 1);
+            } else {
+                // At rightmost horizontal button — cross to Disconnect (last vertical button)
+                clearHorizontalSelection();
+                activeRegion = Region.VERTICAL;
+                setVerticalIndex(verticalButtons.size() - 1);
+            }
         }
     }
 
-    /**
-     * Set the currently selected button index
-     */
-    private void setSelectedIndex(int index) {
-        if (index < 0 || index >= buttons.size()) {
-            return;
+    private void setVerticalIndex(int index) {
+        if (index < 0 || index >= verticalButtons.size()) return;
+
+        for (OverlayMenuButton b : verticalButtons) {
+            b.setSelected(false);
         }
 
-        // Clear selected state from all buttons
-        for (OverlayMenuButton button : buttons) {
-            button.setSelected(false);
-        }
-
-        // Set the index immediately to avoid race conditions with activateSelected()
-        selectedIndex = index;
-
-        // Set selected state on the new button
-        buttons.get(index).setSelected(true);
-
-        // Request focus on the button for scrolling and accessibility
-        buttons.get(index).requestFocus();
+        verticalIndex = index;
+        verticalButtons.get(index).setSelected(true);
+        verticalButtons.get(index).requestFocus();
     }
 
-    /**
-     * Select and activate a button by index
-     */
-    private void selectAndActivate(int index) {
-        setSelectedIndex(index);
+    private void setHorizontalIndex(int index) {
+        if (index < 0 || index >= horizontalButtons.size()) return;
+
+        for (OverlayMenuButton b : horizontalButtons) {
+            b.setSelected(false);
+        }
+
+        horizontalIndex = index;
+        horizontalButtons.get(index).setSelected(true);
+        horizontalButtons.get(index).requestFocus();
+    }
+
+    private void clearVerticalSelection() {
+        for (OverlayMenuButton b : verticalButtons) {
+            b.setSelected(false);
+        }
+    }
+
+    private void clearHorizontalSelection() {
+        for (OverlayMenuButton b : horizontalButtons) {
+            b.setSelected(false);
+        }
+    }
+
+    private void selectAndActivate(Region region, int index) {
+        activeRegion = region;
+        if (region == Region.VERTICAL) {
+            setVerticalIndex(index);
+        } else {
+            setHorizontalIndex(index);
+        }
         activateSelected();
     }
 
-    /**
-     * Activate the currently selected button
-     */
     private void activateSelected() {
-        if (selectedIndex < 0 || selectedIndex >= buttons.size() || selectedIndex >= buttonActions.size()) {
-            return;
+        int action;
+        if (activeRegion == Region.VERTICAL) {
+            if (verticalIndex < 0 || verticalIndex >= verticalActions.size()) return;
+            action = verticalActions.get(verticalIndex);
+        } else {
+            if (horizontalIndex < 0 || horizontalIndex >= horizontalActions.size()) return;
+            action = horizontalActions.get(horizontalIndex);
         }
 
-        int action = buttonActions.get(selectedIndex);
         boolean shouldCloseMenu = false;
 
         if (actionListener != null) {
@@ -486,15 +539,14 @@ public class OverlayMenuView extends HorizontalScrollView {
                 actionListener.onToggleMouseEmulation();
                 shouldCloseMenu = true;
             } else if (action == ACTION_SHOW_KEYBOARD) {
-                // Use helper method which closes menu before showing keyboard
                 activateKeyboard();
-                return; // Early return since activateKeyboard() handles menu closing
+                return;
             } else if (action == ACTION_SEND_GUIDE) {
                 actionListener.onSendGuideButton();
                 shouldCloseMenu = true;
             } else if (action == ACTION_CLOSE) {
                 closeMenu();
-                return; // Early return since we're closing
+                return;
             } else if (action >= ACTION_CUSTOM_BASE) {
                 int commandIndex = action - ACTION_CUSTOM_BASE;
                 List<CustomCommand> commands = commandsManager.getCommands();
@@ -505,15 +557,11 @@ public class OverlayMenuView extends HorizontalScrollView {
             }
         }
 
-        // Only close menu for disconnect/quit actions
         if (shouldCloseMenu) {
             closeMenu();
         }
     }
 
-    /**
-     * Close the menu
-     */
     public void closeMenu() {
         hide(() -> {
             if (actionListener != null) {
@@ -522,9 +570,6 @@ public class OverlayMenuView extends HorizontalScrollView {
         });
     }
 
-    /**
-     * Activate mouse emulation shortcut (X button)
-     */
     private void activateMouseEmulation() {
         if (actionListener != null) {
             actionListener.onToggleMouseEmulation();
@@ -532,11 +577,7 @@ public class OverlayMenuView extends HorizontalScrollView {
         closeMenu();
     }
 
-    /**
-     * Activate keyboard shortcut (Y button)
-     */
     private void activateKeyboard() {
-        // Close menu first, then show keyboard to avoid focus conflicts
         hide(() -> {
             if (actionListener != null) {
                 actionListener.onShowKeyboard();
@@ -544,9 +585,6 @@ public class OverlayMenuView extends HorizontalScrollView {
         });
     }
 
-    /**
-     * Activate guide button shortcut (Start button)
-     */
     private void activateGuideButton() {
         if (actionListener != null) {
             actionListener.onSendGuideButton();
@@ -554,9 +592,6 @@ public class OverlayMenuView extends HorizontalScrollView {
         closeMenu();
     }
 
-    /**
-     * Activate quit session shortcut (Select button)
-     */
     private void activateQuitSession() {
         if (actionListener != null) {
             actionListener.onQuitSession();
@@ -564,9 +599,6 @@ public class OverlayMenuView extends HorizontalScrollView {
         closeMenu();
     }
 
-    /**
-     * Activate toggle stats shortcut (LB button)
-     */
     private void activateToggleStats() {
         if (actionListener != null) {
             actionListener.onToggleStats();
@@ -574,30 +606,34 @@ public class OverlayMenuView extends HorizontalScrollView {
         closeMenu();
     }
 
-    /**
-     * Show the menu
-     */
     public void show() {
         buildMenu();
         setVisibility(VISIBLE);
 
-        // Ensure the view is properly refreshed
         invalidate();
         requestLayout();
 
         requestFocus();
 
-        // Request focus on first button after view is laid out
         post(() -> {
-            if (!buttons.isEmpty()) {
-                setSelectedIndex(0);
+            // Equalize all vertical button widths to the widest one
+            int maxWidth = 0;
+            for (OverlayMenuButton b : verticalButtons) {
+                maxWidth = Math.max(maxWidth, b.getWidth());
+            }
+            if (maxWidth > 0) {
+                for (OverlayMenuButton b : verticalButtons) {
+                    b.setMinimumWidth(maxWidth);
+                }
+                verticalContainer.requestLayout();
+            }
+
+            if (!verticalButtons.isEmpty()) {
+                setVerticalIndex(verticalButtons.size() - 1);
             }
         });
     }
 
-    /**
-     * Hide the menu
-     */
     public void hide(Runnable onComplete) {
         setVisibility(GONE);
         if (onComplete != null) {
