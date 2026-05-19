@@ -162,6 +162,8 @@
     <string name="resolution_prefix_native_portrait">(Portrait)</string>
     <string name="fps_suffix_fps">FPS</string>
     <string name="title_native_fps_dialog">Native FPS Warning</string>
+    <string name="title_checkbox_auto_resume_stream">Auto-resume stream after sleep</string>
+    <string name="summary_checkbox_auto_resume_stream">If a stream is running when you put your device to sleep, resume it automatically upon wakeup.</string>
 
     <string name="category_audio_settings">Audio Settings</string>
     <string name="title_audio_config_list">Surround sound configuration</string>

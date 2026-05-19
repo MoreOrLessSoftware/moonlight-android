@@ -69,11 +69,25 @@
         android:layout_height="65dp"
         android:cropToPadding="false"
         android:scaleType="fitXY"
-        android:nextFocusForward="@id/overridesToggleButton"
+        android:nextFocusForward="@id/autoResumeToggleButton"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
         android:layout_alignParentTop="true"
         android:src="@drawable/ic_settings"
+        style="?android:attr/borderlessButtonStyle"/>
+
+    <ImageButton
+        android:id="@+id/autoResumeToggleButton"
+        android:layout_width="70dp"
+        android:layout_height="65dp"
+        android:cropToPadding="false"
+        android:scaleType="fitXY"
+        android:nextFocusForward="@id/overridesToggleButton"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@id/settingsButton"
+        android:src="@drawable/ic_auto_resume_enabled"
+        android:contentDescription="Toggle Auto Resume"
         style="?android:attr/borderlessButtonStyle"/>
 
     <ImageButton
@@ -85,7 +99,7 @@
         android:nextFocusForward="@id/helpButton"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
-        android:layout_below="@id/settingsButton"
+        android:layout_below="@id/autoResumeToggleButton"
         android:src="@drawable/ic_overrides_enabled"
         android:contentDescription="Toggle Overrides Section"
         style="?android:attr/borderlessButtonStyle"/>
