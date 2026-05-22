@@ -2904,7 +2904,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onCustomCommand(CustomCommand command) {
-                sendCustomKeyCommand(command, buildPostActionRunnable(command));
+                if (command.getPostAction() == CustomCommand.POST_ACTION_CLOSE_MENU) {
+                    overlayMenuView.closeMenu();
+                    sendCustomKeyCommand(command, null);
+                } else {
+                    sendCustomKeyCommand(command, buildPostActionRunnable(command));
+                }
             }
 
             @Override
