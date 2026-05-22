@@ -55,6 +55,7 @@ public class OverlayMenuButton extends LinearLayout {
         strokeWidth = (int) (2 * density);
 
         setPadding(padding, padding, padding, padding);
+        setMinimumHeight(iconSize + 2 * padding);
         setClickable(true);
         setFocusable(true);
 
@@ -146,12 +147,20 @@ public class OverlayMenuButton extends LinearLayout {
         }
     }
 
-    /**
-     * Convenience method to create a button with icon and label
-     */
+    public void hideIcon() {
+        iconView.setVisibility(GONE);
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) labelView.getLayoutParams();
+        params.leftMargin = 0;
+        labelView.setLayoutParams(params);
+    }
+
     public static OverlayMenuButton create(Context context, int iconResId, String label) {
         OverlayMenuButton button = new OverlayMenuButton(context);
-        button.setIcon(iconResId);
+        if (iconResId != 0) {
+            button.setIcon(iconResId);
+        } else {
+            button.hideIcon();
+        }
         button.setLabel(label);
         return button;
     }
