@@ -88,7 +88,7 @@ public class ShortcutTrampoline extends Activity {
                     // Start polling
                     managerBinder.startPolling(new ComputerManagerListener() {
                         @Override
-                        public void notifyComputerUpdated(final ComputerDetails details) {
+                        public void notifyComputerUpdated(final ComputerDetails details, boolean isFreshPoll) {
                             // Don't care about other computers
                             if (!details.uuid.equalsIgnoreCase(uuidString)) {
                                 return;

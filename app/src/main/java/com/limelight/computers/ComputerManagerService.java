@@ -154,7 +154,7 @@ public class ComputerManagerService extends Service {
 
         // Don't call the listener if this is a failed lookup of a new PC
         if ((!newPc || details.state == ComputerDetails.State.ONLINE) && listener != null) {
-            listener.notifyComputerUpdated(details);
+            listener.notifyComputerUpdated(details, true);
         }
 
         releaseLocalDatabaseReference();
@@ -212,8 +212,8 @@ public class ComputerManagerService extends Service {
                         tuple.computer.state = ComputerDetails.State.UNKNOWN;
                     }
 
-                    // Report this computer initially
-                    listener.notifyComputerUpdated(tuple.computer);
+                    // Report this computer initially (stale cached state, not a fresh poll)
+                    listener.notifyComputerUpdated(tuple.computer, false);
 
                     // This polling thread might already be there
                     if (tuple.thread == null) {
@@ -748,7 +748,7 @@ public class ComputerManagerService extends Service {
                         for (PollingTuple tuple : pollingTuples) {
                             tuple.computer.state = ComputerDetails.State.UNKNOWN;
                             if (listener != null) {
-                                listener.notifyComputerUpdated(tuple.computer);
+                                listener.notifyComputerUpdated(tuple.computer, false);
                             }
                         }
                     }
@@ -761,7 +761,7 @@ public class ComputerManagerService extends Service {
                         for (PollingTuple tuple : pollingTuples) {
                             tuple.computer.state = ComputerDetails.State.OFFLINE;
                             if (listener != null) {
-                                listener.notifyComputerUpdated(tuple.computer);
+                                listener.notifyComputerUpdated(tuple.computer, false);
                             }
                         }
                     }
@@ -854,7 +854,7 @@ public class ComputerManagerService extends Service {
                         if (computer.state != ComputerDetails.State.ONLINE ||
                                 computer.pairState != PairingManager.PairState.PAIRED) {
                             if (listener != null) {
-                                listener.notifyComputerUpdated(computer);
+                                listener.notifyComputerUpdated(computer, false);
                             }
                             continue;
                         }
@@ -915,7 +915,7 @@ public class ComputerManagerService extends Service {
                                 // Notify that the app list has been updated
                                 // and ensure that the thread is still active
                                 if (listener != null && thread != null) {
-                                    listener.notifyComputerUpdated(computer);
+                                    listener.notifyComputerUpdated(computer, false);
                                 }
                             }
                             else if (appList.isEmpty()) {
