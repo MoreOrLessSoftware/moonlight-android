@@ -192,7 +192,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         managerBinder.startPolling(new ComputerManagerListener() {
             @Override
-            public void notifyComputerUpdated(final ComputerDetails details) {
+            public void notifyComputerUpdated(final ComputerDetails details, boolean isFreshPoll) {
                 // Do nothing if updates are suspended
                 if (suspendGridUpdates) {
                     return;

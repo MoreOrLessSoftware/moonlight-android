@@ -301,12 +301,12 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             freezeUpdates = false;
             managerBinder.startPolling(new ComputerManagerListener() {
                 @Override
-                public void notifyComputerUpdated(final ComputerDetails details) {
+                public void notifyComputerUpdated(final ComputerDetails details, final boolean isFreshPoll) {
                     if (!freezeUpdates) {
                         PcView.this.runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                updateComputer(details);
+                                updateComputer(details, isFreshPoll);
                             }
                         });
 
@@ -815,7 +815,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
     }
     
-    private void updateComputer(ComputerDetails details) {
+    private void updateComputer(ComputerDetails details, boolean isFreshPoll) {
         ComputerObject existingEntry = null;
 
         for (int i = 0; i < pcGridAdapter.getCount(); i++) {
@@ -849,8 +849,9 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
 
         // Check for a session to resume after device sleep — only when PcView is fully visible
+        // and the update reflects a real network poll, not the initial stale cache dispatch.
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-        if (pm.isInteractive() && inForeground && SessionResumeManager.hasPendingSession(this)) {
+        if (isFreshPoll && pm.isInteractive() && inForeground && SessionResumeManager.hasPendingSession(this)) {
             String pendingUuid = SessionResumeManager.getPendingPcUuid(this);
             int pendingAppId = SessionResumeManager.getPendingAppId(this);
             android.util.Log.d("SessionResume", "updateComputer: pending uuid=" + pendingUuid
