@@ -47,8 +47,6 @@ Some non-HDR devices can still stream 10-bit SDR if Sunshine sends it. This simp
 
 Access quick actions and custom commands during streaming with a customizable overlay menu:
 
-<img width="2560" height="1600" alt="In-Stream Overlay Menu" src="https://github.com/user-attachments/assets/b4e3a1ba-82de-4eeb-aacb-78bfb2e37d13" />
-
 **Features:**
 - **Quick Actions**: Disconnect, quit session, toggle stats, mouse mode, and show keyboard (except Google TV)
 - **Custom Commands**: Create custom keyboard shortcuts
@@ -68,12 +66,13 @@ Access quick actions and custom commands during streaming with a customizable ov
 - Tweaked the formatting and simplified labels
 - Added variance between incoming and rendered FPS (will show > 0% when the values differ by 1 or more FPS)
 
-<img width="2560" height="1600" alt="Improved stats overlay" src="https://github.com/user-attachments/assets/3c78519c-9016-4105-a659-670807c4c08e" />
+## Screenshots
+
+<img width="2560" height="1600" alt="Screenshot_20260602-085353" src="https://github.com/user-attachments/assets/2da16b54-2685-4c06-a855-76a38de5255f" />
 
 ## Features and Improvements Merged from Artemis
 
 - Ultra low latency mode with Snapdragon (8 Gen 2+) and MediaTek (MTK) latency improvements
-- Low Frame Rate (LFR) / low delay buffer logic (on when "Ultra low latency" option is enabled)
 - Revised decode latency calculation (typically a few ms less than Moonlight reports)
 
 ## Downloads
