@@ -44,6 +44,7 @@ public class MediaCodecHelper {
     private static final List<String> kirinDecoderPrefixes;
     private static final List<String> exynosDecoderPrefixes;
     private static final List<String> amlogicDecoderPrefixes;
+    private static final List<String> googleDecoderPrefixes;
     private static final List<String> knownVendorLowLatencyOptions;
 
     public static final boolean SHOULD_BYPASS_SOFTWARE_BLOCK =
@@ -258,6 +259,13 @@ public class MediaCodecHelper {
 
         amlogicDecoderPrefixes.add("omx.amlogic");
         amlogicDecoderPrefixes.add("c2.amlogic");
+    }
+
+    static {
+        googleDecoderPrefixes = new LinkedList<>();
+
+        // Google Codec2 decoders (hardware on Tensor, software fallback on other devices)
+        googleDecoderPrefixes.add("c2.google");
     }
 
     private static boolean isPowerVR(String glRenderer) {
@@ -519,6 +527,15 @@ public class MediaCodecHelper {
         if (tryNumber < 1) {
             // Official Android 11+ low latency option (KEY_LOW_LATENCY).
             setNewOption |= safeSet(videoFormat, "low-latency", 1, tryNumber, true);
+
+            // Google Codec2 decoders (Tensor hardware and AOSP software) honor operating rate
+            // and priority even alongside low-latency mode. Set them here so they're included
+            // when FEATURE_LowLatency causes an early return below.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    isDecoderInList(googleDecoderPrefixes, decoderInfo.getName())) {
+                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE, tryNumber, true);
+                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, true);
+            }
 
             // If this decoder officially supports FEATURE_LowLatency, we will just use that alone
             // for try 0. Otherwise, we'll include it as best effort with other options.
