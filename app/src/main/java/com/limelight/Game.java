@@ -80,6 +80,7 @@ import android.view.View.OnGenericMotionListener;
 import android.view.View.OnSystemUiVisibilityChangeListener;
 import android.view.View.OnTouchListener;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.view.inputmethod.InputMethodManager;
@@ -157,6 +158,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private TextView performanceOverlayView;
     private BrightnessSliderView brightnessSliderView;
     private OverlayMenuView overlayMenuView;
+    private boolean isImeVisible = false;
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
@@ -236,6 +238,23 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // Listen for UI visibility events
         getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(this);
+
+        // Detect keyboard visibility
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            getWindow().getDecorView().setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View view, WindowInsets insets) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        isImeVisible = insets.isVisible(WindowInsets.Type.ime());
+                    } else {
+                        int bottomInset = insets.getSystemWindowInsetBottom();
+                        float density = getResources().getDisplayMetrics().density;
+                        isImeVisible = bottomInset > (100 * density);
+                    }
+                    return view.onApplyWindowInsets(insets);
+                }
+            });
+        }
 
         // Change volume button behavior
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -1412,6 +1431,21 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public boolean handleKeyDown(KeyEvent event) {
+        if (isImeVisible && event.getDeviceId() >= 0) {
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_BACK:
+                case KeyEvent.KEYCODE_BUTTON_A:
+                case KeyEvent.KEYCODE_BUTTON_B:
+                    return false;
+            }
+        }
+
         // Pass-through virtual navigation keys
         if ((event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0) {
             return false;
@@ -1499,6 +1533,21 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public boolean handleKeyUp(KeyEvent event) {
+        if (isImeVisible && event.getDeviceId() >= 0) {
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_BACK:
+                case KeyEvent.KEYCODE_BUTTON_A:
+                case KeyEvent.KEYCODE_BUTTON_B:
+                    return false;
+            }
+        }
+
         // Pass-through virtual navigation keys
         if ((event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0) {
             return false;
@@ -1597,7 +1646,37 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public void toggleKeyboard() {
         LimeLog.info("Toggling keyboard overlay");
         InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        inputManager.toggleSoftInput(0, 0);
+        if (inputManager != null) {
+            streamView.requestFocus();
+            inputManager.toggleSoftInput(0, 0);
+        }
+    }
+
+    @Override
+    public void onTextCommitted(String text) {
+        if (conn != null && text != null) {
+            conn.sendUtf8Text(text);
+        }
+    }
+
+    @Override
+    public void onKeyboardDismissRequest() {
+        InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (inputManager != null) {
+            inputManager.hideSoftInputFromWindow(streamView.getWindowToken(), 0);
+        }
+    }
+
+    @Override
+    public void onImeKeyReceived(KeyEvent event) {
+        if (conn != null) {
+            short translated = keyboardTranslator.translate(event.getKeyCode(), event.getDeviceId());
+            if (translated != 0) {
+                byte action = (event.getAction() == KeyEvent.ACTION_DOWN) ? KeyboardPacket.KEY_DOWN : KeyboardPacket.KEY_UP;
+                conn.sendKeyboardInput(translated, action, getModifierState(event),
+                        keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED);
+            }
+        }
     }
 
     private byte getLiTouchTypeFromEvent(MotionEvent event) {
@@ -2235,6 +2314,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return overlayMenuView.onGenericMotionEvent(event);
         }
 
+        if (isImeVisible) {
+            return super.onGenericMotionEvent(event);
+        }
+
         return handleMotionEvent(null, event) || super.onGenericMotionEvent(event);
     }
 
@@ -2293,6 +2376,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public boolean onGenericMotion(View view, MotionEvent event) {
+        if (isImeVisible) {
+            return false;
+        }
         return handleMotionEvent(view, event);
     }
 
