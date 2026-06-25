@@ -1,8 +1,6 @@
 package com.limelight.ui.overlay;
 
-import android.app.UiModeManager;
 import android.content.Context;
-import android.content.res.Configuration;
 import android.os.Build;
 import android.util.AttributeSet;
 import android.view.Gravity;
@@ -61,7 +59,6 @@ public class OverlayMenuView extends LinearLayout {
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
-    private boolean isAndroidTV;
 
     public OverlayMenuView(Context context) {
         super(context);
@@ -125,14 +122,8 @@ public class OverlayMenuView extends LinearLayout {
         horizontalIndex = 0;
 
         commandsManager = new CustomCommandsManager(context);
-        isAndroidTV = isAndroidTV();
 
         setVisibility(GONE);
-    }
-
-    private boolean isAndroidTV() {
-        UiModeManager uiModeManager = (UiModeManager) getContext().getSystemService(Context.UI_MODE_SERVICE);
-        return uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
     }
 
     public void buildMenu() {
@@ -156,10 +147,8 @@ public class OverlayMenuView extends LinearLayout {
             getContext().getString(R.string.overlay_menu_guide), ACTION_SEND_GUIDE, spacing);
         addVerticalButton(R.drawable.ic_overlay_mouse,
                 getContext().getString(R.string.overlay_menu_mouse_emulation), ACTION_TOGGLE_MOUSE_EMULATION, spacing);
-        if (!isAndroidTV) {
-            addVerticalButton(R.drawable.ic_overlay_keyboard_toggle,
-                getContext().getString(R.string.overlay_menu_keyboard), ACTION_SHOW_KEYBOARD, spacing);
-        }
+        addVerticalButton(R.drawable.ic_overlay_keyboard_toggle,
+            getContext().getString(R.string.overlay_menu_keyboard), ACTION_SHOW_KEYBOARD, spacing);
         addVerticalButton(R.drawable.ic_overlay_perf,
                 getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_TOGGLE_STATS, spacing);
         addVerticalButton(R.drawable.ic_overlay_power,
@@ -578,7 +567,12 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void activateKeyboard() {
-        hide(() -> {
+        // Hide first, then post the keyboard request so the window manager has a frame
+        // to process the visibility change and return focus to the game view before the
+        // IME is requested. Without this, newer Android silently drops showSoftInput()
+        // because the overlay view still holds focus at the moment of the call.
+        setVisibility(GONE);
+        post(() -> {
             if (actionListener != null) {
                 actionListener.onShowKeyboard();
             }
