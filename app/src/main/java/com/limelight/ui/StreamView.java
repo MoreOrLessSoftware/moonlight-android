@@ -1,7 +1,9 @@
 package com.limelight.ui;
 
 import android.annotation.TargetApi;
+import android.app.UiModeManager;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
@@ -132,8 +134,16 @@ public class StreamView extends SurfaceView {
         }
     }
 
+    private boolean isAndroidTV() {
+        UiModeManager uiModeManager = (UiModeManager) getContext().getSystemService(Context.UI_MODE_SERVICE);
+        return uiModeManager != null && uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
+    }
+
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        if (!isAndroidTV()) {
+            return super.onCreateInputConnection(outAttrs);
+        }
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
         return new StreamInputConnection(this, false);

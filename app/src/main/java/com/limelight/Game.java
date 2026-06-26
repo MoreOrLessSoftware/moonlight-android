@@ -47,6 +47,7 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.PictureInPictureParams;
 import android.app.Service;
+import android.app.UiModeManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -159,6 +160,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private BrightnessSliderView brightnessSliderView;
     private OverlayMenuView overlayMenuView;
     private boolean isImeVisible = false;
+    private boolean isAndroidTV = false;
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
@@ -255,6 +257,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 }
             });
         }
+
+        // Detect Android TV
+        UiModeManager uiModeManager = (UiModeManager) this.getBaseContext().getSystemService(Context.UI_MODE_SERVICE);
+        isAndroidTV = uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
 
         // Change volume button behavior
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -1431,7 +1437,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public boolean handleKeyDown(KeyEvent event) {
-        if (isImeVisible && event.getDeviceId() >= 0) {
+        if (isImeVisible && isAndroidTV && event.getDeviceId() >= 0) {
             switch (event.getKeyCode()) {
                 case KeyEvent.KEYCODE_DPAD_UP:
                 case KeyEvent.KEYCODE_DPAD_DOWN:
@@ -1533,7 +1539,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public boolean handleKeyUp(KeyEvent event) {
-        if (isImeVisible && event.getDeviceId() >= 0) {
+        if (isImeVisible && isAndroidTV && event.getDeviceId() >= 0) {
             switch (event.getKeyCode()) {
                 case KeyEvent.KEYCODE_DPAD_UP:
                 case KeyEvent.KEYCODE_DPAD_DOWN:
@@ -1647,7 +1653,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         LimeLog.info("Toggling keyboard overlay");
         InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         if (inputManager != null) {
-            streamView.requestFocus();
             inputManager.toggleSoftInput(0, 0);
         }
     }
@@ -2314,7 +2319,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return overlayMenuView.onGenericMotionEvent(event);
         }
 
-        if (isImeVisible) {
+        if (isImeVisible && isAndroidTV) {
             return super.onGenericMotionEvent(event);
         }
 
@@ -2376,7 +2381,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public boolean onGenericMotion(View view, MotionEvent event) {
-        if (isImeVisible) {
+        if (isImeVisible && isAndroidTV) {
             return false;
         }
         return handleMotionEvent(view, event);
