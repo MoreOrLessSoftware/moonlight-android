@@ -2075,12 +2075,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     }
 
     private void rumbleSingleVibrator(Vibrator vibrator, short lowFreqMotor, short highFreqMotor) {
-        // Since we can only use a single amplitude value, compute the desired amplitude
-        // by taking 80% of the big motor and 33% of the small motor, then capping to 255.
-        // NB: This value is now 0-255 as required by VibrationEffect.
         short lowFreqMotorMSB = (short)((lowFreqMotor >> 8) & 0xFF);
         short highFreqMotorMSB = (short)((highFreqMotor >> 8) & 0xFF);
-        int simulatedAmplitude = Math.min(255, (int)((lowFreqMotorMSB * 0.80) + (highFreqMotorMSB * 0.33)));
+
+        int simulatedAmplitude = 0;
+        if (lowFreqMotorMSB > 0 || highFreqMotorMSB > 0) {
+            int rawAmplitude = Math.max(lowFreqMotorMSB, highFreqMotorMSB);
+            // Map 1-255 to a haptic-boosted range of 40-255 so weak vibrations can be felt
+            simulatedAmplitude = 40 + (int)(rawAmplitude * (215.0 / 255.0));
+        }
 
         if (simulatedAmplitude == 0) {
             // This case is easy - just cancel the current effect and get out.
