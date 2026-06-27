@@ -345,11 +345,7 @@ public class StreamSettings extends Activity {
                     category.removePreference(findPreference("checkbox_vibrate_osc"));
                 }
             }
-            else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-                    !((Vibrator)getActivity().getSystemService(Context.VIBRATOR_SERVICE)).hasAmplitudeControl() ) {
-                // Remove the vibration strength selector of the device doesn't have amplitude control
-                category_gamepad_settings.removePreference(findPreference("seekbar_vibrate_fallback_strength"));
-            }
+
 
             Display display = getActivity().getWindowManager().getDefaultDisplay();
             float maxSupportedFps = display.getRefreshRate();
