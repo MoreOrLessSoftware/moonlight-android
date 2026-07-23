@@ -231,10 +231,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // If we're going to use immersive mode, we want to have
         // the entire screen
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        }
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
 
@@ -248,6 +252,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 public WindowInsets onApplyWindowInsets(View view, WindowInsets insets) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         isImeVisible = insets.isVisible(WindowInsets.Type.ime());
+                        
+                        // Hide system UI if it becomes visible while streaming
+                        if (connected && (insets.isVisible(WindowInsets.Type.statusBars()) || 
+                                          insets.isVisible(WindowInsets.Type.navigationBars()))) {
+                            hideSystemUi(2000);
+                        }
                     } else {
                         int bottomInset = insets.getSystemWindowInsetBottom();
                         float density = getResources().getDisplayMetrics().density;
@@ -1076,12 +1086,19 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private final Runnable hideSystemUi = new Runnable() {
             @Override
             public void run() {
-                // TODO: Do we want to use WindowInsetsController here on R+ instead of
-                // SYSTEM_UI_FLAG_IMMERSIVE_STICKY? They seem to do the same thing as of S...
-
                 // In multi-window mode on N+, we need to drop our layout flags or we'll
                 // be drawing underneath the system UI.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    android.view.WindowInsetsController controller = Game.this.getWindow().getInsetsController();
+                    if (controller != null) {
+                        if (isInMultiWindowMode()) {
+                            controller.show(android.view.WindowInsets.Type.systemBars());
+                        } else {
+                            controller.hide(android.view.WindowInsets.Type.systemBars());
+                            controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                        }
+                    }
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode()) {
                     Game.this.getWindow().getDecorView().setSystemUiVisibility(
                             View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
                 }
