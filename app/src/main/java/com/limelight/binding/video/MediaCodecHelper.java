@@ -533,8 +533,20 @@ public class MediaCodecHelper {
             // when FEATURE_LowLatency causes an early return below.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
                     isDecoderInList(googleDecoderPrefixes, decoderInfo.getName())) {
-                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE, tryNumber, true);
+                int fps = 60;
+                if (videoFormat.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                    fps = videoFormat.getInteger(MediaFormat.KEY_FRAME_RATE);
+                }
+                // We cap operating rate at realistic bounds rather than Short.MAX_VALUE
+                // to avoid Android 17 Codec2 implementations clamping buffer sizes down
+                // and causing decoder starvation/network UDP drops.
+                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, Math.max(120, fps), tryNumber, true);
                 setNewOption |= safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, true);
+                
+                // For Android 17+ (API 36+), additionally use the newly exposed vendor.google.frame-rate.value
+                if (Build.VERSION.SDK_INT >= 36) {
+                    setNewOption |= safeSet(videoFormat, "vendor.google.frame-rate.value", Math.max(120, fps), tryNumber, true);
+                }
             }
 
             // If this decoder officially supports FEATURE_LowLatency, we will just use that alone
