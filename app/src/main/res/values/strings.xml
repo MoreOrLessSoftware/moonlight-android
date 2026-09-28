@@ -320,7 +320,7 @@
     <string name="pacing_balanced_alt">Balanced with FPS limit</string>
     <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
     <string name="title_jitter_buffer">Jitter buffer</string>
-    <string name="summary_jitter_buffer">With host frame timing pacing: how much delay to add so frames delayed by the network still arrive in time for their vsync</string>
+    <string name="summary_jitter_buffer">With host frame timing pacing: how much delay to add so frames delayed by the network still arrive in time for their vsync. Low latency also skips evening out the host\'s frame timing when the stream rate matches the display.</string>
     <string name="jitter_buffer_low_latency">Low latency</string>
     <string name="jitter_buffer_balanced">Balanced (Recommended)</string>
     <string name="jitter_buffer_smooth">Smooth (adds about 10 ms)</string>

@@ -245,6 +245,7 @@ bool VulkanRenderer::init(ANativeWindow* output) {
 
     presentAhead_ = hasDisplayTimingExt_ && pacer_.mode() == PacingMode::HostTimed;
     pacer_.setPresentAhead(presentAhead_);
+    pacer_.setPresentGuardNs(presentScheduler_.guardNs());
 
     char configuration[256];
     snprintf(configuration, sizeof(configuration),
@@ -497,6 +498,9 @@ void VulkanRenderer::stop() {
         renderThread_.join();
     }
 
+    // The image reader may be presenting a frame: wait for it, and keep it from starting another
+    std::lock_guard<std::mutex> renderLock(renderMutex_);
+    renderStopped_ = true;
     if (device_) {
         vk_.vkDeviceWaitIdle(device_);
         destroySwapchain();
@@ -666,7 +670,16 @@ void VulkanRenderer::onImageAvailable() {
             }
         }
 
-        if (presentOnArrival_ || presentAhead_) {
+        if (presentAhead_ && !presentOnArrival_) {
+            // Presented from this thread rather than waking the render thread for it: on a
+            // Pixel 10 Pro, the render thread took 1 ms to wake at the median and over 3 ms one
+            // time in ten, time the compositor then didn't have
+            std::lock_guard<std::mutex> renderLock(renderMutex_);
+            if (!renderStopped_) {
+                presentAhead();
+            }
+        }
+        else if (presentOnArrival_) {
             wake(kWakeFrame);
         }
         // Frames in `dropped` are released here, outside the lock
@@ -729,6 +742,7 @@ void VulkanRenderer::onWake() {
     if (quit_ || (flags & kWakeQuit)) {
         return;
     }
+    std::lock_guard<std::mutex> renderLock(renderMutex_);
 
     if (flags & kWakeHdr) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -782,14 +796,17 @@ void VulkanRenderer::trackVsyncPeriod(int64_t frameTimeNanos) {
             trace_.period(refined);
             pacer_.setVsyncPeriod(refined);
         }
-        else if (vsyncDeltas_.size() == 60) {
-            // The refresh rate changed if even the shortest recent interval is far off. Longer
-            // intervals alone just mean callbacks were late.
-            const int64_t shortest = *std::min_element(vsyncDeltas_.begin(), vsyncDeltas_.end());
-            if (shortest < period * 3 / 4 || shortest > period * 5 / 4) {
-                ALOGI("Vsync period changed to %" PRId64 " ns", shortest);
-                trace_.period(shortest);
-                pacer_.setVsyncPeriod(shortest);
+        else if (!refreshRateCallbackRegistered_ && vsyncDeltas_.size() == 60) {
+            // Without the refresh rate callback, the refresh rate changed if most recent
+            // intervals are far off. A single short one isn't enough: callbacks bunch up after
+            // a late one, and taking that for a new refresh rate threw the pacer off.
+            std::vector<int64_t> sorted(vsyncDeltas_.begin(), vsyncDeltas_.end());
+            std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 2, sorted.end());
+            const int64_t median = sorted[sorted.size() / 2];
+            if (median < period * 3 / 4 || median > period * 5 / 4) {
+                ALOGI("Vsync period changed to %" PRId64 " ns", median);
+                trace_.period(median);
+                pacer_.setVsyncPeriod(median);
                 vsyncDeltas_.clear();
             }
         }
@@ -803,6 +820,7 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
     }
 
     const int64_t callbackLateNs = nowNs() - frameTimeNanos;
+    std::unique_lock<std::mutex> renderLock(renderMutex_);
     trackVsyncPeriod(frameTimeNanos);
 
     FramePtr frame;
@@ -858,6 +876,7 @@ void VulkanRenderer::presentAhead() {
         FramePtr frame;
         uint64_t presentId = 0;
         int64_t showVsyncNs = 0;
+        int64_t commitNs = 0;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (pending_.empty()) {
@@ -871,11 +890,23 @@ void VulkanRenderer::presentAhead() {
             frame = std::move(pending_.front());
             pending_.pop_front();
             presentId = nextPresentId_++;
+
+            // Replacing the last frame presented ahead at the same vsync: the compositor won't
+            // show that one, by design
+            if (lastAheadPresentId_ != 0 && showVsyncNs <= lastAheadVsyncNs_ + pacer_.vsyncPeriodNs() / 2) {
+                auto previous = pendingPresents_.find(lastAheadPresentId_);
+                if (previous != pendingPresents_.end()) {
+                    previous->second.replaced = true;
+                }
+            }
+            lastAheadPresentId_ = presentId;
+            lastAheadVsyncNs_ = showVsyncNs;
             currentPeriodNs_ = pacer_.vsyncPeriodNs();
-            trace_.ahead(nowNs(), showVsyncNs, frame->timing.hostPtsNs, presentId, presentScheduler_.delayVsyncs(),
+            commitNs = nowNs();
+            trace_.ahead(commitNs, showVsyncNs, frame->timing.hostPtsNs, presentId, presentScheduler_.delayVsyncs(),
                          pacer_);
         }
-        if (renderFrame(frame, presentId, showVsyncNs, true)) {
+        if (renderFrame(frame, presentId, showVsyncNs, true, commitNs)) {
             presentedFrames_++;
         }
     }
@@ -884,7 +915,9 @@ void VulkanRenderer::presentAhead() {
 // ---------------------------------------------------------------------------------------------
 // Rendering
 
-bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int64_t showVsyncNs, bool ahead) {
+bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int64_t showVsyncNs, bool ahead,
+                                 int64_t commitNs) {
+    const int64_t startNs = nowNs();
     if (!ensureSwapchain()) {
         return false;
     }
@@ -901,6 +934,7 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         return false;
     }
     slotFrames_[slot].reset();
+    const int64_t fencedNs = nowNs();
 
     uint32_t imageIndex = 0;
     result = vk_.vkAcquireNextImageKHR(device_, swapchain_, kAcquireTimeoutNs, imageAcquired_[slot],
@@ -920,6 +954,8 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         }
         return false;
     }
+
+    const int64_t acquiredNs = nowNs();
 
     // Where the picture is within the buffer, which the decoder may pad
     PushConstants pc {};
@@ -1045,15 +1081,25 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         presentTimes.pTimes = &presentTime;
         present.pNext = &presentTimes;
 
-        pendingPresents_[presentId] = {vsyncNs, presentScheduler_.delayVsyncs(), ahead};
+        // Slack from the commit, not from now: the pacer holds frames to the guard when it
+        // commits them, and on a Pixel 10 Pro rendering sometimes took milliseconds after that
+        // (waiting for a swapchain image). Measured from here, the guard learned was a third of
+        // what commits needed.
+        pendingPresents_[presentId] = {vsyncNs, presentScheduler_.delayVsyncs(), ahead,
+                                       ahead ? vsyncNs - (commitNs != 0 ? commitNs : nowNs()) : 0};
         if (pendingPresents_.size() > 256) {
             // Reports lost across a swapchain rebuild never arrive
-            for (auto it = pendingPresents_.begin(); it != pendingPresents_.end();) {
-                it = it->first + 128 < presentId ? pendingPresents_.erase(it) : std::next(it);
+            while (!pendingPresents_.empty() && pendingPresents_.begin()->first + 128 < presentId) {
+                pendingPresents_.erase(pendingPresents_.begin());
             }
         }
     }
     result = vk_.vkQueuePresentKHR(queue_, &present);
+    if (presentId != 0) {
+        const int64_t queuedNs = nowNs();
+        std::lock_guard<std::mutex> lock(mutex_);
+        trace_.rendered(presentId, startNs, fencedNs, acquiredNs, queuedNs);
+    }
 
     slotFrames_[slot] = frame;
     current_ = frame;
@@ -1096,20 +1142,43 @@ void VulkanRenderer::collectPresentTimings() {
     }
     for (uint32_t i = 0; i < count; i++) {
         const VkPastPresentationTimingGOOGLE& t = timings[i];
+
+        // Reports come in present order, so earlier presents still without one never reached
+        // the screen: the compositor dropped them
+        for (auto it = pendingPresents_.begin(); it != pendingPresents_.end() && it->first < t.presentID;) {
+            if (it->second.ahead && !it->second.replaced) {
+                presentScheduler_.onAheadOutcome(it->second.slackNs, true, currentPeriodNs_);
+            }
+            it = pendingPresents_.erase(it);
+        }
+
         auto pending = pendingPresents_.find(t.presentID);
-        // With frames presented ahead, the delay is tuned for those. A frame that had to wait
-        // for its vsync (a late one) is presented later and may miss; it shouldn't raise the
-        // delay for all the others.
-        if (pending != pendingPresents_.end() && (pending->second.ahead || !presentAhead_)) {
+        if (pending != pendingPresents_.end() && pending->second.ahead && !pending->second.replaced) {
+            const int64_t target = pending->second.vsyncNs + pending->second.delayVsyncs * currentPeriodNs_;
+            presentScheduler_.onAheadOutcome(pending->second.slackNs,
+                                             static_cast<int64_t>(t.actualPresentTime) > target + currentPeriodNs_ / 2,
+                                             currentPeriodNs_);
+        }
+
+        // With frames presented ahead, the delay is tuned for those. A frame that arrived late,
+        // and so was presented at its vsync or with less time than the guard, may miss; that
+        // frame is late on screen whatever the delay, and it shouldn't raise the delay for all
+        // the others.
+        const bool counts = pending != pendingPresents_.end() &&
+                (!presentAhead_ || (pending->second.ahead && pending->second.slackNs >= presentScheduler_.guardNs()));
+        if (counts) {
             presentScheduler_.onPresented(pending->second.vsyncNs, pending->second.delayVsyncs, currentPeriodNs_,
                                           static_cast<int64_t>(t.actualPresentTime),
                                           static_cast<int64_t>(t.earliestPresentTime),
                                           static_cast<int64_t>(t.presentMargin));
+        }
+        if (pending != pendingPresents_.end()) {
             pendingPresents_.erase(pending);
         }
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
+    pacer_.setPresentGuardNs(presentScheduler_.guardNs());
     for (uint32_t i = 0; i < count; i++) {
         const VkPastPresentationTimingGOOGLE& t = timings[i];
         if (t.presentID != 0) {

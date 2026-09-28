@@ -148,6 +148,11 @@ public:
     // with time to spare and present them with none.
     void setPresentAhead(bool presentAhead) { presentAhead_ = presentAhead; }
 
+    // With frames presented ahead, how long before its vsync a frame must be due for that vsync
+    // (PresentScheduler::guardNs()). Frames due later go to the next vsync.
+    void setPresentGuardNs(int64_t guardNs) { presentGuardNs_ = guardNs; }
+    int64_t presentGuardNs() const { return presentAhead_ ? presentGuardNs_ : 0; }
+
     // The vsync count at a vsync time near the last one seen
     int64_t vsyncIndexAt(int64_t vsyncNs) const {
         return vsyncIndex_ + (vsyncNs - lastVsyncNs_ + (vsyncNs >= lastVsyncNs_ ? periodNs_ / 2 : -periodNs_ / 2)) / periodNs_;
@@ -175,6 +180,9 @@ public:
 
     // Window the frame schedule is fitted over
     static constexpr int64_t kPhaseWindowNs = 16'000'000'000;
+    // What's kept of it when the frames stop fitting a line: enough to see a 71.82 fps game's
+    // timestamps step by a 143.64 Hz host refresh (every 2.8 s) before locking again
+    static constexpr int64_t kRelockWindowNs = 4'000'000'000;
 
 private:
     void trackVsync(int64_t vsyncNs);
@@ -205,6 +213,7 @@ private:
     int64_t shiftNs_ = 0;
     bool phaseLocked_ = false;
     bool presentAhead_ = false;
+    int64_t presentGuardNs_ = 0;
     double driftPerFrame_ = 0;
     double lateNs_ = 0;  // How far after the fitted line frames are scheduled
     double scheduledPtsNs_ = 0;  // Host time the last frame was scheduled at

@@ -95,13 +95,21 @@ void PacerTrace::frame(const FrameTiming& timing, size_t queued, uint64_t queueD
 
 void PacerTrace::ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, uint64_t presentId,
                        int presentDelayVsyncs, const FramePacer& pacer) {
-    write("A,%lld,%lld,%lld,%llu,%d\n", static_cast<long long>(nowNs), static_cast<long long>(showVsyncNs),
-          static_cast<long long>(hostPtsNs), static_cast<unsigned long long>(presentId), presentDelayVsyncs);
+    write("A,%lld,%lld,%lld,%llu,%d,%lld\n", static_cast<long long>(nowNs), static_cast<long long>(showVsyncNs),
+          static_cast<long long>(hostPtsNs), static_cast<unsigned long long>(presentId), presentDelayVsyncs,
+          static_cast<long long>(pacer.presentGuardNs()));
+    presentGuardNs_ = pacer.presentGuardNs();
     countShown(pacer.vsyncIndexAt(showVsyncNs), 0, pacer);
 }
 
 void PacerTrace::immediate(int64_t nowNs) {
     write("I,%lld\n", static_cast<long long>(nowNs));
+}
+
+void PacerTrace::rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs,
+                          int64_t queuedNs) {
+    write("Q,%llu,%lld,%lld,%lld,%lld\n", static_cast<unsigned long long>(presentId), static_cast<long long>(startNs),
+          static_cast<long long>(fencedNs), static_cast<long long>(acquiredNs), static_cast<long long>(queuedNs));
 }
 
 void PacerTrace::presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs) {
@@ -196,8 +204,8 @@ void PacerTrace::summarize(int64_t vsyncNs, const FramePacer& pacer) {
     const double contentInterval = period * pacer.slotVsyncs() * (1.0 + pacer.phaseDriftPerFrame());
     char screen[96] = "on screen: no display timing";
     if (screenFrames_ > 0) {
-        snprintf(screen, sizeof(screen), "on screen %u short / %u long, present delay %d vsyncs",
-                 screenShort_, screenLong_, presentDelay_);
+        snprintf(screen, sizeof(screen), "on screen %u short / %u long, present delay %d vsyncs, guard %.1f ms",
+                 screenShort_, screenLong_, presentDelay_, presentGuardNs_ / 1e6);
     }
     ALOGI("%.0fs: %u frames (%.2f fps), %u short / %u long holds (%s), %u skipped, %llu queue drops, "
           "%u late callbacks | %s %.0f%%, %lld vsync%s per frame, buffer %.1f ms + schedule %.1f ms, "

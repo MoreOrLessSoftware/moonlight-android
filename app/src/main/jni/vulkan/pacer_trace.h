@@ -28,13 +28,17 @@ namespace vkr {
 //                                    and presentDelayVsyncs is the vsync after this one it asked
 //                                    to reach the screen at (PresentScheduler)
 //   I,nowNs                          frame shown on arrival (lowest latency mode, mailbox)
-//   A,nowNs,showVsyncNs,hostPtsNs,presentId,presentDelayVsyncs
+//   A,nowNs,showVsyncNs,hostPtsNs,presentId,presentDelayVsyncs,presentGuardNs
 //                                    frame presented as it arrived, asking for the vsync
 //                                    presentDelayVsyncs after showVsyncNs (host frame timing
-//                                    with display timing); the V lines' choice doesn't include it
+//                                    with display timing); the V lines' choice doesn't include it.
+//                                    presentGuardNs is the pacer's present guard at the time.
 //   P,presentId,actualNs,earliestNs,marginNs
 //                                    when a present actually reached the screen
 //                                    (VK_GOOGLE_display_timing), reported a few frames later
+//   Q,presentId,startNs,fencedNs,acquiredNs,queuedNs
+//                                    rendering a present: started, done waiting for the GPU,
+//                                    got a swapchain image, and handed to the compositor
 //   N,hostPtsNs,receiveNs,enqueueNs  a frame's network timing from moonlight-common-c: when its
 //                                    first packet arrived and when it was fully assembled
 //                                    (CLOCK_MONOTONIC_RAW, so only compare within the column)
@@ -58,6 +62,8 @@ public:
     void ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, uint64_t presentId, int presentDelayVsyncs,
                const FramePacer& pacer);
     void presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs);
+    // Rendering a present: started, done waiting for the GPU, got a swapchain image, presented
+    void rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs, int64_t queuedNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
 
 private:
@@ -87,6 +93,7 @@ private:
     uint32_t screenFrames_ = 0;
     int64_t screenSlotNs_ = 0;
     int presentDelay_ = 0;
+    int64_t presentGuardNs_ = 0;
 };
 
 }  // namespace vkr
