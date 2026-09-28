@@ -139,7 +139,10 @@ private:
     void onImageAvailable();
     void wake(uint32_t flags);
 
-    bool renderFrame(const FramePtr& frame, uint64_t presentId = 0);
+    // showVsyncNs is the vsync the frame is shown for (the current one if 0); ahead marks a
+    // frame presented as it arrived rather than at its vsync
+    bool renderFrame(const FramePtr& frame, uint64_t presentId = 0, int64_t showVsyncNs = 0, bool ahead = false);
+    void presentAhead();
     void collectPresentTimings();
     bool ensureSwapchain();
     bool createSwapchain();
@@ -176,7 +179,13 @@ private:
     struct PendingPresent {
         int64_t vsyncNs;
         int delayVsyncs;
+        bool ahead;
     };
+
+    // Host frame timing with display timing: present frames as they arrive, asking for the
+    // vsync they're due at. Rendering then happens while the frame would otherwise wait for its
+    // vsync, so it's done well before the compositor needs it, and a shorter present delay holds.
+    bool presentAhead_ = false;
     std::unordered_map<uint64_t, PendingPresent> pendingPresents_;
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;

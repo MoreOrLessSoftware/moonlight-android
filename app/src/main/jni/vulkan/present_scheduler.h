@@ -39,10 +39,15 @@ public:
 
     uint64_t missedTotal() const { return missedTotal_; }
 
+    // A new swapchain: its first presents miss for reasons of their own, so they're not counted
+    void onSwapchainCreated() { settling_ = kSettlingPresents; }
+
     // Presents between checks for a miss rate that needs a longer delay, and the number that
     // must all have been able to make a shorter delay before trying it
     static constexpr uint32_t kRaiseWindow = 256;
+    static constexpr uint32_t kRaiseMisses = 3;
     static constexpr uint32_t kLowerWindow = 4096;
+    static constexpr uint32_t kSettlingPresents = 60;
 
 private:
     void resetWindows();
@@ -54,6 +59,7 @@ private:
     uint32_t lowerNotSooner_ = 0;
     uint32_t lowerBackoff_ = 1;  // Grows each time a shorter delay didn't hold
     bool loweredLast_ = false;
+    uint32_t settling_ = kSettlingPresents;
     uint64_t missedTotal_ = 0;
 };
 
