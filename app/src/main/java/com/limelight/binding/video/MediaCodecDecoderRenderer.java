@@ -139,6 +139,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     // Decode latency tracking: map PTS(us) -> enqueue time (ns)
     private final LongSparseArray<Long> enqueueNsByPtsUs = new LongSparseArray<>();
 
+    // Vulkan renderer, when selected and it started on this device
+    private boolean wantVulkan;
+    private volatile VulkanRendererBridge vulkanRenderer;
+
+    // Direct renderer in the host frame timing pacing mode
+    private HostFrameTimeline hostFrameTimeline;
+
     private MediaCodecInfo findAvcDecoder() {
         MediaCodecInfo decoder = MediaCodecHelper.findProbableSafeDecoder("video/avc", MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
         if (decoder == null) {
@@ -318,6 +325,20 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         this.consecutiveCrashCount = consecutiveCrashCount;
         this.glRenderer = glRenderer;
         this.perfListener = perfListener;
+
+        // The Vulkan renderer is experimental, so Automatic keeps the direct renderer for now.
+        // It needs Android 10 for the NDK image reader and Choreographer APIs it uses.
+        wantVulkan = prefs.videoRenderer == PreferenceConfiguration.VideoRendererOption.VULKAN &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                VulkanRendererBridge.isSupported();
+        if (prefs.videoRenderer == PreferenceConfiguration.VideoRendererOption.VULKAN && !wantVulkan) {
+            LimeLog.warning("Vulkan renderer unsupported on this device; using the direct renderer");
+        }
+
+        // Only used if the direct renderer ends up in use
+        if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_HOST_TIMED) {
+            hostFrameTimeline = new HostFrameTimeline(getDisplayRefreshRate());
+        }
 
         this.activeWindowVideoStats = new VideoStats();
         this.lastWindowVideoStats = new VideoStats();
@@ -521,6 +542,46 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return videoFormat;
     }
 
+    private float getDisplayRefreshRate() {
+        return activity.getWindowManager().getDefaultDisplay().getRefreshRate();
+    }
+
+    // App-specific external storage, which adb can pull from without root:
+    // /sdcard/Android/data/<package>/files/pacer-traces
+    private String getPacerTraceDirectory() {
+        java.io.File directory = activity.getExternalFilesDir("pacer-traces");
+        return directory != null ? directory.getAbsolutePath() : null;
+    }
+
+    private VulkanRendererBridge createVulkanRenderer(Surface outputSurface) {
+        int ditherMode;
+        switch (prefs.spatialDithering) {
+            case LOW:
+                ditherMode = 1;
+                break;
+            case HIGH:
+                ditherMode = 2;
+                break;
+            default:
+                ditherMode = 0;
+                break;
+        }
+
+        VulkanRendererBridge renderer = VulkanRendererBridge.create(outputSurface,
+                initialWidth, initialHeight, refreshRate, prefs.framePacing, ditherMode,
+                getPreferredColorSpace(),
+                getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL,
+                (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
+                getDisplayRefreshRate(), getPacerTraceDirectory());
+        if (renderer != null) {
+            LimeLog.info("Using Vulkan renderer");
+            if (currentHdrMetadata != null) {
+                renderer.setHdrMode(true, currentHdrMetadata);
+            }
+        }
+        return renderer;
+    }
+
     private void configureAndStartDecoder(MediaFormat format) {
         // Set HDR metadata if present
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -553,11 +614,22 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         LimeLog.info("Configuring with format: "+format);
 
-        Surface renderSurface = renderTarget.getSurface();
+        Surface outputSurface = renderTarget.getSurface();
 
-        videoDecoder.configure(format, renderSurface, null, 0);
+        // The Vulkan renderer lives as long as this object, so a decoder restart (for codec
+        // recovery or an HDR change) renders into the same surface
+        if (wantVulkan && vulkanRenderer == null) {
+            vulkanRenderer = createVulkanRenderer(outputSurface);
+            if (vulkanRenderer == null) {
+                LimeLog.warning("Vulkan renderer failed to start; using the direct renderer");
+                wantVulkan = false;
+            }
+        }
 
-        try { applySurfaceFrameRate(renderSurface, this.refreshRate); } catch (Throwable ignored) {};
+        Surface decoderSurface = vulkanRenderer != null ? vulkanRenderer.getDecoderSurface() : outputSurface;
+        videoDecoder.configure(format, decoderSurface, null, 0);
+
+        try { applySurfaceFrameRate(outputSurface, this.refreshRate); } catch (Throwable ignored) {};
 
         configuredFormat = format;
 
@@ -1049,8 +1121,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private void startChoreographerThread() {
-        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
-            // Not using Choreographer in this pacing mode
+        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED || vulkanRenderer != null) {
+            // Not using Choreographer in this pacing mode, or the Vulkan renderer paces frames
             return;
         }
 
@@ -1084,8 +1156,21 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
                             numFramesOut++;
 
+                            if (vulkanRenderer != null) {
+                                // The Vulkan renderer paces frames itself, so hand each one over
+                                // as soon as it's decoded
+                                videoDecoder.releaseOutputBuffer(lastIndex, true);
+                            }
+                            else if (hostFrameTimeline != null) {
+                                // Show each frame at its host timestamp plus a constant delay.
+                                // SurfaceFlinger holds a frame until then and skips any that a
+                                // newer frame has replaced by the time it's due.
+                                long renderTimeNs = hostFrameTimeline.onFrameDecoded(presentationTimeUs * 1000, System.nanoTime());
+                                videoDecoder.releaseOutputBuffer(lastIndex, renderTimeNs);
+                                activeWindowVideoStats.totalFramesRendered++;
+                            }
                             // Render the latest frame now if frame pacing isn't in balanced mode
-                            if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
+                            else if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
                                 // Get the last output buffer in the queue
                                 while ((outIndex = videoDecoder.dequeueOutputBuffer(info, 0)) >= 0) {
                                     videoDecoder.releaseOutputBuffer(lastIndex, false);
@@ -1267,6 +1352,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             codecRecoveryMonitor.notifyAll();
         }
 
+        // The output surface may be about to go away, so stop presenting to it now
+        if (vulkanRenderer != null) {
+            vulkanRenderer.stop();
+        }
+
         // Post a quit message to the Choreographer looper (if we have one)
         if (choreographerHandler != null) {
             choreographerHandler.post(new Runnable() {
@@ -1317,10 +1407,21 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     @Override
     public void cleanup() {
         videoDecoder.release();
+
+        // Only once the decoder has let go of the renderer's surface
+        if (vulkanRenderer != null) {
+            vulkanRenderer.destroy();
+            vulkanRenderer = null;
+        }
     }
 
     @Override
     public void setHdrMode(boolean enabled, byte[] hdrMetadata) {
+        // The Vulkan renderer switches its output between SDR and HDR10 itself
+        if (vulkanRenderer != null) {
+            vulkanRenderer.setHdrMode(enabled, hdrMetadata);
+        }
+
         // HDR metadata is only supported in Android 7.0 and later, so don't bother
         // restarting the codec on anything earlier than that.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -1444,6 +1545,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Flip stats windows roughly every second
         if (SystemClock.uptimeMillis() >= activeWindowVideoStats.measurementStartTimestamp + 1000) {
+            if (vulkanRenderer != null) {
+                activeWindowVideoStats.totalFramesRendered += vulkanRenderer.takePresentedFrames();
+            }
+
             if (prefs.enablePerfOverlay) {
                 VideoStats lastTwo = new VideoStats();
                 lastTwo.add(lastWindowVideoStats);
@@ -1499,6 +1604,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency)).append('\n');
                 }
                 sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
+                if (vulkanRenderer != null) {
+                    String vulkanStats = vulkanRenderer.getStatsText();
+                    if (vulkanStats != null) {
+                        sb.append('\n').append(vulkanStats);
+                    }
+                }
                 perfListener.onPerfUpdate(sb.toString());
             }
 
@@ -1785,6 +1896,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Copy data from our buffer list into the input buffer
         nextInputBuffer.put(decodeUnitData, 0, decodeUnitLength);
 
+        VulkanRendererBridge vulkan = vulkanRenderer;
+        if (vulkan != null) {
+            vulkan.noteFrameReceived(timestampUs, receiveTimeUs, enqueueTimeUs);
+        }
+
         if (!queueNextInputBuffer(timestampUs, codecFlags)) {
             return MoonBridge.DR_NEED_IDR;
         }
@@ -2005,6 +2121,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             str += "Average end-to-end client latency: "+renderer.getAverageEndToEndLatency()+"ms"+DELIMITER;
             str += "Average hardware decoder latency: "+renderer.getAverageDecoderLatency()+"ms"+DELIMITER;
             str += "Frame pacing mode: "+renderer.prefs.framePacing+DELIMITER;
+            str += "Video renderer: "+(renderer.vulkanRenderer != null ? "Vulkan" : "Direct")+DELIMITER;
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 if (originalException instanceof CodecException) {

@@ -42,3 +42,5 @@ app/.externalNativeBuild/
 
 # NDK stuff
 .cxx/
+# Frame pacing traces pulled from devices (tools/pacer-trace.sh)
+pacer-traces/

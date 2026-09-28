@@ -104,6 +104,8 @@ public class AppPreferences {
                 return PreferenceConfiguration.FRAME_PACING_CAP_FPS;
             case "smoothness":
                 return PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS;
+            case "host-timed":
+                return PreferenceConfiguration.FRAME_PACING_HOST_TIMED;
             default:
                 return PreferenceConfiguration.FRAME_PACING_MIN_LATENCY;
         }

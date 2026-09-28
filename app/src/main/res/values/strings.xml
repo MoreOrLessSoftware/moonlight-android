@@ -297,12 +297,27 @@
     <string name="videoformat_hevcalways">Prefer HEVC</string>
     <string name="videoformat_h264always">Prefer H.264</string>
 
+    <string name="videorenderer_auto">Automatic (Recommended)</string>
+    <string name="videorenderer_direct">Direct Surface (Legacy)</string>
+    <string name="videorenderer_vulkan">Vulkan (Experimental)</string>
+
+    <string name="title_video_renderer">Video renderer</string>
+    <string name="summary_video_renderer">Vulkan adds dithering and native frame pacing. Automatic uses the direct renderer.</string>
+
+    <string name="dithering_off">Off</string>
+    <string name="dithering_low">Low</string>
+    <string name="dithering_high">High</string>
+
+    <string name="title_spatial_dithering">Spatial Dithering</string>
+    <string name="summary_spatial_dithering">Adds fine moving noise that hides color banding, most visible in HDR gradients (Vulkan renderer only)</string>
+
     <string name="title_frame_pacing">Video frame pacing</string>
     <string name="summary_frame_pacing">Specify how to balance video latency and smoothness</string>
     <string name="pacing_latency">Prefer lowest latency</string>
     <string name="pacing_balanced">Balanced</string>
     <string name="pacing_balanced_alt">Balanced with FPS limit</string>
     <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
+    <string name="pacing_host_timed">Sync to host frame timing (best with the Vulkan renderer)</string>
 
     <string name="title_analog_scrolling">Use an analog stick to scroll</string>
     <string name="summary_analog_scrolling">Select an analog stick to scroll when in mouse emulation mode</string>
