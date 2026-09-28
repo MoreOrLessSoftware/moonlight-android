@@ -230,7 +230,8 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
     : ndk_(ndk),
       config_(config),
       pacer_(static_cast<PacingMode>(config.framePacing), config.streamFps,
-             config.displayRefreshHz > 1.0f ? static_cast<int64_t>(1e9 / config.displayRefreshHz) : 16'666'667) {
+             config.displayRefreshHz > 1.0f ? static_cast<int64_t>(1e9 / config.displayRefreshHz) : 16'666'667,
+             static_cast<JitterBuffer>(config.jitterBuffer)) {
 }
 
 bool VulkanRenderer::init(ANativeWindow* output) {

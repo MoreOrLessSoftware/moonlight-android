@@ -44,7 +44,7 @@ enum class JitterBuffer : int {
 // the host's cadence with a constant delay.
 class HostTimeline {
 public:
-    explicit HostTimeline(JitterBuffer jitterBuffer = JitterBuffer::LowLatency);
+    explicit HostTimeline(JitterBuffer jitterBuffer);
 
     void reset();
 
@@ -65,6 +65,15 @@ public:
 
     JitterBuffer jitterBuffer() const { return jitterBuffer_; }
 
+    // Largest buffer worth keeping. Frames wait in a queue of limited size for their time, so
+    // beyond what it holds, a bigger buffer only pushes frames out of the queue unshown.
+    void setMaxBufferNs(int64_t maxBufferNs) { maxBufferNs_ = maxBufferNs; }
+
+    // The start of a stream, when its first frames arrive late (the first keyframe is large):
+    // the buffer covers less of the transit times then, so those don't set it
+    static constexpr int64_t kWarmupNs = 1'000'000'000;
+    static constexpr double kWarmupCoverage = 0.9;
+
 private:
     JitterBuffer jitterBuffer_;
 
@@ -78,6 +87,10 @@ private:
     // When transit times come down, the offset follows by this fraction of the difference
     // per frame
     int64_t decayDivisor_;
+
+    int64_t maxBufferNs_ = 0;
+    int64_t startNs_ = 0;
+    bool warmedUp_ = false;
 
     struct Sample {
         int64_t arrivalNs;
@@ -96,8 +109,7 @@ public:
     // Upper bound on maxQueued() in any mode
     static constexpr size_t kMaxQueuedFrames = 6;
 
-    FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs,
-               JitterBuffer jitterBuffer = JitterBuffer::LowLatency);
+    FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, JitterBuffer jitterBuffer);
 
     PacingMode mode() const { return mode_; }
 
