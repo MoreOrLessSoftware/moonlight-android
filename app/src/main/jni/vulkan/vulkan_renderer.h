@@ -25,6 +25,7 @@ struct RendererConfig {
     int streamHeight = 0;
     int streamFps = 60;
     int framePacing = 0;       // PreferenceConfiguration.FRAME_PACING_*
+    int jitterBuffer = 1;      // PreferenceConfiguration.JITTER_BUFFER_*
     int ditherMode = 0;        // 0 = off, 1 = low, 2 = high
     int colorspace = 1;        // MoonBridge.COLORSPACE_*
     bool fullRange = false;

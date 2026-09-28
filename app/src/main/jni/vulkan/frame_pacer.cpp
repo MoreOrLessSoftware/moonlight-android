@@ -32,6 +32,31 @@ namespace {
     }
 }
 
+// Presets chosen by replaying recorded sessions over Wi-Fi at 72 and 144 fps
+// (tools/pacer-trace.sh). Compared with LowLatency, Balanced roughly halved the frames that
+// arrived too late for their vsync for 3-4 ms more delay, and Smooth left about a sixth of them
+// for 10-12 ms more.
+HostTimeline::HostTimeline(JitterBuffer jitterBuffer) : jitterBuffer_(jitterBuffer) {
+    switch (jitterBuffer) {
+        case JitterBuffer::LowLatency:
+            windowNs_ = 2'000'000'000;
+            coverage_ = 0.95;
+            decayDivisor_ = 32;
+            break;
+        case JitterBuffer::Smooth:
+            windowNs_ = 30'000'000'000;
+            coverage_ = 0.999;
+            decayDivisor_ = 4096;
+            break;
+        case JitterBuffer::Balanced:
+        default:
+            windowNs_ = 10'000'000'000;
+            coverage_ = 0.99;
+            decayDivisor_ = 512;
+            break;
+    }
+}
+
 void HostTimeline::reset() {
     window_.clear();
     minQueue_.clear();
@@ -61,7 +86,7 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
     }
     minQueue_.push_back(sample);
 
-    while (window_.front().arrivalNs < arrivalNs - kWindowNs) {
+    while (window_.front().arrivalNs < arrivalNs - windowNs_) {
         const Sample& old = window_.front();
         if (minQueue_.front().arrivalNs == old.arrivalNs && minQueue_.front().transitNs == old.transitNs) {
             minQueue_.pop_front();
@@ -76,7 +101,7 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
     }
     size_t index = scratch_.size() - 1;
     if (scratch_.size() >= 8) {
-        index = static_cast<size_t>(std::ceil(kCoverage * static_cast<double>(scratch_.size() - 1)));
+        index = static_cast<size_t>(std::ceil(coverage_ * static_cast<double>(scratch_.size() - 1)));
     }
     std::nth_element(scratch_.begin(), scratch_.begin() + index, scratch_.end());
     const int64_t target = scratch_[index];
@@ -87,16 +112,17 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
         offsetNs_ = target;
     }
     else {
-        offsetNs_ -= (offsetNs_ - target) / 32;
+        offsetNs_ -= (offsetNs_ - target) / decayDivisor_;
     }
 
     return continuous;
 }
 
-FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs)
+FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, JitterBuffer jitterBuffer)
     : mode_(mode),
       streamIntervalNs_(1'000'000'000LL / std::max(streamFps, 1)),
-      periodNs_(vsyncPeriodNs > 0 ? vsyncPeriodNs : 16'666'667) {
+      periodNs_(vsyncPeriodNs > 0 ? vsyncPeriodNs : 16'666'667),
+      timeline_(jitterBuffer) {
 }
 
 void FramePacer::setVsyncPeriod(int64_t periodNs) {

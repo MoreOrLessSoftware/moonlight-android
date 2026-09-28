@@ -87,6 +87,7 @@ public class PreferenceConfiguration {
     private static final String AUTO_RESUME_STREAM_PREF_STRING = "checkbox_auto_resume_stream";
     private static final String VIDEO_RENDERER_PREF_STRING = "video_renderer";
     private static final String SPATIAL_DITHERING_PREF_STRING = "spatial_dithering";
+    private static final String JITTER_BUFFER_PREF_STRING = "jitter_buffer";
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
@@ -103,6 +104,7 @@ public class PreferenceConfiguration {
     private static final String DEFAULT_VIDEO_FORMAT = "auto";
     private static final String DEFAULT_VIDEO_RENDERER = "auto";
     private static final String DEFAULT_SPATIAL_DITHERING = "off";
+    private static final String DEFAULT_JITTER_BUFFER = "balanced";
 
     private static final boolean ONSCREEN_CONTROLLER_DEFAULT = false;
     private static final boolean ONLY_L3_R3_DEFAULT = false;
@@ -141,6 +143,11 @@ public class PreferenceConfiguration {
     public static final int FRAME_PACING_MAX_SMOOTHNESS = 3;
     public static final int FRAME_PACING_HOST_TIMED = 4;
 
+    // Delay added to ride out network jitter in the host frame timing pacing mode
+    public static final int JITTER_BUFFER_LOW_LATENCY = 0;
+    public static final int JITTER_BUFFER_BALANCED = 1;
+    public static final int JITTER_BUFFER_SMOOTH = 2;
+
     public static final String RES_360P = "640x360";
     public static final String RES_480P = "854x480";
     public static final String RES_720P = "1280x720";
@@ -178,6 +185,7 @@ public class PreferenceConfiguration {
     public boolean touchscreenTrackpad;
     public MoonBridge.AudioConfiguration audioConfiguration;
     public int framePacing;
+    public int jitterBuffer;
     public boolean absoluteMouseMode;
     public boolean enableAudioFx;
     public boolean reduceRefreshRate;
@@ -432,6 +440,21 @@ public class PreferenceConfiguration {
         }
     }
 
+    private static int getJitterBufferValue(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+
+        String str = prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER);
+        if (str.equals("low-latency")) {
+            return JITTER_BUFFER_LOW_LATENCY;
+        }
+        else if (str.equals("smooth")) {
+            return JITTER_BUFFER_SMOOTH;
+        }
+        else {
+            return JITTER_BUFFER_BALANCED;
+        }
+    }
+
     private static int getFramePacingValue(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
 
@@ -630,6 +653,7 @@ public class PreferenceConfiguration {
         config.videoRenderer = getVideoRendererValue(context);
         config.spatialDithering = getSpatialDitheringValue(context);
         config.framePacing = getFramePacingValue(context);
+        config.jitterBuffer = getJitterBufferValue(context);
 
         config.analogStickForScrolling = getAnalogStickForScrollingValue(context);
 

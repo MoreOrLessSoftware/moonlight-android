@@ -36,6 +36,13 @@
             android:entryValues="@array/video_frame_pacing_values"
             android:summary="@string/summary_frame_pacing"
             android:defaultValue="balanced" />
+        <ListPreference
+            android:key="jitter_buffer"
+            android:title="@string/title_jitter_buffer"
+            android:entries="@array/jitter_buffer_names"
+            android:entryValues="@array/jitter_buffer_values"
+            android:summary="@string/summary_jitter_buffer"
+            android:defaultValue="balanced" />
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="checkbox_ultra_low_latency"
