@@ -102,8 +102,16 @@ public class VulkanRendererBridge {
     }
 
     /** One line for the performance overlay */
-    public String getStatsText() {
-        return handle != 0 ? nativeGetStatsText(handle) : null;
+    public String getRendererText() {
+        return handle != 0 ? nativeGetRendererText(handle) : null;
+    }
+
+    /**
+     * Pacing numbers for the performance overlay: a headline and details, separated by a
+     * newline. Either may be empty.
+     */
+    public String getPacingText() {
+        return handle != 0 ? nativeGetPacingText(handle) : null;
     }
 
     /**
@@ -138,7 +146,8 @@ public class VulkanRendererBridge {
     private static native void nativeNoteReceived(long handle, long hostPtsUs, long receiveTimeUs, long enqueueTimeUs);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] hdrMetadata);
     private static native int nativeTakePresentedFrames(long handle);
-    private static native String nativeGetStatsText(long handle);
+    private static native String nativeGetRendererText(long handle);
+    private static native String nativeGetPacingText(long handle);
     private static native void nativeStop(long handle);
     private static native void nativeDestroy(long handle);
 }

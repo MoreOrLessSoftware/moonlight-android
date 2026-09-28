@@ -1579,8 +1579,18 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     smoothedFpsVariance = (VARIANCE_SMOOTHING_FACTOR * rawFpsVariance) + ((1 - VARIANCE_SMOOTHING_FACTOR) * smoothedFpsVariance);
                 }
 
+                // The renderer's fixed details go with the decoder's on the first line, and its
+                // pacing numbers on the last
+                VulkanRendererBridge vulkan = vulkanRenderer;
+                String rendererText = vulkan != null ? vulkan.getRendererText() : null;
+                String pacingText = vulkan != null ? vulkan.getPacingText() : null;
+
                 StringBuilder sb = new StringBuilder();
-                sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
+                sb.append(context.getString(R.string.perf_overlay_decoder, decoder));
+                if (rendererText != null && !rendererText.isEmpty()) {
+                    sb.append(" \u00b7 ").append(rendererText);
+                }
+                sb.append('\n');
                 sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_fps, fps.receivedFps, fps.renderedFps, smoothedFpsVariance)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_netdrops,
@@ -1604,10 +1614,20 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency)).append('\n');
                 }
                 sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
-                if (vulkanRenderer != null) {
-                    String vulkanStats = vulkanRenderer.getStatsText();
-                    if (vulkanStats != null) {
-                        sb.append('\n').append(vulkanStats);
+                if (pacingText != null) {
+                    // The buffer on the pacing line, and the lock state and skipped frames below
+                    // it, like the stream details below the decoder
+                    int split = pacingText.indexOf('\n');
+                    String headline = split >= 0 ? pacingText.substring(0, split) : pacingText;
+                    String details = split >= 0 ? pacingText.substring(split + 1) : "";
+                    if (!headline.isEmpty()) {
+                        sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, headline));
+                        if (!details.isEmpty()) {
+                            sb.append('\n').append(context.getString(R.string.perf_overlay_pacing_details, details));
+                        }
+                    }
+                    else if (!details.isEmpty()) {
+                        sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, details));
                     }
                 }
                 perfListener.onPerfUpdate(sb.toString());

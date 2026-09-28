@@ -102,9 +102,15 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeTakePresentedFrames(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_limelight_binding_video_VulkanRendererBridge_nativeGetStatsText(JNIEnv* env, jclass, jlong handle) {
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeGetRendererText(JNIEnv* env, jclass, jlong handle) {
     VulkanRenderer* renderer = fromHandle(handle);
-    return renderer ? env->NewStringUTF(renderer->statsText().c_str()) : nullptr;
+    return renderer ? env->NewStringUTF(renderer->rendererText().c_str()) : nullptr;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeGetPacingText(JNIEnv* env, jclass, jlong handle) {
+    VulkanRenderer* renderer = fromHandle(handle);
+    return renderer ? env->NewStringUTF(renderer->pacingText().c_str()) : nullptr;
 }
 
 extern "C" JNIEXPORT void JNICALL

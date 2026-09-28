@@ -113,6 +113,8 @@
     <string name="perf_overlay_netlatency">Network latency: %1$d ms (variance %2$d ms)</string>
     <string name="perf_overlay_dectime">Decoding time: %1$.2f ms</string>
     <string name="perf_overlay_bandwidth">Network bandwidth: %1$.1f Mbps</string>
+    <string name="perf_overlay_pacing">Frame pacing: %1$s</string>
+    <string name="perf_overlay_pacing_details">└ %1$s</string>
 
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>

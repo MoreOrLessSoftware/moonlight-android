@@ -81,7 +81,11 @@ public:
     // Frames presented since the last call
     uint32_t takePresentedFrames() { return presentedFrames_.exchange(0); }
 
-    std::string statsText();
+    // For the performance overlay: what the renderer outputs, which only changes with HDR, and
+    // its pacing numbers as a headline (the buffer) and details (lock state, skipped frames),
+    // separated by a newline. Either part may be empty.
+    std::string rendererText();
+    std::string pacingText();
 
 private:
     static constexpr int kFramesInFlight = 2;
@@ -248,6 +252,14 @@ private:
     PacerTrace trace_;
     std::deque<FramePtr> pending_;
     uint64_t queueOverflowDrops_ = 0;
+
+    // Running totals of skipped frames as the overlay last sampled them, for a count over the
+    // last kRecentSkipsNs
+    struct SkipSample {
+        int64_t timeNs;
+        uint64_t total;
+    };
+    std::deque<SkipSample> skipSamples_;
     bool hdrEnabled_ = false;
     bool hdrChanged_ = false;
     HdrMetadata hdrMetadata_;
