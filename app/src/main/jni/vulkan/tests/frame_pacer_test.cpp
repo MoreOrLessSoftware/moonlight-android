@@ -36,6 +36,8 @@ struct Scenario {
     bool hostVrr = false;      // Host display refreshes when the game presents (G-Sync/FreeSync)
     double reportedDisplayHz = 0;  // What Android reports, if not the true rate; refined from vsyncs
     double contentJitterMs = 0;    // Standard deviation of the game's present times around its cap
+    // The checks here were written against what's now LowLatency
+    JitterBuffer jitterBuffer = JitterBuffer::LowLatency;
 };
 
 struct Result {
@@ -117,7 +119,7 @@ Result run(const Scenario& s, bool verbose = false) {
     const int64_t period = static_cast<int64_t>(1e9 / s.localDisplayHz);
     // Starts from the rate Android reports and refines it from vsync intervals, like the renderer
     int64_t estimatedPeriod = s.reportedDisplayHz > 0 ? static_cast<int64_t>(1e9 / s.reportedDisplayHz) : period;
-    FramePacer pacer(s.mode, s.streamFps, estimatedPeriod);
+    FramePacer pacer(s.mode, s.streamFps, estimatedPeriod, s.jitterBuffer);
 
     struct Queued {
         FrameTiming timing;

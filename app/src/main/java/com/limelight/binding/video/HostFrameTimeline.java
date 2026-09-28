@@ -31,6 +31,13 @@ class HostFrameTimeline {
 
     private long offsetNs;
     private long lastPtsNs;
+
+    // The start of a stream, when its first frames arrive late (the first keyframe is large):
+    // the buffer covers less of the transit times then, so those don't set it
+    private static final long WARMUP_NS = 1_000_000_000L;
+    private static final double WARMUP_COVERAGE = 0.9;
+    private long startNs;
+    private boolean warmedUp;
     private final long presentLatencyNs;
 
     // How much of the transit time variation to buffer for (see jni/vulkan/frame_pacer.cpp,
@@ -80,6 +87,11 @@ class HostFrameTimeline {
         lastPtsNs = hostPtsNs;
 
         boolean first = count == 0;
+        if (first) {
+            startNs = nowNs;
+            warmedUp = false;
+        }
+        boolean warmingUp = nowNs - startNs < WARMUP_NS;
         int tail = (head + count) % CAPACITY;
         arrivalNs[tail] = nowNs;
         transitNs[tail] = nowNs - hostPtsNs;
@@ -98,9 +110,15 @@ class HostFrameTimeline {
             scratch[i] = transitNs[(head + i) % CAPACITY];
         }
         Arrays.sort(scratch, 0, count);
+        // Once there are enough samples for a percentile, leave out at least the two slowest:
+        // with few samples, the percentile is otherwise just the slowest frame
         int index = count - 1;
         if (count >= 8) {
-            index = (int) Math.ceil(coverage * (count - 1));
+            double effectiveCoverage = Math.min(coverage, 1.0 - 2.0 / count);
+            if (warmingUp) {
+                effectiveCoverage = Math.min(effectiveCoverage, WARMUP_COVERAGE);
+            }
+            index = (int) Math.ceil(effectiveCoverage * (count - 1));
         }
         long target = scratch[index];
 
@@ -108,8 +126,15 @@ class HostFrameTimeline {
         if (first || target > offsetNs) {
             offsetNs = target;
         }
+        else if (!warmingUp && !warmedUp) {
+            // End of the warm-up: straight to what the stream has shown since
+            offsetNs = target;
+        }
         else {
             offsetNs -= (offsetNs - target) / decayDivisor;
+        }
+        if (!warmingUp) {
+            warmedUp = true;
         }
 
         return hostPtsNs + offsetNs + presentLatencyNs;

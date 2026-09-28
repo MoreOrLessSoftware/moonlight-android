@@ -78,6 +78,11 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
     lastPtsNs_ = hostPtsNs;
 
     const bool first = window_.empty();
+    if (first) {
+        startNs_ = arrivalNs;
+        warmedUp_ = false;
+    }
+    const bool warmingUp = arrivalNs - startNs_ < kWarmupNs;
     const Sample sample {arrivalNs, arrivalNs - hostPtsNs};
 
     window_.push_back(sample);
@@ -94,25 +99,43 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
         window_.pop_front();
     }
 
-    // Until there are enough samples for a percentile, cover all of them
+    // Until there are enough samples for a percentile, cover all of them. After that, leave out
+    // at least the two slowest: with few samples, the percentile is otherwise just the slowest
+    // frame, which may be a one-off.
     scratch_.clear();
     for (const Sample& s : window_) {
         scratch_.push_back(s.transitNs);
     }
+    const double n = static_cast<double>(scratch_.size());
     size_t index = scratch_.size() - 1;
     if (scratch_.size() >= 8) {
-        index = static_cast<size_t>(std::ceil(coverage_ * static_cast<double>(scratch_.size() - 1)));
+        double coverage = std::min(coverage_, 1.0 - 2.0 / n);
+        if (warmingUp) {
+            coverage = std::min(coverage, kWarmupCoverage);
+        }
+        index = static_cast<size_t>(std::ceil(coverage * (n - 1)));
     }
     std::nth_element(scratch_.begin(), scratch_.begin() + index, scratch_.end());
     const int64_t target = scratch_[index];
 
     // Take more delay right away when frames start arriving later, and give it back slowly
-    // so one quiet stretch doesn't leave us exposed to the next burst of jitter.
+    // so one quiet stretch doesn't leave us exposed to the next burst of jitter. At the end of
+    // the warm-up, it goes straight to what the stream has shown since.
     if (first || target > offsetNs_) {
+        offsetNs_ = target;
+    }
+    else if (!warmingUp && !warmedUp_) {
         offsetNs_ = target;
     }
     else {
         offsetNs_ -= (offsetNs_ - target) / decayDivisor_;
+    }
+    if (!warmingUp) {
+        warmedUp_ = true;
+    }
+
+    if (maxBufferNs_ > 0) {
+        offsetNs_ = std::min(offsetNs_, minTransitNs() + maxBufferNs_);
     }
 
     return continuous;
@@ -123,6 +146,9 @@ FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, Ji
       streamIntervalNs_(1'000'000'000LL / std::max(streamFps, 1)),
       periodNs_(vsyncPeriodNs > 0 ? vsyncPeriodNs : 16'666'667),
       timeline_(jitterBuffer) {
+    // Frames waiting out the buffer sit in the caller's queue (maxQueued()), which also holds
+    // the frame due next and one being shown
+    timeline_.setMaxBufferNs(static_cast<int64_t>(kMaxQueuedFrames - 3) * streamIntervalNs_);
 }
 
 void FramePacer::setVsyncPeriod(int64_t periodNs) {
@@ -619,6 +645,29 @@ int64_t FramePacer::plannedVsyncNs(const FrameTiming& frame) const {
                 break;
             }
             index++;
+        }
+    }
+
+    // Unless the frames are locked to slots (whose schedule is already smooth), a frame whose
+    // due time is right at a vsync would flip between that vsync and the next with the
+    // slightest jitter: one frame replacing another at a vsync, then a vsync without a new frame.
+    // Keep one frame per slot through that jitter; only a frame well off the slot moves.
+    if (lastPresentVsyncNs_ != 0 && !(phaseLocked_ && slotVsyncs_ > 1)) {
+        const int64_t tolerance = periodNs_ / 4;
+        const int64_t planned = lastVsyncNs_ + (index - vsyncIndex_) * periodNs_;
+        // The slot after the last frame committed, if it hasn't passed
+        const int64_t nextSlot = lastPresentVsyncNs_ + slotVsyncs_ * periodNs_;
+        const int64_t nextSlotIndex = vsyncIndex_ + (nextSlot - lastVsyncNs_ + periodNs_ / 2) / periodNs_;
+        if (nextSlot > lastVsyncNs_ + periodNs_ / 2) {
+            if (planned <= lastPresentVsyncNs_ + periodNs_ / 2 && due > lastPresentVsyncNs_ - tolerance) {
+                // Only just due at the vsync the last frame was committed to: the next slot
+                // rather than replacing that frame
+                index = nextSlotIndex;
+            }
+            else if (planned >= nextSlot + periodNs_ / 2 && due <= nextSlot + tolerance) {
+                // Only just short of the next slot: that slot rather than leaving it empty
+                index = nextSlotIndex;
+            }
         }
     }
 
