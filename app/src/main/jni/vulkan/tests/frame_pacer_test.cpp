@@ -260,7 +260,9 @@ int main() {
     {
         // A 144 Hz host thinned to 60 fps: host timestamps sit on the 144 Hz grid, so their
         // spacing alternates between 2 and 3 host frames. Still one frame per vsync.
+        // Evening those out takes locking, which low latency skips at a frame a vsync
         Scenario s {"144 Hz host thinned to 60 fps, 60 Hz display", 144.0, 60, 60.0};
+        s.jitterBuffer = JitterBuffer::Balanced;
         Result r = run(s, true);
         report(s, r);
         check(r.skipped <= seconds * 0.5, s.name, "frames skipped");
@@ -303,6 +305,7 @@ int main() {
         };
         for (Scenario s : bases) {
             s.durationS = 20.0;
+            s.jitterBuffer = JitterBuffer::Balanced;
             Result worst;
             double worstLatency = 0;
             for (int i = 0; i < 20; i++) {
@@ -324,6 +327,7 @@ int main() {
     {
         // Frequent stalls are worth buffering for: fewer skips at the cost of latency
         Scenario s {"60 Hz, 10% of frames delayed 12 ms", 60.0, 60, 60.0};
+        s.jitterBuffer = JitterBuffer::Balanced;
         s.spikeChance = 0.10;
         s.spikeMs = 12.0;
         Result r = run(s, true);

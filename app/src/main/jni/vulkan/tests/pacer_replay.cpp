@@ -206,6 +206,14 @@ struct DeviceTiming {
         int64_t enqueue;
     };
     std::map<int64_t, Received> received;       // host pts -> network timing
+    std::map<uint64_t, int64_t> presentCommit;  // presentId -> committed to its vsync (A lines)
+    struct Rendered {
+        int64_t start;
+        int64_t fenced;
+        int64_t acquired;
+        int64_t queued;
+    };
+    std::map<uint64_t, Rendered> rendered;      // presentId -> render timing (Q lines)
     int64_t periodNs = 0;
     int64_t slotVsyncs = 1;
 
@@ -261,6 +269,25 @@ struct DeviceTiming {
             if (!decodedToScreen.empty()) {
                 printf("  decoded -> on screen: %s\n", percentiles(decodedToScreen, false).c_str());
             }
+            // Where the time between committing a frame presented ahead and handing it to the
+            // compositor goes (it eats into the present guard)
+            std::vector<int64_t> commitToStart, gpuWait, acquireWait, queueTime, commitToQueued;
+            for (const auto& [id, r] : rendered) {
+                auto commit = presentCommit.find(id);
+                if (commit == presentCommit.end()) continue;
+                commitToStart.push_back(r.start - commit->second);
+                gpuWait.push_back(r.fenced - r.start);
+                acquireWait.push_back(r.acquired - r.fenced);
+                queueTime.push_back(r.queued - r.acquired);
+                commitToQueued.push_back(r.queued - commit->second);
+            }
+            if (!commitToQueued.empty()) {
+                printf("  committed -> handed to the compositor: %s\n", percentiles(commitToQueued, false).c_str());
+                printf("    waiting to render:        %s\n", percentiles(commitToStart, false).c_str());
+                printf("    waiting for the GPU:      %s\n", percentiles(gpuWait, false).c_str());
+                printf("    waiting for an image:     %s\n", percentiles(acquireWait, false).c_str());
+                printf("    recording and presenting: %s\n", percentiles(queueTime, false).c_str());
+            }
             if (!presentDelay.empty()) {
                 uint64_t missed = 0;
                 std::map<int, uint32_t> delays;
@@ -312,19 +339,24 @@ struct DeviceTiming {
 int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer low|balanced|smooth]"
-                        " [--present-ahead on|off]\n", argv[0]);
+                        " [--present-ahead on|off] [--present-guard ms]\n", argv[0]);
         return 2;
     }
     size_t maxEvents = 25;
     size_t explain = 0;
     int jitterBufferOverride = -1;
     int presentAheadOverride = -1;
+    int64_t presentGuardOverride = -1;
     for (int i = 2; i + 1 < argc; i++) {
         if (strcmp(argv[i], "--events") == 0) {
             maxEvents = static_cast<size_t>(atoi(argv[i + 1]));
         }
         if (strcmp(argv[i], "--explain") == 0) {
             explain = static_cast<size_t>(atoi(argv[i + 1]));
+        }
+        // Replay with a fixed present guard, in ms, rather than the device's
+        if (strcmp(argv[i], "--present-guard") == 0) {
+            presentGuardOverride = static_cast<int64_t>(atof(argv[i + 1]) * 1e6);
         }
         // Replay presenting frames as they arrive, or not, whatever the session did
         if (strcmp(argv[i], "--present-ahead") == 0) {
@@ -392,6 +424,9 @@ int main(int argc, char** argv) {
     FramePacer pacer(static_cast<PacingMode>(config.mode), config.streamFps, config.periodNs,
                      static_cast<JitterBuffer>(jitterBuffer));
     pacer.setPresentAhead(presentAhead);
+    if (presentGuardOverride >= 0) {
+        pacer.setPresentGuardNs(presentGuardOverride);
+    }
     std::deque<FrameTiming> queue;
     int64_t recordedIndex = 0;
     int64_t lastRecordedVsync = 0;
@@ -441,6 +476,11 @@ int main(int argc, char** argv) {
             lastRecordedDrops = static_cast<uint64_t>(toInt(f[5]));
         }
         else if (f[0] == "A" && f.size() >= 6) {
+            // Use the device's present guard from here on: it depends on how the device's
+            // compositor performed, which the replay can't model
+            if (f.size() >= 7 && presentGuardOverride < 0) {
+                pacer.setPresentGuardNs(toInt(f[6]));
+            }
             const int64_t showVsync = toInt(f[2]);
             const int64_t period = device.periodNs > 0 ? device.periodNs : config.periodNs;
             recorded.onShown(showVsync, recordedIndex + (showVsync - lastRecordedVsync + period / 2) / period, 0,
@@ -449,6 +489,10 @@ int main(int argc, char** argv) {
             device.presentVsync[presentId] = showVsync;
             device.presentDelay[presentId] = static_cast<int>(toInt(f[5]));
             device.presentPts[presentId] = toInt(f[3]);
+            device.presentCommit[presentId] = toInt(f[1]);
+        }
+        else if (f[0] == "Q" && f.size() >= 6) {
+            device.rendered[static_cast<uint64_t>(toInt(f[1]))] = {toInt(f[2]), toInt(f[3]), toInt(f[4]), toInt(f[5])};
         }
         else if (f[0] == "P" && f.size() >= 5) {
             device.presentActual[static_cast<uint64_t>(toInt(f[1]))] = toInt(f[2]);
@@ -546,6 +590,12 @@ int main(int argc, char** argv) {
         printf("Replay presented %llu frames as they arrived and %llu at their vsync; time before their vsync: %s\n",
                (unsigned long long) aheadCount, (unsigned long long) atVsyncCount,
                percentiles(aheadSlack, false).c_str());
+        size_t under2 = 0, under3 = 0;
+        for (int64_t slack : aheadSlack) {
+            under2 += slack < 2'000'000;
+            under3 += slack < 3'000'000;
+        }
+        printf("  presented less than 2 ms before their vsync: %zu, less than 3 ms: %zu\n", under2, under3);
     }
 
     printf("\n");

@@ -323,6 +323,18 @@ void FramePacer::updatePhase(FrameTiming& frame) {
 
     const int64_t slotPeriod = slotPeriodNs();
 
+    // At a frame a vsync, locking only evens out the host's own timing, and schedules frames
+    // as late as the latest recent one: on a Pixel 10 Pro at 120 fps, about 3 ms more delay for
+    // 15-60% fewer uneven frames. Low latency takes the delay off.
+    if (slotVsyncs_ == 1 && timeline_.jitterBuffer() == JitterBuffer::LowLatency) {
+        phaseSamples_.clear();
+        phaseLocked_ = false;
+        shiftNs_ = 0;
+        slotParity_ = 0;
+        lateNs_ = 0;
+        return;
+    }
+
     if (!phaseSamples_.empty()) {
         // A gap of about two slots or more means the host didn't send a frame. Gaps of one
         // and a half slots are a frame shown a host refresh late, which comes paired with a
@@ -407,6 +419,12 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     if (std::fabs(driftPerFrame_) > kMaxDriftPerFrame ||
             spread / static_cast<double>(slotPeriod) > (phaseLocked_ ? kUnlockArc : kLockArc)) {
         unlock();
+        // Start over from the last few seconds, so a burst of uneven frames stops counting
+        // against the fit once it's over rather than after the whole window (seconds of steady
+        // frames left unlocked on a Pixel 10 Pro)
+        while (!phaseSamples_.empty() && phaseSamples_.front().timeNs < frame.arrivalNs - kRelockWindowNs) {
+            phaseSamples_.pop_front();
+        }
         return;
     }
 
@@ -568,7 +586,7 @@ int FramePacer::onVsync(int64_t vsyncNs, const FrameTiming* frames, size_t count
             const int64_t tolerance = periodNs_ / 4;
             int newestDue = -1;
             for (size_t i = 0; i < count; i++) {
-                if (frames[i].targetNs + shiftNs_ <= vsyncNs) {
+                if (frames[i].targetNs + shiftNs_ + presentGuardNs() <= vsyncNs) {
                     newestDue = static_cast<int>(i);
                 }
             }
@@ -629,7 +647,7 @@ int64_t FramePacer::plannedVsyncNs(const FrameTiming& frame) const {
 
     // The first vsync after the last one seen that the frame is due at, as onVsync() would
     // find it. A frame already due (it arrived late) goes to the next vsync.
-    const int64_t due = frame.targetNs + shiftNs_;
+    const int64_t due = frame.targetNs + shiftNs_ + presentGuardNs();
     int64_t ahead = 1;
     if (due > lastVsyncNs_ + periodNs_) {
         ahead = (due - lastVsyncNs_ + periodNs_ - 1) / periodNs_;

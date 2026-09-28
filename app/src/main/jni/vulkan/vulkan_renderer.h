@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -145,7 +146,10 @@ private:
 
     // showVsyncNs is the vsync the frame is shown for (the current one if 0); ahead marks a
     // frame presented as it arrived rather than at its vsync
-    bool renderFrame(const FramePtr& frame, uint64_t presentId = 0, int64_t showVsyncNs = 0, bool ahead = false);
+    // commitNs: when a frame presented ahead was committed to its vsync, which its slack is
+    // measured from (the pacer applies the present guard there)
+    bool renderFrame(const FramePtr& frame, uint64_t presentId = 0, int64_t showVsyncNs = 0, bool ahead = false,
+                     int64_t commitNs = 0);
     void presentAhead();
     void collectPresentTimings();
     bool ensureSwapchain();
@@ -184,13 +188,19 @@ private:
         int64_t vsyncNs;
         int delayVsyncs;
         bool ahead;
+        int64_t slackNs;  // How long before its vsync a frame presented ahead was presented
+        bool replaced = false;  // Another frame was presented for the same vsync
     };
 
     // Host frame timing with display timing: present frames as they arrive, asking for the
     // vsync they're due at. Rendering then happens while the frame would otherwise wait for its
     // vsync, so it's done well before the compositor needs it, and a shorter present delay holds.
     bool presentAhead_ = false;
-    std::unordered_map<uint64_t, PendingPresent> pendingPresents_;
+    std::map<uint64_t, PendingPresent> pendingPresents_;  // Ordered: reports come in present order
+
+    // The last frame presented ahead, so a frame replacing it at the same vsync is known
+    uint64_t lastAheadPresentId_ = 0;
+    int64_t lastAheadVsyncNs_ = 0;
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     VkSurfaceFormatKHR surfaceFormat_ {};
@@ -242,6 +252,10 @@ private:
     AChoreographer* choreographer_ = nullptr;
     bool refreshRateCallbackRegistered_ = false;
     std::atomic<bool> presentOnArrival_ {false};  // Mailbox swapchain in lowest latency mode
+    // Held for any Vulkan work: the render thread's, and frames the image reader presents ahead
+    // itself. Taken before mutex_, never while holding it.
+    std::mutex renderMutex_;
+    bool renderStopped_ = false;  // Under renderMutex_: the swapchain and window are gone
     int64_t lastVsyncNs_ = 0;
     std::deque<int64_t> vsyncDeltas_;
 

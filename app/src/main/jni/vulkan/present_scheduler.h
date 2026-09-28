@@ -42,11 +42,44 @@ public:
     // A new swapchain: its first presents miss for reasons of their own, so they're not counted
     void onSwapchainCreated() { settling_ = kSettlingPresents; }
 
+    // How long before its vsync a frame presented ahead must be presented. With less time than
+    // that, the compositor may not have it in time even for the vsyncs the delay allows: on a
+    // Pixel 10 Pro, frames presented under 1 ms before their vsync nearly all missed it or were
+    // dropped, under 2 ms about 40%, and 2-3.5 ms still 3-20%, against almost none from 4 ms. The pacer schedules
+    // frames this much earlier (FramePacer::setPresentGuardNs()), which costs a little latency
+    // where a longer delay would cost a whole vsync.
+    //
+    // Learned per device from how often frames fail at each slack: the lowest slack from which
+    // frames all but never fail (kGuardMaxFailPercent), found by working down from the frames
+    // presented with the most time to spare. It rises as soon as frames fail above it, and falls
+    // a step at a time.
+    int64_t guardNs() const { return guardNs_; }
+
+    // How a frame presented ahead did: slackNs before its vsync, and whether it missed that vsync
+    // or never reached the screen
+    void onAheadOutcome(int64_t slackNs, bool failed, int64_t periodNs);
+
+    static constexpr int64_t kInitialGuardNs = 2'000'000;
+    static constexpr int64_t kMinGuardNs = 500'000;
+    static constexpr int64_t kGuardBucketNs = 250'000;
+    static constexpr int kGuardBuckets = 40;           // Slack up to 10 ms
+    static constexpr int kGuardBandBuckets = 4;        // Failure rates are judged over 1 ms of slack
+    static constexpr double kGuardMinBandSamples = 24;
+    static constexpr double kGuardMinBandFails = 3;
+    static constexpr double kGuardMaxFailPercent = 1.0;
+    static constexpr double kGuardHistory = 16384;      // Samples kept, older ones fading out
+    static constexpr uint32_t kGuardCheckSamples = 32;
+    static constexpr uint32_t kGuardRaiseHoldSamples = 512;
+
     // Presents between checks for a miss rate that needs a longer delay, and the number that
     // must all have been able to make a shorter delay before trying it
-    static constexpr uint32_t kRaiseWindow = 256;
-    static constexpr uint32_t kRaiseMisses = 3;
-    static constexpr uint32_t kLowerWindow = 4096;
+    // A delay that's too short misses a large share of presents, so it's caught quickly. A
+    // compositor that now and then misses one (about one in a thousand on a Pixel 10 Pro) isn't
+    // worth a vsync of latency on every frame.
+    static constexpr uint32_t kRaiseWindow = 1024;
+    static constexpr uint32_t kRaiseMisses = 4;
+    static constexpr uint32_t kLowerWindow = 2048;
+    static constexpr uint32_t kLowerMaxMisses = 1;
     static constexpr uint32_t kSettlingPresents = 60;
 
 private:
@@ -57,9 +90,17 @@ private:
     uint32_t raiseMisses_ = 0;
     uint32_t lowerCount_ = 0;
     uint32_t lowerNotSooner_ = 0;
+    uint32_t lowerMisses_ = 0;
     uint32_t lowerBackoff_ = 1;  // Grows each time a shorter delay didn't hold
     bool loweredLast_ = false;
     uint32_t settling_ = kSettlingPresents;
+
+    int64_t guardNs_ = kInitialGuardNs;
+    double guardSamples_[kGuardBuckets] = {};
+    double guardFails_[kGuardBuckets] = {};
+    double guardTotal_ = 0;
+    uint32_t guardSinceCheck_ = 0;
+    uint32_t guardRaiseHold_ = 0;
     uint64_t missedTotal_ = 0;
 };
 
