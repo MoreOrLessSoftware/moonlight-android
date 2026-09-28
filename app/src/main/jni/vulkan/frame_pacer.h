@@ -117,6 +117,30 @@ public:
     // The caller showed a frame outside onVsync (lowest latency mode presenting on arrival)
     void onPresentedImmediately(int64_t nowNs);
 
+    // HostTimed: the vsync a waiting frame is due to be shown at, so the caller can present it
+    // right away and ask for that vsync, rather than waiting for the vsync to come around.
+    // Returns 0 if the frame can't be committed yet: frames are shown in the order they're
+    // presented, so the vsync must be later than the last one a frame was committed to, and it
+    // must be within kMaxPresentAheadVsyncs of the next vsync. Every frame presented ahead holds
+    // a swapchain image until it's on screen; with too many, the render thread blocks waiting
+    // for a free one, which makes it late for vsyncs and for frames arriving.
+    int64_t plannedVsyncNs(const FrameTiming& frame) const;
+    static constexpr int64_t kMaxPresentAheadVsyncs = 1;
+
+    // A frame was presented ahead of time for vsyncNs (from plannedVsyncNs())
+    void onPresentedAhead(int64_t vsyncNs);
+
+    // The caller presents frames ahead (plannedVsyncNs()), so onVsync() only gets frames that
+    // couldn't be: late ones. It then shows the newest due frame and nothing early; its rules
+    // for easing frames into place would take frames that are about to be presented ahead
+    // with time to spare and present them with none.
+    void setPresentAhead(bool presentAhead) { presentAhead_ = presentAhead; }
+
+    // The vsync count at a vsync time near the last one seen
+    int64_t vsyncIndexAt(int64_t vsyncNs) const {
+        return vsyncIndex_ + (vsyncNs - lastVsyncNs_ + (vsyncNs >= lastVsyncNs_ ? periodNs_ / 2 : -periodNs_ / 2)) / periodNs_;
+    }
+
     // HostTimed: extra delay added to line frames up with the vsyncs they're shown at
     int64_t phaseShiftNs() const { return shiftNs_; }
     bool phaseLocked() const { return phaseLocked_; }
@@ -168,6 +192,7 @@ private:
     HostTimeline timeline_;
     int64_t shiftNs_ = 0;
     bool phaseLocked_ = false;
+    bool presentAhead_ = false;
     double driftPerFrame_ = 0;
     double lateNs_ = 0;  // How far after the fitted line frames are scheduled
     double scheduledPtsNs_ = 0;  // Host time the last frame was scheduled at

@@ -250,10 +250,13 @@ bool VulkanRenderer::init(ANativeWindow* output) {
         return false;
     }
 
+    presentAhead_ = hasDisplayTimingExt_ && pacer_.mode() == PacingMode::HostTimed;
+    pacer_.setPresentAhead(presentAhead_);
+
     char configuration[256];
     snprintf(configuration, sizeof(configuration),
-             "mode=%d,jitterBuffer=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d",
-             config_.framePacing, config_.jitterBuffer, config_.streamFps, config_.streamWidth, config_.streamHeight,
+             "mode=%d,jitterBuffer=%d,presentAhead=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d",
+             config_.framePacing, config_.jitterBuffer, presentAhead_ ? 1 : 0, config_.streamFps, config_.streamWidth, config_.streamHeight,
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
              config_.ditherMode);
     trace_.start(config_.traceDirectory, configuration);
@@ -648,7 +651,7 @@ void VulkanRenderer::onImageAvailable() {
             }
         }
 
-        if (presentOnArrival_) {
+        if (presentOnArrival_ || presentAhead_) {
             wake(kWakeFrame);
         }
         // Frames in `dropped` are released here, outside the lock
@@ -722,7 +725,10 @@ void VulkanRenderer::onWake() {
         }
     }
 
-    if (flags & kWakeFrame) {
+    if ((flags & kWakeFrame) && presentAhead_ && !presentOnArrival_) {
+        presentAhead();
+    }
+    else if (flags & kWakeFrame) {
         // Lowest latency with a mailbox swapchain: show the newest frame right away and let
         // the display take whichever was presented last before each vsync
         FramePtr frame;
@@ -822,15 +828,48 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
         // Keep the picture up across a swapchain rebuild
         renderFrame(current_);
     }
+    if (presentAhead_) {
+        presentAhead();
+    }
     collectPresentTimings();
 
     ndk_->AChoreographer_postFrameCallback64(choreographer_, &VulkanRenderer::onVsyncThunk, this);
 }
 
+void VulkanRenderer::presentAhead() {
+    // In order, as long as each waiting frame's vsync is known and comes after the last one
+    // committed. Anything else waits for its vsync.
+    for (;;) {
+        FramePtr frame;
+        uint64_t presentId = 0;
+        int64_t showVsyncNs = 0;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (pending_.empty()) {
+                return;
+            }
+            showVsyncNs = pacer_.plannedVsyncNs(pending_.front()->timing);
+            if (showVsyncNs == 0) {
+                return;
+            }
+            pacer_.onPresentedAhead(showVsyncNs);
+            frame = std::move(pending_.front());
+            pending_.pop_front();
+            presentId = nextPresentId_++;
+            currentPeriodNs_ = pacer_.vsyncPeriodNs();
+            trace_.ahead(nowNs(), showVsyncNs, frame->timing.hostPtsNs, presentId, presentScheduler_.delayVsyncs(),
+                         pacer_);
+        }
+        if (renderFrame(frame, presentId, showVsyncNs, true)) {
+            presentedFrames_++;
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Rendering
 
-bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId) {
+bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int64_t showVsyncNs, bool ahead) {
     if (!ensureSwapchain()) {
         return false;
     }
@@ -984,13 +1023,14 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId) {
     VkPresentTimeGOOGLE presentTime {static_cast<uint32_t>(presentId), 0};
     VkPresentTimesInfoGOOGLE presentTimes {VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE};
     if (presentId != 0 && hasDisplayTimingExt_ && currentPeriodNs_ > 0) {
+        const int64_t vsyncNs = showVsyncNs != 0 ? showVsyncNs : currentVsyncNs_;
         presentTime.desiredPresentTime =
-                static_cast<uint64_t>(presentScheduler_.desiredPresentNs(currentVsyncNs_, currentPeriodNs_));
+                static_cast<uint64_t>(presentScheduler_.desiredPresentNs(vsyncNs, currentPeriodNs_));
         presentTimes.swapchainCount = 1;
         presentTimes.pTimes = &presentTime;
         present.pNext = &presentTimes;
 
-        pendingPresents_[presentId] = {currentVsyncNs_, presentScheduler_.delayVsyncs()};
+        pendingPresents_[presentId] = {vsyncNs, presentScheduler_.delayVsyncs(), ahead};
         if (pendingPresents_.size() > 256) {
             // Reports lost across a swapchain rebuild never arrive
             for (auto it = pendingPresents_.begin(); it != pendingPresents_.end();) {
@@ -1042,7 +1082,10 @@ void VulkanRenderer::collectPresentTimings() {
     for (uint32_t i = 0; i < count; i++) {
         const VkPastPresentationTimingGOOGLE& t = timings[i];
         auto pending = pendingPresents_.find(t.presentID);
-        if (pending != pendingPresents_.end()) {
+        // With frames presented ahead, the delay is tuned for those. A frame that had to wait
+        // for its vsync (a late one) is presented later and may miss; it shouldn't raise the
+        // delay for all the others.
+        if (pending != pendingPresents_.end() && (pending->second.ahead || !presentAhead_)) {
             presentScheduler_.onPresented(pending->second.vsyncNs, pending->second.delayVsyncs, currentPeriodNs_,
                                           static_cast<int64_t>(t.actualPresentTime),
                                           static_cast<int64_t>(t.earliestPresentTime),
@@ -1148,7 +1191,9 @@ bool VulkanRenderer::createSwapchain() {
         presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
     }
 
-    uint32_t imageCount = std::max(caps.minImageCount, 3u);
+    // Frames presented ahead wait in the swapchain until their vsync: up to the jitter buffer
+    // plus the present delay's worth of them at once
+    uint32_t imageCount = std::max(caps.minImageCount, presentAhead_ ? 6u : 3u);
     if (caps.maxImageCount != 0) {
         imageCount = std::min(imageCount, caps.maxImageCount);
     }
@@ -1200,6 +1245,7 @@ bool VulkanRenderer::createSwapchain() {
     outputPq_ = pq;
     outputBits_ = chosen.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ? 10 : 8;
     presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR;
+    presentScheduler_.onSwapchainCreated();
 
     if (renderPass_ && renderPassFormat_ != chosen.format) {
         if (pipeline_) {

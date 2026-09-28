@@ -570,7 +570,7 @@ int FramePacer::onVsync(int64_t vsyncNs, const FrameTiming* frames, size_t count
                 // Nothing is due yet. If the oldest frame is only just short of due and the
                 // stream is otherwise one frame per slot, show it now rather than repeat the
                 // last frame here and have two frames due at the next vsync.
-                if (frameExpected && frames[0].targetNs + shiftNs_ <= vsyncNs + tolerance) {
+                if (!presentAhead_ && frameExpected && frames[0].targetNs + shiftNs_ <= vsyncNs + tolerance) {
                     choice = 0;
                 }
             }
@@ -580,7 +580,7 @@ int FramePacer::onVsync(int64_t vsyncNs, const FrameTiming* frames, size_t count
                 // Two or more frames are due after a slot went empty. If the newest is only
                 // barely due, show the one before it and leave the newest for the next vsync,
                 // which gets the stream back to one frame per slot without skipping one.
-                if (newestDue >= 1 && missedLastSlot &&
+                if (!presentAhead_ && newestDue >= 1 && missedLastSlot &&
                         frames[newestDue].targetNs + shiftNs_ > vsyncNs - tolerance) {
                     choice = newestDue - 1;
                 }
@@ -594,6 +594,53 @@ int FramePacer::onVsync(int64_t vsyncNs, const FrameTiming* frames, size_t count
         lastPresentVsyncNs_ = vsyncNs;
     }
     return choice;
+}
+
+int64_t FramePacer::plannedVsyncNs(const FrameTiming& frame) const {
+    if (mode_ != PacingMode::HostTimed || lastVsyncNs_ == 0) {
+        return 0;
+    }
+
+    // The first vsync after the last one seen that the frame is due at, as onVsync() would
+    // find it. A frame already due (it arrived late) goes to the next vsync.
+    const int64_t due = frame.targetNs + shiftNs_;
+    int64_t ahead = 1;
+    if (due > lastVsyncNs_ + periodNs_) {
+        ahead = (due - lastVsyncNs_ + periodNs_ - 1) / periodNs_;
+    }
+    int64_t index = vsyncIndex_ + ahead;
+
+    // Locked to slots: only slot vsyncs, unless the frame on screen by then will have had a
+    // full slot (the catch-up onVsync() allows between slot vsyncs)
+    if (phaseLocked_ && slotVsyncs_ > 1) {
+        while (((index - slotParity_) % slotVsyncs_ + slotVsyncs_) % slotVsyncs_ != 0) {
+            const int64_t vsync = lastVsyncNs_ + (index - vsyncIndex_) * periodNs_;
+            if ((vsync - lastPresentVsyncNs_) * 2 >= (2 * slotVsyncs_ - 1) * periodNs_) {
+                break;
+            }
+            index++;
+        }
+    }
+
+    // Not further ahead than the next vsync. A frame due later is presented at the vsync
+    // before its own, still a vsync early.
+    if (index - vsyncIndex_ > kMaxPresentAheadVsyncs) {
+        return 0;
+    }
+
+    const int64_t vsync = lastVsyncNs_ + (index - vsyncIndex_) * periodNs_;
+    if (vsync < lastPresentVsyncNs_ - periodNs_ / 2) {
+        return 0;
+    }
+    // The same vsync as the last frame committed: that one arrived late and was put on the
+    // next vsync, which is this frame's own. Two images asking for the same vsync, the
+    // compositor shows the newer one, so this frame replaces it. Leaving this frame to its
+    // vsync instead would present it with no time to spare, and it could miss the vsync too.
+    return vsync;
+}
+
+void FramePacer::onPresentedAhead(int64_t vsyncNs) {
+    lastPresentVsyncNs_ = vsyncNs;
 }
 
 void FramePacer::onPresentedImmediately(int64_t nowNs) {

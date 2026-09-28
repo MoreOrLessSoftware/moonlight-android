@@ -25,6 +25,7 @@ namespace {
 struct Config {
     int mode = 4;
     int jitterBuffer = 0;  // Traces from before the setting used what is now LowLatency
+    int presentAhead = 0;
     int streamFps = 60;
     int64_t periodNs = 16'666'667;
     std::string text;
@@ -58,18 +59,25 @@ struct Tally {
     };
     std::vector<Event> events;
 
-    void onVsync(int64_t vsyncNs, int64_t index, int choice, int64_t slot, bool locked, double bufferMs) {
+    // A frame shown at vsyncNs that was committed ahead of it
+    void onShown(int64_t vsyncNs, int64_t index, int skippedFrames, int64_t slot, bool locked, double) {
         if (firstVsyncNs == 0) {
-            firstVsyncNs = vsyncNs;
+            return;
         }
-        lastVsyncNs = vsyncNs;
         if (locked && firstLockNs == 0) {
             firstLockNs = vsyncNs;
         }
-        vsyncs++;
-        lockedVsyncs += locked ? 1 : 0;
-        bufferSumMs += bufferMs;
-        if (choice < 0) {
+        countShow(vsyncNs, index, skippedFrames, slot, locked);
+    }
+
+    void countShow(int64_t vsyncNs, int64_t index, int choice, int64_t slot, bool locked) {
+        // Two frames asking for the same vsync (a late frame presented ahead, then the frame due
+        // at its vsync): the compositor shows only the newer one
+        if (lastShownIndex >= 0 && index <= lastShownIndex) {
+            skipped++;
+            (firstLockNs ? steadyUneven : settlingUneven)++;
+            unevenPer10s[(vsyncNs - firstVsyncNs) / 10'000'000'000]++;
+            events.push_back({vsyncNs, 0, slot, 1, locked});
             return;
         }
         shown++;
@@ -86,6 +94,22 @@ struct Tally {
             }
         }
         lastShownIndex = index;
+    }
+
+    void onVsync(int64_t vsyncNs, int64_t index, int choice, int64_t slot, bool locked, double bufferMs) {
+        if (firstVsyncNs == 0) {
+            firstVsyncNs = vsyncNs;
+        }
+        lastVsyncNs = vsyncNs;
+        if (locked && firstLockNs == 0) {
+            firstLockNs = vsyncNs;
+        }
+        vsyncs++;
+        lockedVsyncs += locked ? 1 : 0;
+        bufferSumMs += bufferMs;
+        if (choice >= 0) {
+            countShow(vsyncNs, index, choice, slot, locked);
+        }
     }
 
     void print(size_t maxEvents) const {
@@ -125,7 +149,7 @@ struct Tally {
         for (size_t i = 0; i < events.size() && i < maxEvents; i++) {
             const Event& e = events[i];
             printf("    t=%8.3f s  held %lld vsyncs (slot %lld)%s%s\n", (e.timeNs - firstVsyncNs) / 1e9,
-                   (long long) e.held, (long long) e.slot,
+                   (long long) (e.held > 0 ? e.held : 0), (long long) e.slot,
                    e.skipped ? ", skipped a frame" : "", e.locked ? "" : ", unlocked");
         }
         if (events.size() > maxEvents) {
@@ -175,6 +199,7 @@ struct DeviceTiming {
     std::map<uint64_t, int64_t> presentVsync;   // presentId -> vsync it was presented at
     std::map<uint64_t, int64_t> presentActual;  // presentId -> when it reached the screen
     std::map<uint64_t, int> presentDelay;       // presentId -> vsyncs after it asked to be shown
+    std::map<uint64_t, int64_t> presentPts;     // presentId -> host pts of the frame
     std::map<int64_t, int64_t> arrival;         // host pts -> decoded frame reached the renderer
     struct Received {
         int64_t receive;
@@ -220,7 +245,22 @@ struct DeviceTiming {
             }
             printf("  on screen: %llu frames, %llu held short, %llu held long\n",
                    (unsigned long long) frames, (unsigned long long) shortHolds, (unsigned long long) longHolds);
-            printf("  presented -> on screen: %s\n", percentiles(latency, false).c_str());
+            printf("  scheduled vsync -> on screen: %s\n", percentiles(latency, false).c_str());
+
+            // The client's share of latency: from the decoded frame reaching the renderer to it
+            // being on screen (jitter buffer, waiting for its vsync, and the present delay)
+            std::vector<int64_t> decodedToScreen;
+            for (const auto& entry : presentActual) {
+                auto p = presentPts.find(entry.first);
+                if (p == presentPts.end()) continue;
+                auto a = arrival.find(p->second);
+                if (a != arrival.end()) {
+                    decodedToScreen.push_back(entry.second - a->second);
+                }
+            }
+            if (!decodedToScreen.empty()) {
+                printf("  decoded -> on screen: %s\n", percentiles(decodedToScreen, false).c_str());
+            }
             if (!presentDelay.empty()) {
                 uint64_t missed = 0;
                 std::map<int, uint32_t> delays;
@@ -271,19 +311,24 @@ struct DeviceTiming {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer low|balanced|smooth]\n",
-                argv[0]);
+        fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer low|balanced|smooth]"
+                        " [--present-ahead on|off]\n", argv[0]);
         return 2;
     }
     size_t maxEvents = 25;
     size_t explain = 0;
     int jitterBufferOverride = -1;
+    int presentAheadOverride = -1;
     for (int i = 2; i + 1 < argc; i++) {
         if (strcmp(argv[i], "--events") == 0) {
             maxEvents = static_cast<size_t>(atoi(argv[i + 1]));
         }
         if (strcmp(argv[i], "--explain") == 0) {
             explain = static_cast<size_t>(atoi(argv[i + 1]));
+        }
+        // Replay presenting frames as they arrive, or not, whatever the session did
+        if (strcmp(argv[i], "--present-ahead") == 0) {
+            presentAheadOverride = strcmp(argv[i + 1], "on") == 0 ? 1 : 0;
         }
         // Replay with a different jitter buffer than the session used
         if (strcmp(argv[i], "--jitter-buffer") == 0) {
@@ -315,6 +360,7 @@ int main(int argc, char** argv) {
                 const std::string value = fields[i].substr(eq + 1);
                 if (key == "mode") config.mode = static_cast<int>(toInt(value));
                 if (key == "jitterBuffer") config.jitterBuffer = static_cast<int>(toInt(value));
+                if (key == "presentAhead") config.presentAhead = static_cast<int>(toInt(value));
                 if (key == "streamFps") config.streamFps = static_cast<int>(toInt(value));
                 if (key == "periodNs") config.periodNs = toInt(value);
             }
@@ -334,9 +380,18 @@ int main(int argc, char** argv) {
     const int jitterBuffer = jitterBufferOverride >= 0 ? jitterBufferOverride : config.jitterBuffer;
     printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 3],
            kJitterBufferNames[jitterBuffer % 3]);
+    const bool presentAhead = presentAheadOverride >= 0 ? presentAheadOverride != 0 : config.presentAhead != 0;
+    printf("Presenting frames as they arrive: %s on the device, %s in the replay\n", config.presentAhead ? "on" : "off",
+           presentAhead ? "on" : "off");
+    // How long presented-ahead frames waited in the replay before their vsync: the time the GPU
+    // and compositor get to finish them
+    std::vector<int64_t> aheadSlack;
+    uint64_t aheadCount = 0;
+    uint64_t atVsyncCount = 0;
 
     FramePacer pacer(static_cast<PacingMode>(config.mode), config.streamFps, config.periodNs,
                      static_cast<JitterBuffer>(jitterBuffer));
+    pacer.setPresentAhead(presentAhead);
     std::deque<FrameTiming> queue;
     int64_t recordedIndex = 0;
     int64_t lastRecordedVsync = 0;
@@ -371,7 +426,29 @@ int main(int argc, char** argv) {
                 queue.pop_front();
                 replayed.queueDrops++;
             }
+            if (presentAhead) {
+                while (!queue.empty()) {
+                    const int64_t showVsync = pacer.plannedVsyncNs(queue.front());
+                    if (showVsync == 0) break;
+                    pacer.onPresentedAhead(showVsync);
+                    aheadSlack.push_back(showVsync - timing.arrivalNs);
+                    aheadCount++;
+                    replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.phaseLocked(),
+                                     (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
+                    queue.pop_front();
+                }
+            }
             lastRecordedDrops = static_cast<uint64_t>(toInt(f[5]));
+        }
+        else if (f[0] == "A" && f.size() >= 6) {
+            const int64_t showVsync = toInt(f[2]);
+            const int64_t period = device.periodNs > 0 ? device.periodNs : config.periodNs;
+            recorded.onShown(showVsync, recordedIndex + (showVsync - lastRecordedVsync + period / 2) / period, 0,
+                             device.slotVsyncs, true, 0);
+            const uint64_t presentId = static_cast<uint64_t>(toInt(f[4]));
+            device.presentVsync[presentId] = showVsync;
+            device.presentDelay[presentId] = static_cast<int>(toInt(f[5]));
+            device.presentPts[presentId] = toInt(f[3]);
         }
         else if (f[0] == "P" && f.size() >= 5) {
             device.presentActual[static_cast<uint64_t>(toInt(f[1]))] = toInt(f[2]);
@@ -390,6 +467,7 @@ int main(int argc, char** argv) {
                 const uint64_t presentId = static_cast<uint64_t>(toInt(f[13]));
                 if (presentId != 0) {
                     device.presentVsync[presentId] = vsyncNs;
+                    device.presentPts[presentId] = toInt(f[4]);
                     if (f.size() >= 15) {
                         device.presentDelay[presentId] = static_cast<int>(toInt(f[14]));
                     }
@@ -445,12 +523,30 @@ int main(int argc, char** argv) {
             }
             if (choice >= 0) {
                 queue.erase(queue.begin(), queue.begin() + choice + 1);
+                atVsyncCount++;
             }
             replayed.onVsync(vsyncNs, pacer.vsyncIndex(), choice, pacer.slotVsyncs(), pacer.phaseLocked(),
                              (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
+            if (presentAhead) {
+                while (!queue.empty()) {
+                    const int64_t showVsync = pacer.plannedVsyncNs(queue.front());
+                    if (showVsync == 0) break;
+                    pacer.onPresentedAhead(showVsync);
+                    aheadSlack.push_back(showVsync - vsyncNs);
+                    aheadCount++;
+                    replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.phaseLocked(),
+                                     (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
+                    queue.pop_front();
+                }
+            }
         }
     }
     recorded.queueDrops = lastRecordedDrops;
+    if (presentAhead) {
+        printf("Replay presented %llu frames as they arrived and %llu at their vsync; time before their vsync: %s\n",
+               (unsigned long long) aheadCount, (unsigned long long) atVsyncCount,
+               percentiles(aheadSlack, false).c_str());
+    }
 
     printf("\n");
     recorded.print(maxEvents);

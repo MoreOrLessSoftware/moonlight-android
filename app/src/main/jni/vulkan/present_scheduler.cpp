@@ -19,6 +19,11 @@ void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t perio
     const bool missed = actualNs > target + periodNs / 2;
     missedTotal_ += missed ? 1 : 0;
 
+    if (settling_ > 0) {
+        settling_--;
+        return;
+    }
+
     // Presents made before the last change tell us nothing about the current delay
     if (delayUsed != delay_) {
         return;
@@ -26,8 +31,8 @@ void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t perio
 
     raiseCount_++;
     raiseMisses_ += missed ? 1 : 0;
-    if (raiseCount_ >= kRaiseWindow || raiseMisses_ >= 2) {
-        if (raiseMisses_ >= 2 && delay_ < kMaxDelay) {
+    if (raiseCount_ >= kRaiseWindow || raiseMisses_ >= kRaiseMisses) {
+        if (raiseMisses_ >= kRaiseMisses && delay_ < kMaxDelay) {
             delay_++;
             // A shorter delay that didn't hold: wait longer before trying it again
             if (loweredLast_) {
@@ -47,8 +52,9 @@ void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t perio
     lowerCount_++;
     lowerNotSooner_ += couldBeSooner ? 0 : 1;
     if (lowerCount_ >= kLowerWindow * lowerBackoff_) {
-        // All but one in a thousand, and none missed
-        if (delay_ > kMinDelay && lowerNotSooner_ * 1000 <= lowerCount_ && raiseMisses_ == 0) {
+        // All but one in two hundred (frames that arrived late have little time to spare),
+        // and none missed
+        if (delay_ > kMinDelay && lowerNotSooner_ * 200 <= lowerCount_ && raiseMisses_ == 0) {
             delay_--;
             loweredLast_ = true;
             resetWindows();

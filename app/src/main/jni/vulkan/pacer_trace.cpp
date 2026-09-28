@@ -93,6 +93,13 @@ void PacerTrace::frame(const FrameTiming& timing, size_t queued, uint64_t queueD
           static_cast<unsigned long long>(queueDrops));
 }
 
+void PacerTrace::ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, uint64_t presentId,
+                       int presentDelayVsyncs, const FramePacer& pacer) {
+    write("A,%lld,%lld,%lld,%llu,%d\n", static_cast<long long>(nowNs), static_cast<long long>(showVsyncNs),
+          static_cast<long long>(hostPtsNs), static_cast<unsigned long long>(presentId), presentDelayVsyncs);
+    countShown(pacer.vsyncIndexAt(showVsyncNs), 0, pacer);
+}
+
 void PacerTrace::immediate(int64_t nowNs) {
     write("I,%lld\n", static_cast<long long>(nowNs));
 }
@@ -147,22 +154,30 @@ void PacerTrace::vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shown
         lockedVsyncs_++;
     }
     if (choice >= 0) {
-        shown_++;
-        skipped_ += static_cast<uint32_t>(choice);
-        const int64_t index = pacer.vsyncIndex();
-        if (lastShownIndex_ >= 0) {
-            const int64_t held = index - lastShownIndex_;
-            if (held < pacer.slotVsyncs()) {
-                heldShort_++;
-            }
-            else if (held > pacer.slotVsyncs()) {
-                heldLong_++;
-            }
-        }
-        lastShownIndex_ = index;
+        countShown(pacer.vsyncIndex(), choice, pacer);
     }
 
     summarize(vsyncNs, pacer);
+}
+
+void PacerTrace::countShown(int64_t index, int skipped, const FramePacer& pacer) {
+    // Two frames for the same vsync: the compositor shows only the newer one
+    if (lastShownIndex_ >= 0 && index <= lastShownIndex_) {
+        skipped_++;
+        return;
+    }
+    shown_++;
+    skipped_ += static_cast<uint32_t>(skipped);
+    if (lastShownIndex_ >= 0) {
+        const int64_t held = index - lastShownIndex_;
+        if (held < pacer.slotVsyncs()) {
+            heldShort_++;
+        }
+        else if (held > pacer.slotVsyncs()) {
+            heldLong_++;
+        }
+    }
+    lastShownIndex_ = index;
 }
 
 void PacerTrace::summarize(int64_t vsyncNs, const FramePacer& pacer) {

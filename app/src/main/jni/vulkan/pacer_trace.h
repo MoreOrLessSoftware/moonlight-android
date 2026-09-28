@@ -28,6 +28,10 @@ namespace vkr {
 //                                    and presentDelayVsyncs is the vsync after this one it asked
 //                                    to reach the screen at (PresentScheduler)
 //   I,nowNs                          frame shown on arrival (lowest latency mode, mailbox)
+//   A,nowNs,showVsyncNs,hostPtsNs,presentId,presentDelayVsyncs
+//                                    frame presented as it arrived, asking for the vsync
+//                                    presentDelayVsyncs after showVsyncNs (host frame timing
+//                                    with display timing); the V lines' choice doesn't include it
 //   P,presentId,actualNs,earliestNs,marginNs
 //                                    when a present actually reached the screen
 //                                    (VK_GOOGLE_display_timing), reported a few frames later
@@ -51,11 +55,14 @@ public:
     void vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shownPtsNs, const FramePacer& pacer,
                int64_t callbackLateNs, uint64_t presentId, int presentDelayVsyncs);
     void immediate(int64_t nowNs);
+    void ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, uint64_t presentId, int presentDelayVsyncs,
+               const FramePacer& pacer);
     void presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
 
 private:
     void summarize(int64_t vsyncNs, const FramePacer& pacer);
+    void countShown(int64_t index, int skipped, const FramePacer& pacer);
     void write(const char* format, ...) __attribute__((format(printf, 2, 3)));
 
     FILE* file_ = nullptr;

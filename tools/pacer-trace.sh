@@ -47,17 +47,59 @@ local_path() {
     if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else echo "$1"; fi
 }
 
-replay_tool() {
-    local bin="$OUT/.bin/pacer_replay"
-    mkdir -p "$OUT/.bin"
-    # Rebuilt whenever the pacer changes, so the replay always uses this checkout's code
-    if [ ! -x "$bin" ] && [ ! -x "$bin.exe" ] || \
-       [ -n "$(find "$SRC/frame_pacer.cpp" "$SRC/frame_pacer.h" "$SRC/tests/pacer_replay.cpp" -newer "$OUT/.bin/built" 2>/dev/null)" ]; then
-        echo "Building the replay tool..." >&2
-        "${CXX:-g++}" -std=c++17 -O2 -I"$SRC" "$SRC/frame_pacer.cpp" "$SRC/tests/pacer_replay.cpp" -o "$bin"
-        touch "$OUT/.bin/built"
+# A C++17 compiler: CXX if set, else one on PATH, else a usual MSYS2 install (Git Bash doesn't
+# put MSYS2 on its PATH)
+find_cxx() {
+    if [ -n "${CXX:-}" ]; then
+        echo "$CXX"
+        return
     fi
-    if [ -x "$bin.exe" ]; then echo "$bin.exe"; else echo "$bin"; fi
+    local candidate
+    for candidate in g++ clang++; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            echo "$candidate"
+            return
+        fi
+    done
+    for candidate in /c/msys64/ucrt64/bin/g++.exe /c/msys64/mingw64/bin/g++.exe /c/msys64/clang64/bin/clang++.exe \
+                     /c/msys64/ucrt64/bin/clang++.exe; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return
+        fi
+    done
+}
+
+replay_tool() {
+    local exe="$OUT/.bin/pacer_replay"
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) exe="$exe.exe" ;; esac
+    mkdir -p "$OUT/.bin"
+    # Rebuilt whenever the pacer changes, so the replay always uses this checkout's code. The
+    # check is against the program itself: a build that didn't replace it must not look current.
+    if [ ! -f "$exe" ] || \
+       [ -n "$(find "$SRC/frame_pacer.cpp" "$SRC/frame_pacer.h" "$SRC/tests/pacer_replay.cpp" -newer "$exe" 2>/dev/null)" ]; then
+        local cxx
+        cxx="$(find_cxx)"
+        if [ -z "$cxx" ]; then
+            echo "No C++ compiler found for the replay tool. Install one (on Windows, MSYS2's" >&2
+            echo "mingw-w64-ucrt-x86_64-gcc) or set CXX to its path." >&2
+            exit 1
+        fi
+        echo "Building the replay tool with $cxx..." >&2
+        rm -f "$exe"
+        # Static, so it runs without the compiler's runtime libraries on PATH
+        local static=""
+        case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) static="-static" ;; esac
+        # With its own directory on PATH: MSYS2's compiler runs helpers that need the DLLs there
+        local cxxdir=""
+        case "$cxx" in */*) cxxdir="$(dirname "$cxx"):" ;; esac
+        PATH="$cxxdir$PATH" "$cxx" -std=c++17 -O2 $static -I"$SRC" "$SRC/frame_pacer.cpp" "$SRC/tests/pacer_replay.cpp"             -o "$exe" >&2 || true
+        if [ ! -f "$exe" ]; then
+            echo "Building the replay tool didn't produce $exe" >&2
+            exit 1
+        fi
+    fi
+    echo "$exe"
 }
 
 cmd_on() {
