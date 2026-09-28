@@ -39,6 +39,9 @@ namespace {
 
     constexpr int kLooperIdWake = 1;
 
+    // Window for the overlay's count of skipped frames
+    constexpr int64_t kRecentSkipsNs = 10'000'000'000;
+
     // Imported buffers are kept while the decoder keeps cycling through the same ones
     constexpr size_t kMaxImports = 24;
 
@@ -77,17 +80,6 @@ namespace {
     bool isYcbcrFormat(VkFormat format) {
         return (format >= VK_FORMAT_G8B8G8R8_422_UNORM && format <= VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM) ||
                (format >= VK_FORMAT_G8_B8R8_2PLANE_444_UNORM && format <= VK_FORMAT_G16_B16R16_2PLANE_444_UNORM);
-    }
-
-    const char* pacingName(PacingMode mode) {
-        switch (mode) {
-            case PacingMode::MinLatency: return "lowest latency";
-            case PacingMode::Balanced: return "balanced";
-            case PacingMode::CapFps: return "FPS limit";
-            case PacingMode::Smoothness: return "smoothest";
-            case PacingMode::HostTimed: return "host frame timing";
-        }
-        return "unknown";
     }
 
     const char* const kRequiredDeviceExtensions[] = {
@@ -562,23 +554,45 @@ void VulkanRenderer::setHdrMode(bool enabled, const uint8_t* metadata, size_t me
     wake(kWakeHdr);
 }
 
-std::string VulkanRenderer::statsText() {
+std::string VulkanRenderer::rendererText() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    char text[256];
-    int len = snprintf(text, sizeof(text), "Vulkan: %s, %s pacing", outputDescription_.c_str(),
-                       pacingName(pacer_.mode()));
-    if (pacer_.mode() == PacingMode::HostTimed && pacer_.timeline().hasEstimate() && len < (int) sizeof(text)) {
-        len += snprintf(text + len, sizeof(text) - len, " (+%.1f ms buffer, %s, %d vsync%s per frame)",
-                        (pacer_.timeline().bufferNs() + pacer_.scheduleDelayNs()) / 1e6,
-                        pacer_.phaseLocked() ? "vsync locked" : "unlocked",
-                        static_cast<int>(pacer_.slotVsyncs()), pacer_.slotVsyncs() == 1 ? "" : "s");
+    return "Vulkan " + outputDescription_;
+}
+
+std::string VulkanRenderer::pacingText() {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    std::string headline;
+    std::string details;
+    char text[96];
+    if (pacer_.mode() == PacingMode::HostTimed && pacer_.timeline().hasEstimate()) {
+        snprintf(text, sizeof(text), "%.1f ms buffer", (pacer_.timeline().bufferNs() + pacer_.scheduleDelayNs()) / 1e6);
+        headline = text;
+        if (pacer_.phaseLocked()) {
+            snprintf(text, sizeof(text), "locked at %d vsync%s/frame", static_cast<int>(pacer_.slotVsyncs()),
+                     pacer_.slotVsyncs() == 1 ? "" : "s");
+            details = text;
+        }
+        else {
+            details = "unlocked";
+        }
     }
-    const uint64_t dropped = pacer_.framesSkipped() + queueOverflowDrops_;
-    if (dropped > 0 && len < (int) sizeof(text)) {
-        snprintf(text + len, sizeof(text) - len, ", %" PRIu64 " frames skipped", dropped);
+    // Frames skipped recently. A running total since the stream started says little about
+    // how it's going now.
+    const int64_t now = nowNs();
+    const uint64_t total = pacer_.framesSkipped() + queueOverflowDrops_;
+    skipSamples_.push_back({now, total});
+    while (skipSamples_.size() > 1 && skipSamples_[1].timeNs <= now - kRecentSkipsNs) {
+        skipSamples_.pop_front();
     }
-    return text;
+    const uint64_t skipped = total - skipSamples_.front().total;
+    if (skipped > 0) {
+        snprintf(text, sizeof(text), "%" PRIu64 " skipped in last %d s", skipped,
+                 static_cast<int>(kRecentSkipsNs / 1'000'000'000));
+        details += details.empty() ? text : std::string(", ") + text;
+    }
+    return headline + "\n" + details;
 }
 
 void VulkanRenderer::wake(uint32_t flags) {
@@ -1341,7 +1355,7 @@ bool VulkanRenderer::createSwapchain() {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         char description[128];
-        snprintf(description, sizeof(description), "%ux%u %s%s", extent.width, extent.height,
+        snprintf(description, sizeof(description), "%s%s",
                  outputPq_ ? "HDR10" : (outputBits_ == 10 ? "10-bit SDR" : "8-bit SDR"),
                  (hdrActive_ && !outputPq_) ? " (tone mapped)" : "");
         outputDescription_ = description;

@@ -640,6 +640,11 @@ int64_t FramePacer::plannedVsyncNs(const FrameTiming& frame) const {
 }
 
 void FramePacer::onPresentedAhead(int64_t vsyncNs) {
+    // Replacing the frame committed to the same vsync (see plannedVsyncNs()): the compositor
+    // shows only this one
+    if (lastPresentVsyncNs_ != 0 && vsyncNs <= lastPresentVsyncNs_ + periodNs_ / 2) {
+        framesSkipped_++;
+    }
     lastPresentVsyncNs_ = vsyncNs;
 }
 
