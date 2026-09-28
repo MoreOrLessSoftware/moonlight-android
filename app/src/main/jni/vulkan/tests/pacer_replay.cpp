@@ -24,6 +24,7 @@ namespace {
 
 struct Config {
     int mode = 4;
+    int jitterBuffer = 0;  // Traces from before the setting used what is now LowLatency
     int streamFps = 60;
     int64_t periodNs = 16'666'667;
     std::string text;
@@ -270,17 +271,24 @@ struct DeviceTiming {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N]\n", argv[0]);
+        fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer low|balanced|smooth]\n",
+                argv[0]);
         return 2;
     }
     size_t maxEvents = 25;
     size_t explain = 0;
+    int jitterBufferOverride = -1;
     for (int i = 2; i + 1 < argc; i++) {
         if (strcmp(argv[i], "--events") == 0) {
             maxEvents = static_cast<size_t>(atoi(argv[i + 1]));
         }
         if (strcmp(argv[i], "--explain") == 0) {
             explain = static_cast<size_t>(atoi(argv[i + 1]));
+        }
+        // Replay with a different jitter buffer than the session used
+        if (strcmp(argv[i], "--jitter-buffer") == 0) {
+            const char* value = argv[i + 1];
+            jitterBufferOverride = strcmp(value, "low") == 0 ? 0 : strcmp(value, "smooth") == 0 ? 2 : 1;
         }
     }
 
@@ -306,6 +314,7 @@ int main(int argc, char** argv) {
                 const std::string key = fields[i].substr(0, eq);
                 const std::string value = fields[i].substr(eq + 1);
                 if (key == "mode") config.mode = static_cast<int>(toInt(value));
+                if (key == "jitterBuffer") config.jitterBuffer = static_cast<int>(toInt(value));
                 if (key == "streamFps") config.streamFps = static_cast<int>(toInt(value));
                 if (key == "periodNs") config.periodNs = toInt(value);
             }
@@ -321,7 +330,13 @@ int main(int argc, char** argv) {
     Tally recorded {"Recorded on the device"};
     Tally replayed {"Replayed through the current pacer"};
 
-    FramePacer pacer(static_cast<PacingMode>(config.mode), config.streamFps, config.periodNs);
+    static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth"};
+    const int jitterBuffer = jitterBufferOverride >= 0 ? jitterBufferOverride : config.jitterBuffer;
+    printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 3],
+           kJitterBufferNames[jitterBuffer % 3]);
+
+    FramePacer pacer(static_cast<PacingMode>(config.mode), config.streamFps, config.periodNs,
+                     static_cast<JitterBuffer>(jitterBuffer));
     std::deque<FrameTiming> queue;
     int64_t recordedIndex = 0;
     int64_t lastRecordedVsync = 0;

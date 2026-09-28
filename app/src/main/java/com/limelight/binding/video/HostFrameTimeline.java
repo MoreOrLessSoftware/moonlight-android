@@ -1,5 +1,7 @@
 package com.limelight.binding.video;
 
+import com.limelight.preferences.PreferenceConfiguration;
+
 import java.util.Arrays;
 
 /**
@@ -16,8 +18,6 @@ import java.util.Arrays;
  * building up a queue.
  */
 class HostFrameTimeline {
-    private static final long WINDOW_NS = 2_000_000_000L;
-    private static final double COVERAGE = 0.95;
     private static final long MAX_PTS_BACKSTEP_NS = 100_000_000L;
     private static final long MAX_PTS_GAP_NS = 5_000_000_000L;
     private static final int CAPACITY = 1024;
@@ -33,14 +33,39 @@ class HostFrameTimeline {
     private long lastPtsNs;
     private final long presentLatencyNs;
 
+    // How much of the transit time variation to buffer for (see jni/vulkan/frame_pacer.cpp,
+    // which these presets match)
+    private final long windowNs;
+    private final double coverage;
+    private final long decayDivisor;
+
     /**
      * @param displayRefreshHz current display refresh rate. SurfaceFlinger shows a buffer at
      *                         the first vsync whose expected present time is at or after the
      *                         buffer's timestamp, which is about a frame after we release it,
      *                         so targets are pushed out by one refresh period.
      */
-    HostFrameTimeline(float displayRefreshHz) {
+    HostFrameTimeline(float displayRefreshHz, int jitterBuffer) {
         presentLatencyNs = displayRefreshHz > 1 ? (long) (1e9 / displayRefreshHz) : 16_666_667L;
+
+        switch (jitterBuffer) {
+            case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
+                windowNs = 2_000_000_000L;
+                coverage = 0.95;
+                decayDivisor = 32;
+                break;
+            case PreferenceConfiguration.JITTER_BUFFER_SMOOTH:
+                windowNs = 30_000_000_000L;
+                coverage = 0.999;
+                decayDivisor = 4096;
+                break;
+            case PreferenceConfiguration.JITTER_BUFFER_BALANCED:
+            default:
+                windowNs = 10_000_000_000L;
+                coverage = 0.99;
+                decayDivisor = 512;
+                break;
+        }
     }
 
     /**
@@ -64,7 +89,7 @@ class HostFrameTimeline {
         else {
             head = (head + 1) % CAPACITY;
         }
-        while (count > 1 && arrivalNs[head] < nowNs - WINDOW_NS) {
+        while (count > 1 && arrivalNs[head] < nowNs - windowNs) {
             head = (head + 1) % CAPACITY;
             count--;
         }
@@ -75,7 +100,7 @@ class HostFrameTimeline {
         Arrays.sort(scratch, 0, count);
         int index = count - 1;
         if (count >= 8) {
-            index = (int) Math.ceil(COVERAGE * (count - 1));
+            index = (int) Math.ceil(coverage * (count - 1));
         }
         long target = scratch[index];
 
@@ -84,7 +109,7 @@ class HostFrameTimeline {
             offsetNs = target;
         }
         else {
-            offsetNs -= (offsetNs - target) / 32;
+            offsetNs -= (offsetNs - target) / decayDivisor;
         }
 
         return hostPtsNs + offsetNs + presentLatencyNs;

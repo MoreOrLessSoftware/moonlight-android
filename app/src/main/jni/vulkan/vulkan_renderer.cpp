@@ -252,8 +252,8 @@ bool VulkanRenderer::init(ANativeWindow* output) {
 
     char configuration[256];
     snprintf(configuration, sizeof(configuration),
-             "mode=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d",
-             config_.framePacing, config_.streamFps, config_.streamWidth, config_.streamHeight,
+             "mode=%d,jitterBuffer=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d",
+             config_.framePacing, config_.jitterBuffer, config_.streamFps, config_.streamWidth, config_.streamHeight,
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
              config_.ditherMode);
     trace_.start(config_.traceDirectory, configuration);

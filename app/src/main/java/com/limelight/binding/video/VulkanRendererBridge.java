@@ -45,20 +45,21 @@ public class VulkanRendererBridge {
      * Starts a renderer on the output surface, or returns null if it can't run there.
      *
      * @param framePacing one of PreferenceConfiguration.FRAME_PACING_*
+     * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
      * @param ditherMode 0 = off, 1 = low, 2 = high
      * @param colorspace one of MoonBridge.COLORSPACE_*
      * @param traceDirectory where frame pacing traces are written when switched on with
      *                       {@code adb shell setprop debug.moonlight.pacer_trace 1}, or null
      */
     public static VulkanRendererBridge create(Surface output, int streamWidth, int streamHeight, int streamFps,
-                                              int framePacing, int ditherMode, int colorspace,
+                                              int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                               boolean fullRange, boolean tenBit, float displayRefreshHz,
                                               String traceDirectory) {
         if (!isSupported()) {
             return null;
         }
 
-        long handle = nativeCreate(output, streamWidth, streamHeight, streamFps, framePacing, ditherMode,
+        long handle = nativeCreate(output, streamWidth, streamHeight, streamFps, framePacing, jitterBuffer, ditherMode,
                 colorspace, fullRange, tenBit, displayRefreshHz, traceDirectory);
         if (handle == 0) {
             return null;
@@ -129,7 +130,7 @@ public class VulkanRendererBridge {
 
     private static native boolean nativeProbe();
     private static native long nativeCreate(Surface output, int streamWidth, int streamHeight, int streamFps,
-                                            int framePacing, int ditherMode, int colorspace,
+                                            int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                             boolean fullRange, boolean tenBit, float displayRefreshHz,
                                             String traceDirectory);
     private static native Surface nativeGetDecoderSurface(long handle);

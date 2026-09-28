@@ -337,7 +337,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Only used if the direct renderer ends up in use
         if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_HOST_TIMED) {
-            hostFrameTimeline = new HostFrameTimeline(getDisplayRefreshRate());
+            hostFrameTimeline = new HostFrameTimeline(getDisplayRefreshRate(), prefs.jitterBuffer);
         }
 
         this.activeWindowVideoStats = new VideoStats();
@@ -568,7 +568,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
 
         VulkanRendererBridge renderer = VulkanRendererBridge.create(outputSurface,
-                initialWidth, initialHeight, refreshRate, prefs.framePacing, ditherMode,
+                initialWidth, initialHeight, refreshRate, prefs.framePacing, prefs.jitterBuffer, ditherMode,
                 getPreferredColorSpace(),
                 getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL,
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,

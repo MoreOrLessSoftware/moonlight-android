@@ -26,6 +26,14 @@ struct FrameTiming {
     int64_t targetNs = 0;    // HostTimed: local time the frame is due, before any phase shift
 };
 
+// How much delay the host timeline adds to ride out variation in frame transit times.
+// Matches PreferenceConfiguration.JITTER_BUFFER_*.
+enum class JitterBuffer : int {
+    LowLatency = 0,
+    Balanced = 1,
+    Smooth = 2,
+};
+
 // Maps host frame timestamps onto the local clock.
 //
 // Sunshine captures each frame as soon as the host desktop presents it and stamps it with
@@ -36,6 +44,8 @@ struct FrameTiming {
 // the host's cadence with a constant delay.
 class HostTimeline {
 public:
+    explicit HostTimeline(JitterBuffer jitterBuffer = JitterBuffer::LowLatency);
+
     void reset();
 
     // Records a decoded frame. Returns false if it broke the timeline (the stream restarted
@@ -53,14 +63,22 @@ public:
     // How long the scheduled time is after the smallest transit time
     int64_t bufferNs() const { return hasEstimate() ? offsetNs_ - minTransitNs() : 0; }
 
+    JitterBuffer jitterBuffer() const { return jitterBuffer_; }
+
+private:
+    JitterBuffer jitterBuffer_;
+
     // Window of transit samples the offset is taken from
-    static constexpr int64_t kWindowNs = 2'000'000'000;
+    int64_t windowNs_;
 
     // The offset covers this fraction of transit times. The rest arrive after their
     // scheduled time and are shown at the first vsync after they arrive.
-    static constexpr double kCoverage = 0.95;
+    double coverage_;
 
-private:
+    // When transit times come down, the offset follows by this fraction of the difference
+    // per frame
+    int64_t decayDivisor_;
+
     struct Sample {
         int64_t arrivalNs;
         int64_t transitNs;
@@ -78,7 +96,8 @@ public:
     // Upper bound on maxQueued() in any mode
     static constexpr size_t kMaxQueuedFrames = 6;
 
-    FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs);
+    FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs,
+               JitterBuffer jitterBuffer = JitterBuffer::LowLatency);
 
     PacingMode mode() const { return mode_; }
 
