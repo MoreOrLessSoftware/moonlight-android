@@ -17,6 +17,18 @@ public class PreferenceConfiguration {
         FORCE_H264,
     };
 
+    public enum VideoRendererOption {
+        AUTO,
+        DIRECT,
+        VULKAN,
+    }
+
+    public enum SpatialDitheringOption {
+        OFF,
+        LOW,
+        HIGH,
+    }
+
     public enum AnalogStickForScrolling {
         NONE,
         RIGHT,
@@ -73,6 +85,8 @@ public class PreferenceConfiguration {
     private static final String OVERLAY_TRIGGER_BUTTON_PREF_STRING = "overlay_trigger_button";
     private static final String OVERLAY_HOLD_DURATION_PREF_STRING = "overlay_hold_duration";
     private static final String AUTO_RESUME_STREAM_PREF_STRING = "checkbox_auto_resume_stream";
+    private static final String VIDEO_RENDERER_PREF_STRING = "video_renderer";
+    private static final String SPATIAL_DITHERING_PREF_STRING = "spatial_dithering";
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
@@ -87,6 +101,8 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_MULTI_CONTROLLER = true;
     private static final boolean DEFAULT_USB_DRIVER = true;
     private static final String DEFAULT_VIDEO_FORMAT = "auto";
+    private static final String DEFAULT_VIDEO_RENDERER = "auto";
+    private static final String DEFAULT_SPATIAL_DITHERING = "off";
 
     private static final boolean ONSCREEN_CONTROLLER_DEFAULT = false;
     private static final boolean ONLY_L3_R3_DEFAULT = false;
@@ -123,6 +139,7 @@ public class PreferenceConfiguration {
     public static final int FRAME_PACING_BALANCED = 1;
     public static final int FRAME_PACING_CAP_FPS = 2;
     public static final int FRAME_PACING_MAX_SMOOTHNESS = 3;
+    public static final int FRAME_PACING_HOST_TIMED = 4;
 
     public static final String RES_360P = "640x360";
     public static final String RES_480P = "854x480";
@@ -136,6 +153,8 @@ public class PreferenceConfiguration {
     public int bitrate;
     public boolean enableUltraLowLatency;
     public FormatOption videoFormat;
+    public VideoRendererOption videoRenderer;
+    public SpatialDitheringOption spatialDithering;
     public int deadzonePercentage;
     public int oscOpacity;
     public boolean stretchVideo, enableSops, playHostAudio, disableWarnings;
@@ -383,6 +402,36 @@ public class PreferenceConfiguration {
         }
     }
 
+    private static VideoRendererOption getVideoRendererValue(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+
+        String str = prefs.getString(VIDEO_RENDERER_PREF_STRING, DEFAULT_VIDEO_RENDERER);
+        if (str.equals("direct")) {
+            return VideoRendererOption.DIRECT;
+        }
+        else if (str.equals("vulkan")) {
+            return VideoRendererOption.VULKAN;
+        }
+        else {
+            return VideoRendererOption.AUTO;
+        }
+    }
+
+    private static SpatialDitheringOption getSpatialDitheringValue(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+
+        String str = prefs.getString(SPATIAL_DITHERING_PREF_STRING, DEFAULT_SPATIAL_DITHERING);
+        if (str.equals("low")) {
+            return SpatialDitheringOption.LOW;
+        }
+        else if (str.equals("high")) {
+            return SpatialDitheringOption.HIGH;
+        }
+        else {
+            return SpatialDitheringOption.OFF;
+        }
+    }
+
     private static int getFramePacingValue(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
 
@@ -407,6 +456,9 @@ public class PreferenceConfiguration {
         }
         else if (str.equals("smoothness")) {
             return FRAME_PACING_MAX_SMOOTHNESS;
+        }
+        else if (str.equals("host-timed")) {
+            return FRAME_PACING_HOST_TIMED;
         }
         else {
             // Should never get here
@@ -575,6 +627,8 @@ public class PreferenceConfiguration {
         }
 
         config.videoFormat = getVideoFormatValue(context);
+        config.videoRenderer = getVideoRendererValue(context);
+        config.spatialDithering = getSpatialDitheringValue(context);
         config.framePacing = getFramePacingValue(context);
 
         config.analogStickForScrolling = getAnalogStickForScrollingValue(context);

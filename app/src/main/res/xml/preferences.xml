@@ -279,6 +279,20 @@
             android:entryValues="@array/video_format_values"
             android:summary="@string/summary_video_format"
             android:defaultValue="auto" />
+        <ListPreference
+            android:key="video_renderer"
+            android:title="@string/title_video_renderer"
+            android:entries="@array/video_renderer_names"
+            android:entryValues="@array/video_renderer_values"
+            android:summary="@string/summary_video_renderer"
+            android:defaultValue="auto" />
+        <ListPreference
+            android:key="spatial_dithering"
+            android:title="@string/title_spatial_dithering"
+            android:entries="@array/spatial_dithering_names"
+            android:entryValues="@array/spatial_dithering_values"
+            android:summary="@string/summary_spatial_dithering"
+            android:defaultValue="off" />
         <CheckBoxPreference
             android:key="checkbox_enable_hdr"
             android:title="@string/title_enable_hdr"
