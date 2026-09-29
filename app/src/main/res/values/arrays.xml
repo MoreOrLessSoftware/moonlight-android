@@ -122,11 +122,13 @@
     </string-array>
 
     <string-array name="jitter_buffer_names">
+        <item>@string/jitter_buffer_lowest_latency</item>
         <item>@string/jitter_buffer_low_latency</item>
         <item>@string/jitter_buffer_balanced</item>
         <item>@string/jitter_buffer_smooth</item>
     </string-array>
     <string-array name="jitter_buffer_values" translatable="false">
+        <item>lowest-latency</item>
         <item>low-latency</item>
         <item>balanced</item>
         <item>smooth</item>

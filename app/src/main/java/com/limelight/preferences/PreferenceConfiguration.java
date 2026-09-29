@@ -148,6 +148,7 @@ public class PreferenceConfiguration {
     public static final int JITTER_BUFFER_LOW_LATENCY = 0;
     public static final int JITTER_BUFFER_BALANCED = 1;
     public static final int JITTER_BUFFER_SMOOTH = 2;
+    public static final int JITTER_BUFFER_LOWEST_LATENCY = 3;
 
     public static final String RES_360P = "640x360";
     public static final String RES_480P = "854x480";
@@ -450,6 +451,9 @@ public class PreferenceConfiguration {
         String str = prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER);
         if (str.equals("low-latency")) {
             return JITTER_BUFFER_LOW_LATENCY;
+        }
+        else if (str.equals("lowest-latency")) {
+            return JITTER_BUFFER_LOWEST_LATENCY;
         }
         else if (str.equals("smooth")) {
             return JITTER_BUFFER_SMOOTH;

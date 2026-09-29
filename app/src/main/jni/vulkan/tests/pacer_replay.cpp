@@ -365,7 +365,8 @@ int main(int argc, char** argv) {
         // Replay with a different jitter buffer than the session used
         if (strcmp(argv[i], "--jitter-buffer") == 0) {
             const char* value = argv[i + 1];
-            jitterBufferOverride = strcmp(value, "low") == 0 ? 0 : strcmp(value, "smooth") == 0 ? 2 : 1;
+            jitterBufferOverride = strcmp(value, "lowest") == 0 ? 3 : strcmp(value, "low") == 0 ? 0 :
+                                   strcmp(value, "smooth") == 0 ? 2 : 1;
         }
     }
 
@@ -408,10 +409,10 @@ int main(int argc, char** argv) {
     Tally recorded {"Recorded on the device"};
     Tally replayed {"Replayed through the current pacer"};
 
-    static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth"};
+    static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth", "lowest latency"};
     const int jitterBuffer = jitterBufferOverride >= 0 ? jitterBufferOverride : config.jitterBuffer;
-    printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 3],
-           kJitterBufferNames[jitterBuffer % 3]);
+    printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 4],
+           kJitterBufferNames[jitterBuffer % 4]);
     const bool presentAhead = presentAheadOverride >= 0 ? presentAheadOverride != 0 : config.presentAhead != 0;
     printf("Presenting frames as they arrive: %s on the device, %s in the replay\n", config.presentAhead ? "on" : "off",
            presentAhead ? "on" : "off");
