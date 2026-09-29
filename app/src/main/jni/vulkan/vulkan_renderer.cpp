@@ -572,7 +572,9 @@ std::string VulkanRenderer::pacingText() {
     std::string details;
     char text[96];
     if (pacer_.mode() == PacingMode::HostTimed && pacer_.timeline().hasEstimate()) {
-        snprintf(text, sizeof(text), "%.1f ms buffer", (pacer_.timeline().bufferNs() + pacer_.scheduleDelayNs()) / 1e6);
+        // The display's measured refresh rate, to compare with the host's frame rate
+        snprintf(text, sizeof(text), "%.1f ms buffer, %.2f Hz", (pacer_.timeline().bufferNs() + pacer_.scheduleDelayNs()) / 1e6,
+                 1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));
         headline = text;
         if (pacer_.phaseLocked()) {
             snprintf(text, sizeof(text), "locked at %d vsync%s/frame", static_cast<int>(pacer_.slotVsyncs()),
