@@ -655,7 +655,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         Surface decoderSurface = vulkanRenderer != null ? vulkanRenderer.getDecoderSurface() : outputSurface;
         videoDecoder.configure(format, decoderSurface, null, 0);
 
-        try { applySurfaceFrameRate(outputSurface, this.refreshRate); } catch (Throwable ignored) {};
+        // The stream's frame rate on the surface, for the direct renderer. The Vulkan renderer paces
+        // frames against the display's full refresh rate, which Game asks for: at the stream's
+        // rate, a 60 FPS stream on a 120 Hz display drops the display to 60 Hz, and every vsync
+        // of present delay costs twice as much.
+        if (vulkanRenderer == null) {
+            try { applySurfaceFrameRate(outputSurface, this.refreshRate); } catch (Throwable ignored) {};
+        }
 
         configuredFormat = format;
 
@@ -846,8 +852,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             return -4;
         }
         LimeLog.info("Decoding PyroWave in the Vulkan renderer");
-
-        try { applySurfaceFrameRate(outputSurface, this.refreshRate); } catch (Throwable ignored) {};
         return 0;
     }
 
