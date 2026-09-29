@@ -14,6 +14,7 @@ import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.video.CrashListener;
+import com.limelight.binding.video.DisplayRefreshMeter;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.PerfOverlayListener;
@@ -140,6 +141,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private String appName;
     private NvApp app;
     private float desiredRefreshRate;
+    private StreamConfiguration streamConfig;
+    private boolean manualRefreshRateX100;
+    private DisplayRefreshMeter refreshMeter;
 
     private InputCaptureProvider inputCaptureProvider;
     private int modifierFlags = 0;
@@ -544,8 +548,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
-        // Use the "actual display refresh rate" preference for the X100 refresh rate
-        //int refreshRateX100 = (int)(displayRefreshRate * 100);
+        // Use the "actual display refresh rate" preference for the X100 refresh rate. Without
+        // one, it's measured once the display mode is set (see startConnection()).
         int refreshRateX100 = 0;
         if (prefConfig.actualDisplayRefreshRate != null && !prefConfig.actualDisplayRefreshRate.isBlank()) {
             float actualDisplayRefreshRateFloat = Float.parseFloat(prefConfig.actualDisplayRefreshRate);
@@ -553,6 +557,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 refreshRateX100 = (int)(actualDisplayRefreshRateFloat * 100);
             }
         }
+        manualRefreshRateX100 = refreshRateX100 > 0;
 
         var configBuilder = new StreamConfiguration.Builder()
                 .setResolution(prefConfig.width, prefConfig.height)
@@ -577,6 +582,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         StreamConfiguration config = configBuilder.build();
+        streamConfig = config;
 
         // Initialize the connection
         conn = new NvConnection(getApplicationContext(),
@@ -2757,20 +2763,47 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
 
-            // Show stream configuration to user
-            String configMessage = String.format(Locale.getDefault(),
-                "Streaming %dx%d @ %d FPS, %d Mbps%s",
-                prefConfig.width,
-                prefConfig.height,
-                prefConfig.fps,
-                prefConfig.bitrate / 1000,
-                prefConfig.enableHdr ? ", HDR" : "");
-            Toast.makeText(Game.this, configMessage, Toast.LENGTH_LONG).show();
-
-            decoderRenderer.setRenderTarget(holder);
-            conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
-                    decoderRenderer, Game.this);
+            // Measure the display's actual refresh rate first, now that its mode is set, so the
+            // host can be asked for a frame rate that lines up with our vsyncs
+            refreshMeter = DisplayRefreshMeter.measure(getWindowManager().getDefaultDisplay(),
+                    refreshHz -> {
+                        refreshMeter = null;
+                        startConnection(refreshHz);
+                    });
         }
+    }
+
+    private void startConnection(double measuredRefreshHz) {
+        if (isFinishing() || conn == null) {
+            return;
+        }
+
+        if (!manualRefreshRateX100) {
+            double hostRate = DisplayRefreshMeter.streamMatchedRate(measuredRefreshHz, streamConfig.getRefreshRate());
+            if (hostRate > 0) {
+                streamConfig.setClientRefreshRateX100((int) Math.round(hostRate * 100));
+                LimeLog.info(String.format(Locale.ROOT, "Asking the host for %.2f FPS", hostRate));
+            }
+        }
+
+        // Show stream configuration to user, with the exact rate the host was asked for
+        String hostRateText = "";
+        if (streamConfig.getClientRefreshRateX100() > 0) {
+            hostRateText = String.format(Locale.getDefault(), " (%.2fHz)", streamConfig.getClientRefreshRateX100() / 100.0);
+        }
+        String configMessage = String.format(Locale.getDefault(),
+            "Streaming %dx%d @ %d FPS%s, %d Mbps%s",
+            prefConfig.width,
+            prefConfig.height,
+            prefConfig.fps,
+            hostRateText,
+            prefConfig.bitrate / 1000,
+            prefConfig.enableHdr ? ", HDR" : "");
+        Toast.makeText(Game.this, configMessage, Toast.LENGTH_LONG).show();
+
+        decoderRenderer.setRenderTarget(streamView.getHolder());
+        conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
+                decoderRenderer, Game.this);
     }
 
     @Override
@@ -2813,6 +2846,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public void surfaceDestroyed(SurfaceHolder holder) {
         if (!surfaceCreated) {
             throw new IllegalStateException("Surface destroyed before creation!");
+        }
+
+        if (refreshMeter != null) {
+            // The connection hadn't started yet. It starts when the surface is back.
+            refreshMeter.cancel();
+            refreshMeter = null;
+            attemptedConnection = false;
         }
 
         if (attemptedConnection) {

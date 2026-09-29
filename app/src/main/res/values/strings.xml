@@ -346,7 +346,7 @@
 
     <!-- New strings -->
     <string name="title_actual_display_refresh_rate">Actual display refresh rate</string>
-    <string name="summary_actual_display_refresh_rate">If your client refresh rate does not exactly match your host refresh rate, use this value to request a custom capture rate on the host. (Experimental)</string>
+    <string name="summary_actual_display_refresh_rate">Leave at 0 to measure the display\'s refresh rate when the stream starts and ask the host for a frame rate that lines up with it (143.65 FPS for a 144 FPS stream on a 143.65 Hz panel, 71.83 for 72 FPS). Enter a rate to send that instead. (Experimental)</string>
     <string name="title_checkbox_ultra_low_latency">Ultra low latency (Experimental)</string>
     <string name="summary_checkbox_ultra_low_latency">Apply additional decoder flags for SD8Gen2/8(s)Gen3/8Elite, Exynos and MTK devices that may reduce latency</string>
     
