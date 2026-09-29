@@ -1,5 +1,6 @@
 #include <jni.h>
 #include <android/native_window_jni.h>
+#include <vector>
 
 #include "vulkan_renderer.h"
 
@@ -17,11 +18,16 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeProbe(JNIEnv*, jclas
     return VulkanRenderer::probe() ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeProbePyrowave(JNIEnv*, jclass) {
+    return VulkanRenderer::probePyrowave() ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
         JNIEnv* env, jclass, jobject outputSurface, jint streamWidth, jint streamHeight, jint streamFps,
         jint framePacing, jint jitterBuffer, jint ditherMode, jint colorspace, jboolean fullRange, jboolean tenBit,
-        jfloat displayRefreshHz, jstring traceDirectory) {
+        jboolean pyrowave, jfloat displayRefreshHz, jstring traceDirectory) {
     ANativeWindow* output = ANativeWindow_fromSurface(env, outputSurface);
     if (!output) {
         return 0;
@@ -37,6 +43,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
     config.colorspace = colorspace;
     config.fullRange = fullRange;
     config.tenBit = tenBit;
+    config.pyrowave = pyrowave;
     config.displayRefreshHz = displayRefreshHz;
     if (traceDirectory) {
         const char* chars = env->GetStringUTFChars(traceDirectory, nullptr);
@@ -78,6 +85,25 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetHdrMode(
     else {
         renderer->setHdrMode(enabled, nullptr, 0);
     }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
+        JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs) {
+    VulkanRenderer* renderer = fromHandle(handle);
+    if (!renderer || length <= 0) {
+        return JNI_FALSE;
+    }
+
+    // Copied out rather than held with critical access, since the decode can wait on the GPU. A
+    // frame is at most a few MB, so the copy is cheap next to the decode.
+    static thread_local std::vector<uint8_t> frame;
+    frame.resize(static_cast<size_t>(length));
+    env->GetByteArrayRegion(data, 0, length, reinterpret_cast<jbyte*>(frame.data()));
+    if (env->ExceptionCheck()) {
+        return JNI_FALSE;
+    }
+    return renderer->submitPyrowaveFrame(frame.data(), frame.size(), hostPtsUs * 1000) ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

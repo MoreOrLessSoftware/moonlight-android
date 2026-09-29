@@ -143,6 +143,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private boolean wantVulkan;
     private volatile VulkanRendererBridge vulkanRenderer;
 
+    // A PyroWave stream: no MediaCodec, the Vulkan renderer decodes it
+    private boolean pyrowave;
+    private long pyrowaveDecodeNs;
+
     // Direct renderer in the host frame timing pacing mode
     private HostFrameTimeline hostFrameTimeline;
 
@@ -406,6 +410,17 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
         }
 
+        // Direct submit hands frames over on the receive thread, which for MediaCodec is just
+        // queuing a buffer. PyroWave decodes, and may even present, as frames are handed over,
+        // and that would keep the receive thread from draining the socket: packets overflow and
+        // whole frames are lost. getCapabilities() comes before the codec is known, so this
+        // goes by whether PyroWave was asked for.
+        if (directSubmit && prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE &&
+                isPyrowaveSupported()) {
+            directSubmit = false;
+            LimeLog.info("Not using direct submit, since the stream may be PyroWave");
+        }
+
         // Use the larger of the two slices per frame preferences
         optimalSlicesPerFrame = (byte)Math.max(avcOptimalSlicesPerFrame, hevcOptimalSlicesPerFrame);
         LimeLog.info("Requesting "+optimalSlicesPerFrame+" slices per frame");
@@ -452,6 +467,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     public boolean isAv1Supported() {
         return av1Decoder != null;
+    }
+
+    // PyroWave decodes in the Vulkan renderer, whichever renderer is selected for other codecs
+    public boolean isPyrowaveSupported() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && VulkanRendererBridge.isPyrowaveSupported();
     }
 
     public boolean isAv1Main10Supported() {
@@ -578,7 +598,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 getPreferredColorSpace(),
                 getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL,
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
-                getDisplayRefreshRate(), getPacerTraceDirectory());
+                pyrowave, getDisplayRefreshRate(), getPacerTraceDirectory());
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");
             if (currentHdrMetadata != null) {
@@ -809,7 +829,26 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         this.videoFormat = format;
         this.refreshRate = redrawRate;
 
+        if ((format & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            return setupPyrowave();
+        }
+
         return initializeDecoder(false);
+    }
+
+    private int setupPyrowave() {
+        pyrowave = true;
+
+        Surface outputSurface = renderTarget.getSurface();
+        vulkanRenderer = createVulkanRenderer(outputSurface);
+        if (vulkanRenderer == null) {
+            LimeLog.severe("PyroWave decoding failed to start");
+            return -4;
+        }
+        LimeLog.info("Decoding PyroWave in the Vulkan renderer");
+
+        try { applySurfaceFrameRate(outputSurface, this.refreshRate); } catch (Throwable ignored) {};
+        return 0;
     }
 
     // All threads that interact with the MediaCodec instance must call this function regularly!
@@ -1338,6 +1377,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void start() {
+        // PyroWave frames are decoded as they're submitted, and the renderer paces them
+        if (pyrowave) {
+            return;
+        }
+
         startRendererThread();
         startChoreographerThread();
     }
@@ -1399,7 +1443,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Wait for the renderer thread to shut down
         try {
-            rendererThread.join();
+            if (rendererThread != null) {
+                rendererThread.join();
+            }
         } catch (InterruptedException e) {
             e.printStackTrace();
 
@@ -1412,7 +1458,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void cleanup() {
-        videoDecoder.release();
+        if (videoDecoder != null) {
+            videoDecoder.release();
+        }
 
         // Only once the decoder has let go of the renderer's surface
         if (vulkanRenderer != null) {
@@ -1426,6 +1474,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // The Vulkan renderer switches its output between SDR and HDR10 itself
         if (vulkanRenderer != null) {
             vulkanRenderer.setHdrMode(enabled, hdrMetadata);
+        }
+
+        // There's no MediaCodec to restart for PyroWave
+        if (pyrowave) {
+            return;
         }
 
         // HDR metadata is only supported in Android 7.0 and later, so don't bother
@@ -1568,6 +1621,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     decoder = hevcDecoder.getName();
                 } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
                     decoder = av1Decoder.getName();
+                } else if (pyrowave) {
+                    decoder = "PyroWave";
                 } else {
                     decoder = "(Unknown decoder)";
                 }
@@ -1643,6 +1698,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             lastWindowVideoStats.copy(activeWindowVideoStats);
             activeWindowVideoStats.clear();
             activeWindowVideoStats.measurementStartTimestamp = SystemClock.uptimeMillis();
+        }
+
+        if (pyrowave) {
+            return submitPyrowaveFrame(decodeUnitData, decodeUnitLength, frameHostProcessingLatency,
+                    receiveTimeUs, enqueueTimeUs, presentationTimeUs);
         }
 
         boolean csdSubmittedForThisFrame = false;
@@ -1855,26 +1915,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
         }
 
-        if (frameHostProcessingLatency != 0) {
-            if (activeWindowVideoStats.minHostProcessingLatency != 0) {
-                activeWindowVideoStats.minHostProcessingLatency = (char) Math.min(activeWindowVideoStats.minHostProcessingLatency, frameHostProcessingLatency);
-            } else {
-                activeWindowVideoStats.minHostProcessingLatency = frameHostProcessingLatency;
-            }
-            activeWindowVideoStats.framesWithHostProcessingLatency += 1;
-        }
-        activeWindowVideoStats.maxHostProcessingLatency = (char) Math.max(activeWindowVideoStats.maxHostProcessingLatency, frameHostProcessingLatency);
-        activeWindowVideoStats.totalHostProcessingLatency += frameHostProcessingLatency;
-
-        activeWindowVideoStats.totalFramesReceived++;
-        activeWindowVideoStats.totalFrames++;
-
-        if (!FRAME_RENDER_TIME_ONLY) {
-            // Count time from first packet received to enqueue time as receive time
-            // We will count DU queue time as part of decoding, because it is directly
-            // caused by a slow decoder.
-            activeWindowVideoStats.totalTimeMs += (enqueueTimeUs - receiveTimeUs) / 1000;
-        }
+        recordFrameReceived(frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
 
         if (!fetchNextInputBuffer()) {
             return MoonBridge.DR_NEED_IDR;
@@ -1931,6 +1972,57 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             return MoonBridge.DR_NEED_IDR;
         }
 
+        return MoonBridge.DR_OK;
+    }
+
+    private void recordFrameReceived(char frameHostProcessingLatency, long receiveTimeUs, long enqueueTimeUs) {
+        if (frameHostProcessingLatency != 0) {
+            if (activeWindowVideoStats.minHostProcessingLatency != 0) {
+                activeWindowVideoStats.minHostProcessingLatency = (char) Math.min(activeWindowVideoStats.minHostProcessingLatency, frameHostProcessingLatency);
+            } else {
+                activeWindowVideoStats.minHostProcessingLatency = frameHostProcessingLatency;
+            }
+            activeWindowVideoStats.framesWithHostProcessingLatency += 1;
+        }
+        activeWindowVideoStats.maxHostProcessingLatency = (char) Math.max(activeWindowVideoStats.maxHostProcessingLatency, frameHostProcessingLatency);
+        activeWindowVideoStats.totalHostProcessingLatency += frameHostProcessingLatency;
+
+        activeWindowVideoStats.totalFramesReceived++;
+        activeWindowVideoStats.totalFrames++;
+
+        if (!FRAME_RENDER_TIME_ONLY) {
+            // Count time from first packet received to enqueue time as receive time
+            // We will count DU queue time as part of decoding, because it is directly
+            // caused by a slow decoder.
+            activeWindowVideoStats.totalTimeMs += (enqueueTimeUs - receiveTimeUs) / 1000;
+        }
+    }
+
+    private int submitPyrowaveFrame(byte[] decodeUnitData, int decodeUnitLength, char frameHostProcessingLatency,
+                                    long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs) {
+        recordFrameReceived(frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
+        numFramesIn++;
+
+        VulkanRendererBridge vulkan = vulkanRenderer;
+        if (vulkan == null) {
+            return MoonBridge.DR_OK;
+        }
+        vulkan.noteFrameReceived(presentationTimeUs, receiveTimeUs, enqueueTimeUs);
+
+        // Decoding is queued on the GPU, so this is the CPU's share of it: parsing the frame
+        // and recording the decode. Kept in nanoseconds, since frames take well under 1 ms.
+        long startNs = System.nanoTime();
+        vulkan.submitPyrowaveFrame(decodeUnitData, decodeUnitLength, presentationTimeUs);
+        pyrowaveDecodeNs += System.nanoTime() - startNs;
+        long decodeMs = pyrowaveDecodeNs / 1_000_000L;
+        pyrowaveDecodeNs -= decodeMs * 1_000_000L;
+        activeWindowVideoStats.decoderTimeMs += decodeMs;
+        if (!USE_FRAME_RENDER_TIME) {
+            activeWindowVideoStats.totalTimeMs += decodeMs;
+        }
+
+        // Every frame decodes on its own, so a frame that couldn't be decoded needs no IDR
+        // frame to recover from
         return MoonBridge.DR_OK;
     }
 

@@ -27,6 +27,7 @@ namespace {
         float uvClamp[4];
         float params[4];
         float params2[4];
+        float ycbcr[4];
     };
 
     constexpr float kOutputPassthrough = 0.0f;
@@ -153,53 +154,6 @@ namespace {
         return true;
     }
 
-    VkInstance createVkInstance(VkApi& vk, bool* hasColorspaceExt) {
-        uint32_t version = 0;
-        if (vk.vkEnumerateInstanceVersion(&version) != VK_SUCCESS || version < VK_API_VERSION_1_1) {
-            ALOGI("Vulkan instance version too old");
-            return VK_NULL_HANDLE;
-        }
-
-        uint32_t count = 0;
-        vk.vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
-        std::vector<VkExtensionProperties> available(count);
-        vk.vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
-
-        std::vector<const char*> extensions = {
-            VK_KHR_SURFACE_EXTENSION_NAME,
-            VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
-        };
-        for (const char* name : extensions) {
-            if (!hasExtension(available, name)) {
-                ALOGI("Instance lacks %s", name);
-                return VK_NULL_HANDLE;
-            }
-        }
-
-        // Needed for HDR10 swapchains
-        *hasColorspaceExt = hasExtension(available, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
-        if (*hasColorspaceExt) {
-            extensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
-        }
-
-        VkApplicationInfo app {VK_STRUCTURE_TYPE_APPLICATION_INFO};
-        app.pApplicationName = "Moonlight";
-        app.pEngineName = "Moonlight";
-        app.apiVersion = VK_API_VERSION_1_1;
-
-        VkInstanceCreateInfo info {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
-        info.pApplicationInfo = &app;
-        info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-        info.ppEnabledExtensionNames = extensions.data();
-
-        VkInstance instance = VK_NULL_HANDLE;
-        VkResult result = vk.vkCreateInstance(&info, nullptr, &instance);
-        if (result != VK_SUCCESS) {
-            ALOGE("vkCreateInstance failed: %d", result);
-            return VK_NULL_HANDLE;
-        }
-        return instance;
-    }
 }
 
 bool VulkanRenderer::ConversionKey::operator==(const ConversionKey& other) const {
@@ -209,6 +163,99 @@ bool VulkanRenderer::ConversionKey::operator==(const ConversionKey& other) const
            components.b == other.components.b && components.a == other.components.a &&
            xChromaOffset == other.xChromaOffset && yChromaOffset == other.yChromaOffset &&
            filter == other.filter;
+}
+
+VkInstance VulkanRenderer::createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup) {
+    // PyroWave's Vulkan backend needs 1.3
+    const uint32_t apiVersion = pyrowave ? VK_API_VERSION_1_3 : VK_API_VERSION_1_1;
+    uint32_t version = 0;
+    if (vk.vkEnumerateInstanceVersion(&version) != VK_SUCCESS || version < apiVersion) {
+        ALOGI("Vulkan instance version too old");
+        return VK_NULL_HANDLE;
+    }
+
+    uint32_t count = 0;
+    vk.vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> available(count);
+    vk.vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
+
+    setup.extensions = {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
+    };
+    for (const char* name : setup.extensions) {
+        if (!hasExtension(available, name)) {
+            ALOGI("Instance lacks %s", name);
+            return VK_NULL_HANDLE;
+        }
+    }
+
+    // Needed for HDR10 swapchains
+    *hasColorspaceExt = hasExtension(available, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+    if (*hasColorspaceExt) {
+        setup.extensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+    }
+
+    setup.app.pApplicationName = "Moonlight";
+    setup.app.pEngineName = "Moonlight";
+    setup.app.apiVersion = apiVersion;
+
+    setup.info.pApplicationInfo = &setup.app;
+    setup.info.enabledExtensionCount = static_cast<uint32_t>(setup.extensions.size());
+    setup.info.ppEnabledExtensionNames = setup.extensions.data();
+
+    VkInstance instance = VK_NULL_HANDLE;
+    VkResult result = vk.vkCreateInstance(&setup.info, nullptr, &instance);
+    if (result != VK_SUCCESS) {
+        ALOGE("vkCreateInstance failed: %d", result);
+        return VK_NULL_HANDLE;
+    }
+    return instance;
+}
+
+bool VulkanRenderer::prepareDevice(VkApi& vk, VkPhysicalDevice device, uint32_t queueFamily, bool pyrowave,
+                                   bool hdrMetadata, bool displayTiming, DeviceSetup& setup) {
+    uint32_t familyCount = 0;
+    vk.vkGetPhysicalDeviceQueueFamilyProperties(device, &familyCount, nullptr);
+    std::vector<VkQueueFamilyProperties> families(familyCount);
+    vk.vkGetPhysicalDeviceQueueFamilyProperties(device, &familyCount, families.data());
+
+    setup.queue.queueFamilyIndex = queueFamily;
+    setup.queue.queueCount = 1;
+    if (pyrowave && queueFamily < familyCount && families[queueFamily].queueCount >= 2) {
+        setup.queue.queueCount = 2;
+        setup.priorities[0] = 0.0f;
+    }
+    setup.queue.pQueuePriorities = setup.priorities;
+
+    setup.extensions.assign(std::begin(kRequiredDeviceExtensions), std::end(kRequiredDeviceExtensions));
+    if (hdrMetadata) {
+        setup.extensions.push_back(VK_EXT_HDR_METADATA_EXTENSION_NAME);
+    }
+    // When frames actually reach the screen, for pacer traces
+    if (displayTiming) {
+        setup.extensions.push_back(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+    }
+
+    if (pyrowave) {
+        // PyroWave sees what the device has enabled, so give it all the device supports
+        VkPhysicalDeviceProperties props;
+        vk.vkGetPhysicalDeviceProperties(device, &props);
+        if (props.apiVersion < VK_API_VERSION_1_3 || !setup.pyrowave.query(vk, device)) {
+            ALOGI("%s can't run PyroWave", props.deviceName);
+            return false;
+        }
+        setup.info.pNext = &setup.pyrowave.features2;
+    }
+    else {
+        setup.ycbcr.samplerYcbcrConversion = VK_TRUE;
+        setup.info.pNext = &setup.ycbcr;
+    }
+    setup.info.queueCreateInfoCount = 1;
+    setup.info.pQueueCreateInfos = &setup.queue;
+    setup.info.enabledExtensionCount = static_cast<uint32_t>(setup.extensions.size());
+    setup.info.ppEnabledExtensionNames = setup.extensions.data();
+    return true;
 }
 
 bool VulkanRenderer::probe() {
@@ -222,7 +269,8 @@ bool VulkanRenderer::probe() {
     }
 
     bool hasColorspaceExt = false;
-    VkInstance instance = createVkInstance(vk, &hasColorspaceExt);
+    InstanceSetup setup;
+    VkInstance instance = createVkInstance(vk, false, &hasColorspaceExt, setup);
     if (instance == VK_NULL_HANDLE) {
         return false;
     }
@@ -243,6 +291,82 @@ bool VulkanRenderer::probe() {
 
     vk.vkDestroyInstance(instance, nullptr);
     return suitable;
+}
+
+bool VulkanRenderer::probePyrowave() {
+    VkApi vk;
+    if (!loadNdkApi() || !PyrowaveDecoder::loadLibrary() || !vk.loadGlobal()) {
+        return false;
+    }
+
+    bool hasColorspaceExt = false;
+    InstanceSetup instanceSetup;
+    VkInstance instance = createVkInstance(vk, true, &hasColorspaceExt, instanceSetup);
+    if (instance == VK_NULL_HANDLE) {
+        return false;
+    }
+
+    // Set PyroWave up on a device made as the renderer would make it, and have it make a
+    // decoder there. That's the only sure way to know it can run.
+    bool supported = false;
+    if (vk.loadInstance(instance)) {
+        uint32_t count = 0;
+        vk.vkEnumeratePhysicalDevices(instance, &count, nullptr);
+        std::vector<VkPhysicalDevice> devices(count);
+        vk.vkEnumeratePhysicalDevices(instance, &count, devices.data());
+        for (VkPhysicalDevice physicalDevice : devices) {
+            if (!deviceIsSuitable(vk, physicalDevice)) {
+                continue;
+            }
+
+            uint32_t familyCount = 0;
+            vk.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &familyCount, nullptr);
+            std::vector<VkQueueFamilyProperties> families(familyCount);
+            vk.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &familyCount, families.data());
+            uint32_t family = 0;
+            while (family < familyCount && !(families[family].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+                family++;
+            }
+
+            DeviceSetup deviceSetup;
+            if (family == familyCount ||
+                    !prepareDevice(vk, physicalDevice, family, true, false, false, deviceSetup)) {
+                continue;
+            }
+            VkDevice device = VK_NULL_HANDLE;
+            if (vk.vkCreateDevice(physicalDevice, &deviceSetup.info, nullptr, &device) != VK_SUCCESS) {
+                continue;
+            }
+            if (vk.loadDevice(device)) {
+                std::mutex queueMutex;
+                PyrowaveDecoder::DeviceInfo info;
+                info.instance = instance;
+                info.physicalDevice = physicalDevice;
+                info.device = device;
+                info.instanceInfo = &instanceSetup.info;
+                info.deviceInfo = &deviceSetup.info;
+                vk.vkGetDeviceQueue(device, family, 0, &info.queue);
+                info.queueFamily = family;
+                info.queueMutex = &queueMutex;
+                supported = PyrowaveDecoder::create(vk, info, 64, 64, false) != nullptr;
+                vk.vkDeviceWaitIdle(device);
+                vk.vkDestroyDevice(device, nullptr);
+            }
+            else {
+                auto destroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(
+                        vk.vkGetInstanceProcAddr(instance, "vkDestroyDevice"));
+                if (destroyDevice) {
+                    destroyDevice(device, nullptr);
+                }
+            }
+            if (supported) {
+                break;
+            }
+        }
+    }
+
+    vk.vkDestroyInstance(instance, nullptr);
+    return supported;
 }
 
 std::unique_ptr<VulkanRenderer> VulkanRenderer::create(ANativeWindow* output, const RendererConfig& config) {
@@ -271,7 +395,10 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     outputWindow_ = output;
 
     if (!vk_.loadGlobal() || !createInstance() || !pickDevice() || !createDevice() ||
-            !createFrameResources() || !createShaderModules() || !createImageReader()) {
+            !createFrameResources() || !createShaderModules()) {
+        return false;
+    }
+    if (config_.pyrowave ? !createPyrowaveDecoder() : !createImageReader()) {
         return false;
     }
 
@@ -298,7 +425,7 @@ bool VulkanRenderer::init(ANativeWindow* output) {
 }
 
 bool VulkanRenderer::createInstance() {
-    instance_ = createVkInstance(vk_, &hasColorspaceExt_);
+    instance_ = createVkInstance(vk_, config_.pyrowave, &hasColorspaceExt_, instanceSetup_);
     if (instance_ == VK_NULL_HANDLE || !vk_.loadInstance(instance_)) {
         return false;
     }
@@ -321,6 +448,11 @@ bool VulkanRenderer::pickDevice() {
 
     for (VkPhysicalDevice device : devices) {
         if (!deviceIsSuitable(vk_, device)) {
+            continue;
+        }
+        VkPhysicalDeviceProperties deviceProps;
+        vk_.vkGetPhysicalDeviceProperties(device, &deviceProps);
+        if (config_.pyrowave && deviceProps.apiVersion < VK_API_VERSION_1_3) {
             continue;
         }
 
@@ -358,33 +490,13 @@ bool VulkanRenderer::pickDevice() {
 }
 
 bool VulkanRenderer::createDevice() {
-    const float priority = 1.0f;
-    VkDeviceQueueCreateInfo queueInfo {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
-    queueInfo.queueFamilyIndex = queueFamily_;
-    queueInfo.queueCount = 1;
-    queueInfo.pQueuePriorities = &priority;
-
-    std::vector<const char*> extensions(std::begin(kRequiredDeviceExtensions), std::end(kRequiredDeviceExtensions));
-    if (hasHdrMetadataExt_) {
-        extensions.push_back(VK_EXT_HDR_METADATA_EXTENSION_NAME);
+    if (!prepareDevice(vk_, physicalDevice_, queueFamily_, config_.pyrowave, hasHdrMetadataExt_, hasDisplayTimingExt_,
+                       deviceSetup_)) {
+        return false;
     }
-    // When frames actually reach the screen, for pacer traces
-    if (hasDisplayTimingExt_) {
-        extensions.push_back(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
-    }
-
-    VkPhysicalDeviceSamplerYcbcrConversionFeatures ycbcr {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES};
-    ycbcr.samplerYcbcrConversion = VK_TRUE;
-
-    VkDeviceCreateInfo info {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-    info.pNext = &ycbcr;
-    info.queueCreateInfoCount = 1;
-    info.pQueueCreateInfos = &queueInfo;
-    info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    info.ppEnabledExtensionNames = extensions.data();
 
     VkDevice device = VK_NULL_HANDLE;
-    VkResult result = vk_.vkCreateDevice(physicalDevice_, &info, nullptr, &device);
+    VkResult result = vk_.vkCreateDevice(physicalDevice_, &deviceSetup_.info, nullptr, &device);
     if (result != VK_SUCCESS) {
         ALOGE("vkCreateDevice failed: %d", result);
         return false;
@@ -405,7 +517,13 @@ bool VulkanRenderer::createDevice() {
         hasDisplayTimingExt_ = false;
     }
 
-    vk_.vkGetDeviceQueue(device_, queueFamily_, 0, &queue_);
+    if (deviceSetup_.queue.queueCount >= 2) {
+        vk_.vkGetDeviceQueue(device_, queueFamily_, 0, &decodeQueue_);
+        vk_.vkGetDeviceQueue(device_, queueFamily_, 1, &queue_);
+    }
+    else {
+        vk_.vkGetDeviceQueue(device_, queueFamily_, 0, &queue_);
+    }
     return true;
 }
 
@@ -446,7 +564,97 @@ bool VulkanRenderer::createShaderModules() {
     }
     info.codeSize = sizeof(kVideoFragSpv);
     info.pCode = kVideoFragSpv;
-    return vk_.vkCreateShaderModule(device_, &info, nullptr, &fragShader_) == VK_SUCCESS;
+    if (vk_.vkCreateShaderModule(device_, &info, nullptr, &fragShader_) != VK_SUCCESS) {
+        return false;
+    }
+    if (config_.pyrowave) {
+        info.codeSize = sizeof(kVideoPlanarFragSpv);
+        info.pCode = kVideoPlanarFragSpv;
+        if (vk_.vkCreateShaderModule(device_, &info, nullptr, &planarFragShader_) != VK_SUCCESS) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool VulkanRenderer::createPyrowaveDecoder() {
+    PyrowaveDecoder::DeviceInfo info;
+    info.instance = instance_;
+    info.physicalDevice = physicalDevice_;
+    info.device = device_;
+    info.instanceInfo = &instanceSetup_.info;
+    info.deviceInfo = &deviceSetup_.info;
+    info.queue = decodeQueue_ ? decodeQueue_ : queue_;
+    info.queueFamily = queueFamily_;
+    info.queueMutex = &queueMutex_;
+    if (decodeQueue_) {
+        ALOGI("PyroWave decodes on its own queue, below rendering");
+    }
+    pyrowave_ = PyrowaveDecoder::create(vk_, info, config_.streamWidth, config_.streamHeight, config_.tenBit);
+    if (!pyrowave_) {
+        return false;
+    }
+
+    if (!vk_.vkWaitSemaphores) {
+        ALOGE("vkWaitSemaphores not available");
+        return false;
+    }
+
+    const VkDescriptorSetLayout setLayout = pyrowave_->setLayout();
+    VkPushConstantRange range {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants)};
+    VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    layoutInfo.setLayoutCount = 1;
+    layoutInfo.pSetLayouts = &setLayout;
+    layoutInfo.pushConstantRangeCount = 1;
+    layoutInfo.pPushConstantRanges = &range;
+    if (vk_.vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &planarPipelineLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    pyrowaveWaiter_ = std::thread(&VulkanRenderer::pyrowaveWaiterMain, this);
+    return true;
+}
+
+void VulkanRenderer::pyrowaveWaiterMain() {
+    // Frames are timed from here, as they are on the image reader's thread
+    raiseThreadPriority("PyroWave wait");
+
+    for (;;) {
+        FramePtr frame;
+        {
+            std::unique_lock<std::mutex> lock(decodingMutex_);
+            decodingCv_.wait(lock, [this] { return decodingQuit_ || !decoding_.empty(); });
+            if (decodingQuit_) {
+                return;
+            }
+            frame = std::move(decoding_.front());
+            decoding_.pop_front();
+        }
+
+        const VkSemaphore timeline = pyrowave_->timeline();
+        VkSemaphoreWaitInfo waitInfo {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &timeline;
+        waitInfo.pValues = &frame->readyValue;
+        const VkResult result = vk_.vkWaitSemaphores(device_, &waitInfo, kFenceTimeoutNs);
+        if (result != VK_SUCCESS) {
+            ALOGE("PyroWave decode didn't finish: %d", result);
+            continue;
+        }
+
+        frame->timing.arrivalNs = nowNs();
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            trace_.decoded(frame->timing.hostPtsNs, frame->decodeStartNs, frame->decodeQueuedNs,
+                           frame->timing.arrivalNs);
+        }
+        enqueueFrame(std::move(frame));
+    }
+}
+
+void VulkanRenderer::waitIdle() {
+    std::lock_guard<std::mutex> lock(queueMutex_);
+    vk_.vkDeviceWaitIdle(device_);
 }
 
 bool VulkanRenderer::createImageReader() {
@@ -472,6 +680,16 @@ bool VulkanRenderer::createImageReader() {
 VulkanRenderer::~VulkanRenderer() {
     stop();
 
+    if (pyrowaveWaiter_.joinable()) {
+        {
+            std::lock_guard<std::mutex> lock(decodingMutex_);
+            decodingQuit_ = true;
+        }
+        decodingCv_.notify_one();
+        pyrowaveWaiter_.join();
+        decoding_.clear();
+    }
+
     if (reader_) {
         ndk_->AImageReader_setImageListener(reader_, nullptr);
     }
@@ -486,7 +704,7 @@ VulkanRenderer::~VulkanRenderer() {
     pending.clear();
 
     if (device_) {
-        vk_.vkDeviceWaitIdle(device_);
+        waitIdle();
     }
     current_.reset();
     for (auto& frame : slotFrames_) {
@@ -494,6 +712,10 @@ VulkanRenderer::~VulkanRenderer() {
     }
 
     if (device_) {
+        // Every frame has given its planes back
+        pyrowave_.reset();
+        if (planarPipelineLayout_) vk_.vkDestroyPipelineLayout(device_, planarPipelineLayout_, nullptr);
+        if (planarFragShader_) vk_.vkDestroyShaderModule(device_, planarFragShader_, nullptr);
         destroyConversion();
         for (int i = 0; i < kFramesInFlight; i++) {
             if (fences_[i]) vk_.vkDestroyFence(device_, fences_[i], nullptr);
@@ -534,13 +756,10 @@ void VulkanRenderer::stop() {
     std::lock_guard<std::mutex> renderLock(renderMutex_);
     renderStopped_ = true;
     if (device_) {
-        vk_.vkDeviceWaitIdle(device_);
+        waitIdle();
         destroySwapchain();
         if (renderPass_) {
-            if (pipeline_) {
-                vk_.vkDestroyPipeline(device_, pipeline_, nullptr);
-                pipeline_ = VK_NULL_HANDLE;
-            }
+            destroyPipelines();
             vk_.vkDestroyRenderPass(device_, renderPass_, nullptr);
             renderPass_ = VK_NULL_HANDLE;
         }
@@ -603,7 +822,11 @@ void VulkanRenderer::setHdrMode(bool enabled, const uint8_t* metadata, size_t me
 std::string VulkanRenderer::rendererText() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    return "Vulkan " + outputDescription_;
+    std::string text = "Vulkan " + outputDescription_;
+    if (pyrowave_) {
+        text += pyrowave_->fragmentPath() ? ", fragment path" : ", compute path";
+    }
+    return text;
 }
 
 std::string VulkanRenderer::pacingText() {
@@ -697,36 +920,80 @@ void VulkanRenderer::onImageAvailable() {
             frame->crop = {0, 0, 0, 0};
         }
 
-        std::deque<FramePtr> dropped;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (closing_) {
-                return;
-            }
-            pacer_.onFrameArrived(frame->timing);
-            trace_.frame(frame->timing, pending_.size() + 1, queueOverflowDrops_);
-            pending_.push_back(std::move(frame));
-            while (pending_.size() > pacer_.maxQueued()) {
-                dropped.push_back(std::move(pending_.front()));
-                pending_.pop_front();
-                queueOverflowDrops_++;
-            }
-        }
-
-        if (presentAhead_ && !presentOnArrival_) {
-            // Presented from this thread rather than waking the render thread for it: on a
-            // Pixel 10 Pro, the render thread took 1 ms to wake at the median and over 3 ms one
-            // time in ten, time the compositor then didn't have
-            std::lock_guard<std::mutex> renderLock(renderMutex_);
-            if (!renderStopped_) {
-                presentAhead();
-            }
-        }
-        else if (presentOnArrival_) {
-            wake(kWakeFrame);
-        }
-        // Frames in `dropped` are released here, outside the lock
+        enqueueFrame(std::move(frame));
     }
+}
+
+bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, int64_t hostPtsNs) {
+    // Frames queue up behind this thread, so it gets the render thread's priority
+    static thread_local bool prioritized = false;
+    if (!prioritized) {
+        prioritized = true;
+        raiseThreadPriority("PyroWave decode");
+    }
+    const int64_t startNs = nowNs();
+    if (!pyrowave_) {
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (closing_) {
+            return false;
+        }
+    }
+
+    uint64_t readyValue = 0;
+    PyrowavePlanes* planes = pyrowave_->decode(data, size, &readyValue);
+    if (!planes) {
+        return false;
+    }
+
+    // The decode is only queued on the GPU. The waiting thread passes the frame on once it's done.
+    auto frame = std::make_shared<VideoFrame>(pyrowave_.get(), planes, readyValue);
+    frame->timing.hostPtsNs = hostPtsNs;
+    frame->decodeStartNs = startNs;
+    frame->decodeQueuedNs = nowNs();
+    {
+        std::lock_guard<std::mutex> lock(decodingMutex_);
+        if (decodingQuit_) {
+            return false;
+        }
+        decoding_.push_back(std::move(frame));
+    }
+    decodingCv_.notify_one();
+    return true;
+}
+
+void VulkanRenderer::enqueueFrame(FramePtr frame) {
+    std::deque<FramePtr> dropped;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (closing_) {
+            return;
+        }
+        pacer_.onFrameArrived(frame->timing);
+        trace_.frame(frame->timing, pending_.size() + 1, queueOverflowDrops_);
+        pending_.push_back(std::move(frame));
+        while (pending_.size() > pacer_.maxQueued()) {
+            dropped.push_back(std::move(pending_.front()));
+            pending_.pop_front();
+            queueOverflowDrops_++;
+        }
+    }
+
+    if (presentAhead_ && !presentOnArrival_) {
+        // Presented from this thread rather than waking the render thread for it: on a
+        // Pixel 10 Pro, the render thread took 1 ms to wake at the median and over 3 ms one
+        // time in ten, time the compositor then didn't have
+        std::lock_guard<std::mutex> renderLock(renderMutex_);
+        if (!renderStopped_) {
+            presentAhead();
+        }
+    }
+    else if (presentOnArrival_) {
+        wake(kWakeFrame);
+    }
+    // Frames in `dropped` are released here, outside the lock
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -965,9 +1232,19 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         return false;
     }
 
-    ImportedBuffer* imported = importBuffer(frame->buffer);
-    if (!imported || !ensurePipeline()) {
-        return false;
+    // A PyroWave frame's planes, or MediaCodec's buffer imported into Vulkan
+    const bool planar = frame->planes != nullptr;
+    ImportedBuffer* imported = nullptr;
+    if (planar) {
+        if (!ensurePlanarPipeline()) {
+            return false;
+        }
+    }
+    else {
+        imported = importBuffer(frame->buffer);
+        if (!imported || !ensurePipeline()) {
+            return false;
+        }
     }
 
     const int slot = static_cast<int>(frameCounter_ % kFramesInFlight);
@@ -1002,11 +1279,13 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
 
     // Where the picture is within the buffer, which the decoder may pad
     PushConstants pc {};
-    const float bufferWidth = static_cast<float>(imported->width);
-    const float bufferHeight = static_cast<float>(imported->height);
+    const uint32_t width = planar ? pyrowave_->width() : imported->width;
+    const uint32_t height = planar ? pyrowave_->height() : imported->height;
+    const float bufferWidth = static_cast<float>(width);
+    const float bufferHeight = static_cast<float>(height);
     AImageCropRect crop = frame->crop;
     if (crop.right <= crop.left || crop.bottom <= crop.top) {
-        crop = {0, 0, static_cast<int32_t>(imported->width), static_cast<int32_t>(imported->height)};
+        crop = {0, 0, static_cast<int32_t>(width), static_cast<int32_t>(height)};
     }
     pc.uvRect[0] = crop.left / bufferWidth;
     pc.uvRect[1] = crop.top / bufferHeight;
@@ -1038,6 +1317,16 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     pc.params[3] = contentPeakNits;
     pc.params2[0] = kSdrWhiteNits;
     pc.params2[1] = static_cast<float>(std::max(quarterTurns(preTransform_), 0));
+    if (planar) {
+        // PyroWave is always full range, in the colorspace we asked for, or BT.2020 for HDR
+        const int colorspace = hdrActive_ ? 2 : config_.colorspace;
+        pc.ycbcr[0] = colorspace == 0 ? 0.299f : colorspace == 2 ? 0.2627f : 0.2126f;
+        pc.ycbcr[1] = colorspace == 0 ? 0.114f : colorspace == 2 ? 0.0593f : 0.0722f;
+        // Gray chroma as the host's 8-bit UNORM target stores it; 16-bit is as good as 0.5
+        pc.ycbcr[2] = pyrowave_->tenBit() ? 0.5f : 128.0f / 255.0f;
+        // The host sites chroma with the left luma sample of each pair (MPEG-2 style)
+        pc.ycbcr[3] = 0.5f / bufferWidth;
+    }
 
     VkCommandBuffer cmd = commandBuffers_[slot];
     vk_.vkResetCommandBuffer(cmd, 0);
@@ -1045,18 +1334,21 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vk_.vkBeginCommandBuffer(cmd, &beginInfo);
 
-    // Take the decoder's buffer from the foreign (non-Vulkan) queue family
+    // Take the decoder's buffer from the foreign (non-Vulkan) queue family. PyroWave's planes
+    // are ours and stay in GENERAL, and the wait for their decode makes its writes visible.
     VkImageMemoryBarrier acquire {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-    acquire.srcAccessMask = 0;
-    acquire.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    acquire.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    acquire.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    acquire.srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT;
-    acquire.dstQueueFamilyIndex = queueFamily_;
-    acquire.image = imported->image;
-    acquire.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &acquire);
+    if (!planar) {
+        acquire.srcAccessMask = 0;
+        acquire.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        acquire.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        acquire.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        acquire.srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT;
+        acquire.dstQueueFamilyIndex = queueFamily_;
+        acquire.image = imported->image;
+        acquire.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0, 0, nullptr, 0, nullptr, 1, &acquire);
+    }
 
     VkRenderPassBeginInfo rpBegin {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     rpBegin.renderPass = renderPass_;
@@ -1068,39 +1360,54 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     VkRect2D scissor {{0, 0}, extent_};
     vk_.vkCmdSetViewport(cmd, 0, 1, &viewport);
     vk_.vkCmdSetScissor(cmd, 0, 1, &scissor);
-    vk_.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-    vk_.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1,
-                                &imported->descriptorSet, 0, nullptr);
-    vk_.vkCmdPushConstants(cmd, pipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+    const VkPipelineLayout layout = planar ? planarPipelineLayout_ : pipelineLayout_;
+    const VkDescriptorSet descriptorSet = planar ? frame->planes->descriptorSet : imported->descriptorSet;
+    vk_.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, planar ? planarPipeline_ : pipeline_);
+    vk_.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &descriptorSet, 0, nullptr);
+    vk_.vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                            0, sizeof(pc), &pc);
     vk_.vkCmdDraw(cmd, 3, 1, 0, 0);
     vk_.vkCmdEndRenderPass(cmd);
 
     // Hand the buffer back to the decoder
-    VkImageMemoryBarrier release = acquire;
-    release.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    release.dstAccessMask = 0;
-    release.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    release.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    release.srcQueueFamilyIndex = queueFamily_;
-    release.dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT;
-    vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &release);
+    if (!planar) {
+        VkImageMemoryBarrier release = acquire;
+        release.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        release.dstAccessMask = 0;
+        release.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        release.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        release.srcQueueFamilyIndex = queueFamily_;
+        release.dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT;
+        vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                 0, 0, nullptr, 0, nullptr, 1, &release);
+    }
 
     vk_.vkEndCommandBuffer(cmd);
 
-    const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    // The swapchain image, and for PyroWave the decode into the planes
+    const VkSemaphore waitSemaphores[2] = {imageAcquired_[slot], planar ? pyrowave_->timeline() : VK_NULL_HANDLE};
+    const VkPipelineStageFlags waitStages[2] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
+    const uint64_t waitValues[2] = {0, frame->readyValue};
+    VkTimelineSemaphoreSubmitInfo timelineInfo {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
+    timelineInfo.waitSemaphoreValueCount = 2;
+    timelineInfo.pWaitSemaphoreValues = waitValues;
+
     VkSubmitInfo submit {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submit.waitSemaphoreCount = 1;
-    submit.pWaitSemaphores = &imageAcquired_[slot];
-    submit.pWaitDstStageMask = &waitStage;
+    submit.pNext = planar ? &timelineInfo : nullptr;
+    submit.waitSemaphoreCount = planar ? 2 : 1;
+    submit.pWaitSemaphores = waitSemaphores;
+    submit.pWaitDstStageMask = waitStages;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &cmd;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &renderDone_[imageIndex];
 
     vk_.vkResetFences(device_, 1, &fences_[slot]);
-    result = vk_.vkQueueSubmit(queue_, 1, &submit, fences_[slot]);
+    {
+        std::lock_guard<std::mutex> lock(queueMutex_);
+        result = vk_.vkQueueSubmit(queue_, 1, &submit, fences_[slot]);
+    }
     if (result != VK_SUCCESS) {
         ALOGE("vkQueueSubmit failed: %d", result);
         return false;
@@ -1138,7 +1445,10 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
             }
         }
     }
-    result = vk_.vkQueuePresentKHR(queue_, &present);
+    {
+        std::lock_guard<std::mutex> lock(queueMutex_);
+        result = vk_.vkQueuePresentKHR(queue_, &present);
+    }
     if (presentId != 0) {
         const int64_t queuedNs = nowNs();
         std::lock_guard<std::mutex> lock(mutex_);
@@ -1147,7 +1457,9 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
 
     slotFrames_[slot] = frame;
     current_ = frame;
-    imported->lastUsed = frameCounter_;
+    if (imported) {
+        imported->lastUsed = frameCounter_;
+    }
     frameCounter_++;
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -1357,7 +1669,7 @@ bool VulkanRenderer::createSwapchain() {
     info.oldSwapchain = swapchain_;
 
     // Nothing may still use the old swapchain's images when we destroy them
-    vk_.vkDeviceWaitIdle(device_);
+    waitIdle();
 
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkResult result = vk_.vkCreateSwapchainKHR(device_, &info, nullptr, &swapchain);
@@ -1377,10 +1689,7 @@ bool VulkanRenderer::createSwapchain() {
     presentScheduler_.onSwapchainCreated();
 
     if (renderPass_ && renderPassFormat_ != chosen.format) {
-        if (pipeline_) {
-            vk_.vkDestroyPipeline(device_, pipeline_, nullptr);
-            pipeline_ = VK_NULL_HANDLE;
-        }
+        destroyPipelines();
         vk_.vkDestroyRenderPass(device_, renderPass_, nullptr);
         renderPass_ = VK_NULL_HANDLE;
     }
@@ -1527,7 +1836,7 @@ bool VulkanRenderer::ensureConversion(const ConversionKey& key) {
         return true;
     }
 
-    vk_.vkDeviceWaitIdle(device_);
+    waitIdle();
     destroyConversion();
 
     if (key.ycbcr) {
@@ -1636,7 +1945,29 @@ bool VulkanRenderer::ensurePipeline() {
     if (pipeline_) {
         return true;
     }
-    if (!renderPass_ || !pipelineLayout_) {
+    return createPipeline(pipelineLayout_, fragShader_, &pipeline_);
+}
+
+bool VulkanRenderer::ensurePlanarPipeline() {
+    if (planarPipeline_) {
+        return true;
+    }
+    return createPipeline(planarPipelineLayout_, planarFragShader_, &planarPipeline_);
+}
+
+void VulkanRenderer::destroyPipelines() {
+    if (pipeline_) {
+        vk_.vkDestroyPipeline(device_, pipeline_, nullptr);
+        pipeline_ = VK_NULL_HANDLE;
+    }
+    if (planarPipeline_) {
+        vk_.vkDestroyPipeline(device_, planarPipeline_, nullptr);
+        planarPipeline_ = VK_NULL_HANDLE;
+    }
+}
+
+bool VulkanRenderer::createPipeline(VkPipelineLayout layout, VkShaderModule fragShader, VkPipeline* pipeline) {
+    if (!renderPass_ || !layout) {
         return false;
     }
 
@@ -1647,7 +1978,7 @@ bool VulkanRenderer::ensurePipeline() {
     stages[0].pName = "main";
     stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    stages[1].module = fragShader_;
+    stages[1].module = fragShader;
     stages[1].pName = "main";
 
     VkPipelineVertexInputStateCreateInfo vertexInput {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
@@ -1689,14 +2020,14 @@ bool VulkanRenderer::ensurePipeline() {
     info.pMultisampleState = &multisample;
     info.pColorBlendState = &blend;
     info.pDynamicState = &dynamic;
-    info.layout = pipelineLayout_;
+    info.layout = layout;
     info.renderPass = renderPass_;
     info.subpass = 0;
 
-    VkResult result = vk_.vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline_);
+    VkResult result = vk_.vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &info, nullptr, pipeline);
     if (result != VK_SUCCESS) {
         ALOGE("vkCreateGraphicsPipelines failed: %d", result);
-        pipeline_ = VK_NULL_HANDLE;
+        *pipeline = VK_NULL_HANDLE;
         return false;
     }
     return true;

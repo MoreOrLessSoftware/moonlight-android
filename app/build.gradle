@@ -133,6 +133,13 @@ android {
             path "src/main/jni/Android.mk"
         }
     }
+
+    // Prebuilt PyroWave decoder library (see src/main/jni/pyrowave/build_libpyrowave.sh)
+    sourceSets {
+        main {
+            jniLibs.srcDirs += 'src/main/jni/pyrowave/lib'
+        }
+    }
 }
 
 dependencies {

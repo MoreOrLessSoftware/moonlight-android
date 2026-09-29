@@ -8,6 +8,7 @@ LOCAL_SRC_FILES := \
     ndk_api.cpp \
     pacer_trace.cpp \
     present_scheduler.cpp \
+    pyrowave_decoder.cpp \
     vk_api.cpp \
     vulkan_bridge.cpp \
     vulkan_renderer.cpp \

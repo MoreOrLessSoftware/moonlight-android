@@ -42,6 +42,9 @@ namespace vkr {
 //   N,hostPtsNs,receiveNs,enqueueNs  a frame's network timing from moonlight-common-c: when its
 //                                    first packet arrived and when it was fully assembled
 //                                    (CLOCK_MONOTONIC_RAW, so only compare within the column)
+//   D,hostPtsNs,startNs,queuedNs,doneNs
+//                                    a PyroWave frame's decode: handed to the renderer, queued on
+//                                    the GPU, and finished there (then it arrives, as F)
 //
 // Every call must be made with the renderer's lock held.
 class PacerTrace {
@@ -65,6 +68,7 @@ public:
     // Rendering a present: started, done waiting for the GPU, got a swapchain image, presented
     void rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs, int64_t queuedNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
+    void decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs);
 
 private:
     void summarize(int64_t vsyncNs, const FramePacer& pacer);

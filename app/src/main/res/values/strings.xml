@@ -298,6 +298,7 @@
     <string name="videoformat_av1always">Prefer AV1 (Experimental)</string>
     <string name="videoformat_hevcalways">Prefer HEVC</string>
     <string name="videoformat_h264always">Prefer H.264</string>
+    <string name="videoformat_pyrowave">PyroWave (Experimental, 200+ Mbps LAN)</string>
 
     <string name="videorenderer_auto">Automatic (Recommended)</string>
     <string name="videorenderer_direct">Direct Surface (Legacy)</string>
