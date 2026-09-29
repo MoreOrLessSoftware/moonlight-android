@@ -58,7 +58,7 @@ class HostFrameTimeline {
         switch (jitterBuffer) {
             case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
                 windowNs = 2_000_000_000L;
-                coverage = 0.95;
+                coverage = 0.98;
                 decayDivisor = 32;
                 break;
             case PreferenceConfiguration.JITTER_BUFFER_SMOOTH:

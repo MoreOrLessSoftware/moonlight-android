@@ -33,14 +33,15 @@ namespace {
 }
 
 // Presets chosen by replaying recorded sessions over Wi-Fi at 72 and 144 fps
-// (tools/pacer-trace.sh). Compared with LowLatency, Balanced roughly halved the frames that
-// arrived too late for their vsync for 3-4 ms more delay, and Smooth left about a sixth of them
-// for 10-12 ms more.
+// (tools/pacer-trace.sh). Compared with covering 95% of transit times, Balanced roughly halved
+// the frames that arrived too late for their vsync for 3-4 ms more delay, and Smooth left about
+// a sixth of them for 10-12 ms more. LowLatency covers 98%: at a frame a vsync that roughly
+// halved the uneven frames for 0.5-2 ms more delay.
 HostTimeline::HostTimeline(JitterBuffer jitterBuffer) : jitterBuffer_(jitterBuffer) {
     switch (jitterBuffer) {
         case JitterBuffer::LowLatency:
             windowNs_ = 2'000'000'000;
-            coverage_ = 0.95;
+            coverage_ = 0.98;
             decayDivisor_ = 32;
             break;
         case JitterBuffer::Smooth:
