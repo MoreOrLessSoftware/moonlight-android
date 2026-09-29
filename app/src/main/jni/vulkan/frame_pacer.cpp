@@ -37,11 +37,22 @@ namespace {
 // the frames that arrived too late for their vsync for 3-4 ms more delay, and Smooth left about
 // a sixth of them for 10-12 ms more. LowLatency covers 98%: at a frame a vsync that roughly
 // halved the uneven frames for 0.5-2 ms more delay.
+//
+// LowestLatency covers 90%, for when delay matters more than evenness. Replayed through
+// PyroWave sessions on a Pixel 10 Pro (whose GPU decode time varies by several ms), it scheduled
+// frames 10 ms sooner than LowLatency at 60 fps on 120 Hz (11 ms against 21) and 4.6 ms sooner at
+// 120 fps, for about 1.5-2.5% of frames held a vsync long or short. Covering 95% saved about a
+// quarter less; 80% doubled the uneven frames again for 3 ms more.
 HostTimeline::HostTimeline(JitterBuffer jitterBuffer) : jitterBuffer_(jitterBuffer) {
     switch (jitterBuffer) {
         case JitterBuffer::LowLatency:
             windowNs_ = 2'000'000'000;
             coverage_ = 0.98;
+            decayDivisor_ = 32;
+            break;
+        case JitterBuffer::LowestLatency:
+            windowNs_ = 2'000'000'000;
+            coverage_ = 0.90;
             decayDivisor_ = 32;
             break;
         case JitterBuffer::Smooth:
@@ -326,8 +337,11 @@ void FramePacer::updatePhase(FrameTiming& frame) {
 
     // At a frame a vsync, locking only evens out the host's own timing, and schedules frames
     // as late as the latest recent one: on a Pixel 10 Pro at 120 fps, about 3 ms more delay for
-    // 15-60% fewer uneven frames. Low latency takes the delay off.
-    if (slotVsyncs_ == 1 && timeline_.jitterBuffer() == JitterBuffer::LowLatency) {
+    // 15-60% fewer uneven frames. Low latency takes the delay off. Lowest latency takes it off
+    // at any rate: with a frame every few vsyncs, frames then change on whichever vsync their
+    // own timestamp lands before, and the odd one is shown a vsync early or late.
+    if ((slotVsyncs_ == 1 && timeline_.jitterBuffer() == JitterBuffer::LowLatency) ||
+            timeline_.jitterBuffer() == JitterBuffer::LowestLatency) {
         phaseSamples_.clear();
         phaseLocked_ = false;
         shiftNs_ = 0;

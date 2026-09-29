@@ -61,6 +61,11 @@ class HostFrameTimeline {
                 coverage = 0.98;
                 decayDivisor = 32;
                 break;
+            case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
+                windowNs = 2_000_000_000L;
+                coverage = 0.90;
+                decayDivisor = 32;
+                break;
             case PreferenceConfiguration.JITTER_BUFFER_SMOOTH:
                 windowNs = 30_000_000_000L;
                 coverage = 0.999;

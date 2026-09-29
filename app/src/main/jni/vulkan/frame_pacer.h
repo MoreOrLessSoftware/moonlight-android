@@ -32,6 +32,7 @@ enum class JitterBuffer : int {
     LowLatency = 0,
     Balanced = 1,
     Smooth = 2,
+    LowestLatency = 3,  // Less buffer than LowLatency, and never evens out the host's timing
 };
 
 // Maps host frame timestamps onto the local clock.
