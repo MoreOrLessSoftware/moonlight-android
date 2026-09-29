@@ -3,6 +3,7 @@
 #include <android/native_window.h>
 #include <android/hardware_buffer.h>
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -17,6 +18,7 @@
 #include "ndk_api.h"
 #include "pacer_trace.h"
 #include "present_scheduler.h"
+#include "pyrowave_decoder.h"
 #include "vk_api.h"
 
 namespace vkr {
@@ -32,43 +34,65 @@ struct RendererConfig {
     bool fullRange = false;
     bool tenBit = false;       // The stream is 10-bit
     float displayRefreshHz = 60.0f;
+    bool pyrowave = false;     // The stream is PyroWave, decoded by the renderer rather than MediaCodec
     std::string traceDirectory;  // Where pacer traces go when enabled (see PacerTrace)
 };
 
-// Decoded frame held from the image reader until it is replaced on screen and the GPU is done
-// with it
+// Decoded frame held until it is replaced on screen and the GPU is done with it: an image from
+// the image reader, or planes PyroWave decoded into
 struct VideoFrame {
     VideoFrame(const NdkApi* ndk, AImage* image) : ndk(ndk), image(image) {}
-    ~VideoFrame() { ndk->AImage_delete(image); }
+    VideoFrame(PyrowaveDecoder* decoder, PyrowavePlanes* planes, uint64_t readyValue)
+        : pyrowave(decoder), planes(planes), readyValue(readyValue) {}
+    ~VideoFrame() {
+        if (image) ndk->AImage_delete(image);
+        if (planes) pyrowave->release(planes);
+    }
     VideoFrame(const VideoFrame&) = delete;
     VideoFrame& operator=(const VideoFrame&) = delete;
 
-    const NdkApi* ndk;
-    AImage* image;
+    const NdkApi* ndk = nullptr;
+    AImage* image = nullptr;
     AHardwareBuffer* buffer = nullptr;  // Owned by image
+
+    PyrowaveDecoder* pyrowave = nullptr;
+    PyrowavePlanes* planes = nullptr;
+    uint64_t readyValue = 0;  // Timeline value the decode into the planes signals
+    int64_t decodeStartNs = 0;   // Handed to the renderer
+    int64_t decodeQueuedNs = 0;  // Decode queued on the GPU
+
     AImageCropRect crop {};
     FrameTiming timing;
 };
 using FramePtr = std::shared_ptr<VideoFrame>;
 
-// Renders MediaCodec output with Vulkan.
+// Renders MediaCodec output, or decodes and renders PyroWave, with Vulkan.
 //
-// The decoder writes into an AImageReader. Each frame's AHardwareBuffer is imported into
+// MediaCodec writes into an AImageReader. Each frame's AHardwareBuffer is imported into
 // Vulkan without a copy, converted from YCbCr by the sampler, dithered, and drawn to a
 // swapchain on the output surface. A dedicated thread presents on Choreographer vsyncs, with
 // FramePacer choosing the frame for each one.
+//
+// PyroWave frames are handed over whole instead, and decoded on the renderer's own device into
+// Y, Cb and Cr planes that a second pipeline converts. They're paced and drawn like any other.
 class VulkanRenderer {
 public:
     // Whether this device can run the renderer at all
     static bool probe();
+
+    // Whether the renderer can decode PyroWave here: the library loads, and the GPU can run it
+    static bool probePyrowave();
 
     // Returns null if the renderer can't run on this device or surface
     static std::unique_ptr<VulkanRenderer> create(ANativeWindow* output, const RendererConfig& config);
 
     ~VulkanRenderer();
 
-    // Surface the decoder writes into. Owned by the renderer.
+    // Surface MediaCodec writes into. Owned by the renderer. Null for PyroWave.
     ANativeWindow* decoderWindow() const { return decoderWindow_; }
+
+    // Decodes a whole PyroWave frame and queues it to be shown. False if it couldn't be decoded.
+    bool submitPyrowaveFrame(const uint8_t* data, size_t size, int64_t hostPtsNs);
 
     void setHdrMode(bool enabled, const uint8_t* metadata, size_t metadataLength);
 
@@ -117,6 +141,27 @@ private:
         bool operator==(const ConversionKey& other) const;
     };
 
+    // Create infos kept for the device's life, which PyroWave reads when it shares the device
+    struct InstanceSetup {
+        VkApplicationInfo app {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+        std::vector<const char*> extensions;
+        VkInstanceCreateInfo info {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    };
+    struct DeviceSetup {
+        // With two queues, PyroWave decodes on the first (Granite, its Vulkan backend, takes
+        // queue 0 for itself) and we render on the second, ahead of it
+        float priorities[2] = {1.0f, 1.0f};
+        VkDeviceQueueCreateInfo queue {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+        std::vector<const char*> extensions;
+        VkPhysicalDeviceSamplerYcbcrConversionFeatures ycbcr {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES};
+        PyrowaveDeviceFeatures pyrowave;
+        VkDeviceCreateInfo info {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+    };
+
+    static VkInstance createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup);
+    static bool prepareDevice(VkApi& vk, VkPhysicalDevice device, uint32_t queueFamily, bool pyrowave,
+                              bool hdrMetadata, bool displayTiming, DeviceSetup& setup);
+
     struct HdrMetadata {
         VkHdrMetadataEXT vk {VK_STRUCTURE_TYPE_HDR_METADATA_EXT};
         float contentPeakNits = 1000.0f;
@@ -131,6 +176,8 @@ private:
     bool createFrameResources();
     bool createShaderModules();
     bool createImageReader();
+    bool createPyrowaveDecoder();
+    void pyrowaveWaiterMain();
 
     void renderThreadMain();
     static void onVsyncThunk(int64_t frameTimeNanos, void* data);
@@ -142,6 +189,8 @@ private:
 
     static void onImageAvailableThunk(void* context, AImageReader* reader);
     void onImageAvailable();
+    // Queues a decoded frame for the pacer, from the thread that decoded it
+    void enqueueFrame(FramePtr frame);
     void wake(uint32_t flags);
 
     // showVsyncNs is the vsync the frame is shown for (the current one if 0); ahead marks a
@@ -158,6 +207,12 @@ private:
     bool ensureConversion(const ConversionKey& key);
     void destroyConversion();
     bool ensurePipeline();
+    bool ensurePlanarPipeline();
+    bool createPipeline(VkPipelineLayout layout, VkShaderModule fragShader, VkPipeline* pipeline);
+    void destroyPipelines();
+    // Every use of the queue is under queueMutex_, since PyroWave submits to it from the
+    // decoding thread
+    void waitIdle();
     ImportedBuffer* importBuffer(AHardwareBuffer* buffer);
     void destroyImport(AHardwareBuffer* buffer, ImportedBuffer& imported);
     void evictImports();
@@ -174,6 +229,12 @@ private:
     VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue queue_ = VK_NULL_HANDLE;
+    // PyroWave's queue, so a render doesn't wait behind the next frame's decode. Null when the
+    // family has only one, which both then share. Either way queueMutex_ covers every queue.
+    VkQueue decodeQueue_ = VK_NULL_HANDLE;
+    std::mutex queueMutex_;
+    InstanceSetup instanceSetup_;
+    DeviceSetup deviceSetup_;
     uint32_t queueFamily_ = 0;
     bool hasColorspaceExt_ = false;
     bool hasHdrMetadataExt_ = false;
@@ -229,6 +290,21 @@ private:
     VkShaderModule vertShader_ = VK_NULL_HANDLE;
     VkShaderModule fragShader_ = VK_NULL_HANDLE;
     std::unordered_map<AHardwareBuffer*, ImportedBuffer> imports_;
+
+    // PyroWave's planes, converted from YCbCr in the shader
+    std::unique_ptr<PyrowaveDecoder> pyrowave_;
+    VkShaderModule planarFragShader_ = VK_NULL_HANDLE;
+    VkPipelineLayout planarPipelineLayout_ = VK_NULL_HANDLE;
+    VkPipeline planarPipeline_ = VK_NULL_HANDLE;
+
+    // PyroWave frames whose decode is queued on the GPU. A thread waits for each to finish
+    // before it goes to the pacer, as MediaCodec's frames do, so the pacer times frames that can
+    // be shown, and the thread handing frames over is free to decode the next.
+    std::thread pyrowaveWaiter_;
+    std::mutex decodingMutex_;
+    std::condition_variable decodingCv_;
+    std::deque<FramePtr> decoding_;
+    bool decodingQuit_ = false;
 
     // Per frame in flight
     VkCommandPool commandPool_ = VK_NULL_HANDLE;

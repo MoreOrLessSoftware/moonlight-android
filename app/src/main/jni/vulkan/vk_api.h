@@ -17,6 +17,9 @@
     X(vkEnumeratePhysicalDevices) \
     X(vkGetPhysicalDeviceProperties) \
     X(vkGetPhysicalDeviceFeatures2) \
+    X(vkGetPhysicalDeviceProperties2) \
+    X(vkGetPhysicalDeviceMemoryProperties) \
+    X(vkGetPhysicalDeviceFormatProperties) \
     X(vkGetPhysicalDeviceQueueFamilyProperties) \
     X(vkEnumerateDeviceExtensionProperties) \
     X(vkCreateDevice) \
@@ -45,6 +48,7 @@
     X(vkAllocateMemory) \
     X(vkFreeMemory) \
     X(vkBindImageMemory) \
+    X(vkGetImageMemoryRequirements) \
     X(vkGetAndroidHardwareBufferPropertiesANDROID) \
     X(vkCreateSamplerYcbcrConversion) \
     X(vkDestroySamplerYcbcrConversion) \
@@ -70,6 +74,7 @@
     X(vkCreateCommandPool) \
     X(vkDestroyCommandPool) \
     X(vkAllocateCommandBuffers) \
+    X(vkFreeCommandBuffers) \
     X(vkResetCommandBuffer) \
     X(vkBeginCommandBuffer) \
     X(vkEndCommandBuffer) \
@@ -89,10 +94,12 @@
     X(vkCreateSemaphore) \
     X(vkDestroySemaphore)
 
-// Present only when the device extension that provides them is enabled
+// Present only when the device extension that provides them is enabled, or (timeline
+// semaphores) on Vulkan 1.2 devices
 #define VK_OPTIONAL_DEVICE_FUNCTIONS(X) \
     X(vkSetHdrMetadataEXT) \
-    X(vkGetPastPresentationTimingGOOGLE)
+    X(vkGetPastPresentationTimingGOOGLE) \
+    X(vkWaitSemaphores)
 
 #define VK_DECLARE_FUNCTION(name) PFN_##name name = nullptr;
 

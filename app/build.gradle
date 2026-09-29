@@ -139,6 +139,13 @@ android {
             excludes += '/META-INF/*.md'
         }
     }
+
+    // Prebuilt PyroWave decoder library (see src/main/jni/pyrowave/build_libpyrowave.sh)
+    sourceSets {
+        main {
+            jniLibs.srcDirs += 'src/main/jni/pyrowave/lib'
+        }
+    }
 }
 
 dependencies {

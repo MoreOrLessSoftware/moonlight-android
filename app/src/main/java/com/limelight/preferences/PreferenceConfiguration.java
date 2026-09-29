@@ -15,6 +15,7 @@ public class PreferenceConfiguration {
         FORCE_AV1,
         FORCE_HEVC,
         FORCE_H264,
+        FORCE_PYROWAVE,
     };
 
     public enum VideoRendererOption {
@@ -403,6 +404,9 @@ public class PreferenceConfiguration {
         }
         else if (str.equals("neverh265")) {
             return FormatOption.FORCE_H264;
+        }
+        else if (str.equals("forcepyrowave")) {
+            return FormatOption.FORCE_PYROWAVE;
         }
         else {
             // Should never get here

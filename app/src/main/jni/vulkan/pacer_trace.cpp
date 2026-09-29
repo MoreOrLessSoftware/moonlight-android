@@ -130,6 +130,11 @@ void PacerTrace::presented(uint64_t presentId, int64_t actualNs, int64_t earlies
     lastActualNs_ = actualNs;
 }
 
+void PacerTrace::decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs) {
+    write("D,%lld,%lld,%lld,%lld\n", static_cast<long long>(hostPtsNs), static_cast<long long>(startNs),
+          static_cast<long long>(queuedNs), static_cast<long long>(doneNs));
+}
+
 void PacerTrace::received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs) {
     write("N,%lld,%lld,%lld\n", static_cast<long long>(hostPtsNs), static_cast<long long>(receiveNs),
           static_cast<long long>(enqueueNs));

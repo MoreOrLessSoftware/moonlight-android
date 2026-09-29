@@ -479,8 +479,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 glPrefs.glRenderer,
                 this);
 
+        // PyroWave decodes in the Vulkan renderer, and only when it's chosen explicitly
+        boolean usePyrowave = false;
+        if (prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
+            usePyrowave = decoderRenderer.isPyrowaveSupported();
+            if (!usePyrowave) {
+                Toast.makeText(this, "This device can't decode PyroWave. It needs Vulkan 1.3 on a 64-bit ARM device.", Toast.LENGTH_LONG).show();
+            }
+        }
+
         // Don't stream HDR if the decoder can't support it
-        if (willStreamHdr && !decoderRenderer.isHevcMain10Hdr10Supported() && !decoderRenderer.isAv1Main10Supported()) {
+        if (willStreamHdr && !decoderRenderer.isHevcMain10Hdr10Supported() && !decoderRenderer.isAv1Main10Supported() &&
+                !usePyrowave) {
             willStreamHdr = false;
             Toast.makeText(this, "Decoder does not support HDR10 profile", Toast.LENGTH_LONG).show();
         }
@@ -507,6 +517,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             supportedVideoFormats |= MoonBridge.VIDEO_FORMAT_AV1_MAIN8;
             if (willStreamHdr && decoderRenderer.isAv1Main10Supported()) {
                 supportedVideoFormats |= MoonBridge.VIDEO_FORMAT_AV1_MAIN10;
+            }
+        }
+        // Preferred over the others when the host has it. Otherwise HEVC or H.264 is used.
+        if (usePyrowave) {
+            supportedVideoFormats |= MoonBridge.VIDEO_FORMAT_PYROWAVE;
+            if (willStreamHdr) {
+                supportedVideoFormats |= MoonBridge.VIDEO_FORMAT_PYROWAVE_10BIT;
             }
         }
 

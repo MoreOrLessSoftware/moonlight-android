@@ -16,11 +16,21 @@ public class MoonBridge {
     public static final int VIDEO_FORMAT_H265_MAIN10 = 0x0200;
     public static final int VIDEO_FORMAT_AV1_MAIN8 = 0x1000;
     public static final int VIDEO_FORMAT_AV1_MAIN10 = 0x2000;
+    public static final int VIDEO_FORMAT_PYROWAVE = 0x10000;
+    public static final int VIDEO_FORMAT_PYROWAVE_10BIT = 0x20000;
 
     public static final int VIDEO_FORMAT_MASK_H264 = 0x000F;
     public static final int VIDEO_FORMAT_MASK_H265 = 0x0F00;
     public static final int VIDEO_FORMAT_MASK_AV1 = 0xF000;
-    public static final int VIDEO_FORMAT_MASK_10BIT = 0x2200;
+    public static final int VIDEO_FORMAT_MASK_PYROWAVE = 0x30000;
+    public static final int VIDEO_FORMAT_MASK_10BIT = 0x22200;
+
+    // Host codec support (serverCodecModeSupport)
+    public static final int SCM_HEVC_MAIN10 = 0x00200;
+    public static final int SCM_AV1_MAIN10 = 0x20000;
+    public static final int SCM_PYROWAVE = 0x01000000;
+    public static final int SCM_PYROWAVE_10BIT = 0x02000000;
+    public static final int SCM_MASK_PYROWAVE = SCM_PYROWAVE | SCM_PYROWAVE_10BIT;
 
     public static final int BUFFER_TYPE_PICDATA = 0;
     public static final int BUFFER_TYPE_SPS = 1;
