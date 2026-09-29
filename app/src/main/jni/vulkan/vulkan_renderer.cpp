@@ -33,6 +33,38 @@ namespace {
     constexpr float kOutputPqToSdr = 1.0f;
     constexpr float kSdrWhiteNits = 203.0f;
 
+    // Quarter turns clockwise for a pre-rotation, or -1 for a transform we can't render
+    int quarterTurns(VkSurfaceTransformFlagBitsKHR transform) {
+        switch (transform) {
+            case VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR: return 0;
+            case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR: return 1;
+            case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR: return 2;
+            case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR: return 3;
+            default: return -1;
+        }
+    }
+
+    // Rendering the display's rotation ourselves keeps the layer untransformed. Display
+    // hardware often can't rotate RGB layers, and then the compositor falls back to drawing
+    // the layer on the GPU, which for HDR means its own tone mapping into an 8-bit target.
+    VkSurfaceTransformFlagBitsKHR choosePreTransform(const VkSurfaceCapabilitiesKHR& caps) {
+        if (quarterTurns(caps.currentTransform) >= 0 && (caps.supportedTransforms & caps.currentTransform)) {
+            return caps.currentTransform;
+        }
+        if (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+            return VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+        }
+        return caps.currentTransform;
+    }
+
+    // The window's size in the display's natural orientation, as a pre-rotated swapchain needs
+    VkExtent2D preRotatedExtent(VkExtent2D extent, VkSurfaceTransformFlagBitsKHR transform) {
+        if (quarterTurns(transform) % 2 == 1) {
+            std::swap(extent.width, extent.height);
+        }
+        return extent;
+    }
+
     constexpr uint32_t kWakeFrame = 1;
     constexpr uint32_t kWakeHdr = 2;
     constexpr uint32_t kWakeQuit = 4;
@@ -528,25 +560,34 @@ void VulkanRenderer::setHdrMode(bool enabled, const uint8_t* metadata, size_t me
     if (metadata && metadataLength >= 24) {
         uint16_t v[12];
         memcpy(v, metadata, sizeof(v));
+        ALOGI("HDR metadata: max %u nits, min %.4f nits, MaxCLL %u, MaxFALL %u", v[8], v[9] * 0.0001f, v[10], v[11]);
 
-        // Layout of SS_HDR_METADATA: R, G, B primaries and white point in 0.00002 units,
-        // max display luminance in nits, min display luminance in 0.0001 nits, then MaxCLL
-        // and MaxFALL in nits
-        auto xy = [](uint16_t x, uint16_t y) { return VkXYColorEXT {x * 0.00002f, y * 0.00002f}; };
-        parsed.vk.displayPrimaryRed = xy(v[0], v[1]);
-        parsed.vk.displayPrimaryGreen = xy(v[2], v[3]);
-        parsed.vk.displayPrimaryBlue = xy(v[4], v[5]);
-        parsed.vk.whitePoint = xy(v[6], v[7]);
-        parsed.vk.maxLuminance = v[8];
-        parsed.vk.minLuminance = v[9] * 0.0001f;
-        parsed.vk.maxContentLightLevel = v[10];
-        parsed.vk.maxFrameAverageLightLevel = v[11];
-
-        if (v[10] != 0) {
-            parsed.contentPeakNits = v[10];
+        // A 10000 nit peak is the top of the PQ range, which hosts send when they don't know
+        // the display's real peak. Passed on, it has the compositor squeeze everything above
+        // the panel's own peak into a sliver, flattening the host's luminance, so leave it out.
+        if (v[8] >= 10000) {
+            ALOGI("Ignoring placeholder HDR metadata");
         }
-        else if (v[8] != 0) {
-            parsed.contentPeakNits = v[8];
+        else {
+            // Layout of SS_HDR_METADATA: R, G, B primaries and white point in 0.00002 units,
+            // max display luminance in nits, min display luminance in 0.0001 nits, then MaxCLL
+            // and MaxFALL in nits
+            auto xy = [](uint16_t x, uint16_t y) { return VkXYColorEXT {x * 0.00002f, y * 0.00002f}; };
+            parsed.vk.displayPrimaryRed = xy(v[0], v[1]);
+            parsed.vk.displayPrimaryGreen = xy(v[2], v[3]);
+            parsed.vk.displayPrimaryBlue = xy(v[4], v[5]);
+            parsed.vk.whitePoint = xy(v[6], v[7]);
+            parsed.vk.maxLuminance = v[8];
+            parsed.vk.minLuminance = v[9] * 0.0001f;
+            parsed.vk.maxContentLightLevel = v[10];
+            parsed.vk.maxFrameAverageLightLevel = v[11];
+
+            if (v[10] != 0) {
+                parsed.contentPeakNits = v[10];
+            }
+            else if (v[8] != 0) {
+                parsed.contentPeakNits = v[8];
+            }
         }
     }
 
@@ -996,6 +1037,7 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     pc.params[2] = (hdrActive_ && !outputPq_) ? kOutputPqToSdr : kOutputPassthrough;
     pc.params[3] = contentPeakNits;
     pc.params2[0] = kSdrWhiteNits;
+    pc.params2[1] = static_cast<float>(std::max(quarterTurns(preTransform_), 0));
 
     VkCommandBuffer cmd = commandBuffers_[slot];
     vk_.vkResetCommandBuffer(cmd, 0);
@@ -1112,13 +1154,17 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         swapchainDirty_ = true;
     }
     else if (result == VK_SUBOPTIMAL_KHR) {
-        // Android reports suboptimal whenever we don't pre-rotate for the display, which we
-        // leave to the compositor. Only a size change needs a new swapchain.
+        // Android reports suboptimal when the display's rotation no longer matches our
+        // pre-rotation. A new rotation or size needs a new swapchain.
         VkSurfaceCapabilitiesKHR caps;
-        if (vk_.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice_, surface_, &caps) == VK_SUCCESS &&
-                caps.currentExtent.width != UINT32_MAX &&
-                (caps.currentExtent.width != extent_.width || caps.currentExtent.height != extent_.height)) {
-            swapchainDirty_ = true;
+        if (vk_.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice_, surface_, &caps) == VK_SUCCESS) {
+            const VkSurfaceTransformFlagBitsKHR transform = choosePreTransform(caps);
+            const VkExtent2D extent = preRotatedExtent(caps.currentExtent, transform);
+            if (transform != preTransform_ ||
+                    (caps.currentExtent.width != UINT32_MAX &&
+                     (extent.width != extent_.width || extent.height != extent_.height))) {
+                swapchainDirty_ = true;
+            }
         }
     }
     else if (result != VK_SUCCESS) {
@@ -1228,6 +1274,8 @@ bool VulkanRenderer::createSwapchain() {
     if (extent.width == 0 || extent.height == 0) {
         return false;
     }
+    const VkSurfaceTransformFlagBitsKHR transform = choosePreTransform(caps);
+    extent = preRotatedExtent(extent, transform);
 
     uint32_t formatCount = 0;
     vk_.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface_, &formatCount, nullptr);
@@ -1293,12 +1341,6 @@ bool VulkanRenderer::createSwapchain() {
                 caps.supportedCompositeAlpha & -caps.supportedCompositeAlpha);
     }
 
-    // The compositor rotates for the display, as it does for the decoder's own output
-    VkSurfaceTransformFlagBitsKHR transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    if (!(caps.supportedTransforms & transform)) {
-        transform = caps.currentTransform;
-    }
-
     VkSwapchainCreateInfoKHR info {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
     info.surface = surface_;
     info.minImageCount = imageCount;
@@ -1328,6 +1370,7 @@ bool VulkanRenderer::createSwapchain() {
     surfaceFormat_ = chosen;
     presentMode_ = presentMode;
     extent_ = extent;
+    preTransform_ = transform;
     outputPq_ = pq;
     outputBits_ = chosen.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ? 10 : 8;
     presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR;
@@ -1433,8 +1476,9 @@ bool VulkanRenderer::createSwapchain() {
         outputDescription_ = description;
     }
 
-    ALOGI("Swapchain %ux%u, format %d, color space %d, %u images, %s", extent.width, extent.height,
-          chosen.format, chosen.colorSpace, count, presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox" : "FIFO");
+    ALOGI("Swapchain %ux%u, format %d, color space %d, %u images, %s, pre-rotated %d degrees", extent.width,
+          extent.height, chosen.format, chosen.colorSpace, count,
+          presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox" : "FIFO", quarterTurns(transform) * 90);
     return true;
 }
 
@@ -1459,6 +1503,8 @@ void VulkanRenderer::destroySwapchain() {
 
 void VulkanRenderer::applyHdrMetadata() {
     if (!hasHdrMetadataExt_ || !swapchain_) {
+        ALOGW("Can't pass HDR metadata to the compositor: %s",
+              hasHdrMetadataExt_ ? "no swapchain" : "no VK_EXT_hdr_metadata");
         return;
     }
     VkHdrMetadataEXT metadata;
@@ -1468,6 +1514,11 @@ void VulkanRenderer::applyHdrMetadata() {
     }
     if (metadata.maxLuminance > 0) {
         vk_.vkSetHdrMetadataEXT(device_, 1, &swapchain_, &metadata);
+        ALOGI("Applied HDR metadata: max %.0f nits, MaxCLL %.0f, MaxFALL %.0f", metadata.maxLuminance,
+              metadata.maxContentLightLevel, metadata.maxFrameAverageLightLevel);
+    }
+    else {
+        ALOGW("No HDR metadata from the host; the compositor will assume a default peak");
     }
 }
 
