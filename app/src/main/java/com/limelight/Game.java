@@ -2811,13 +2811,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             hostRateText = String.format(Locale.getDefault(), " (%.2fHz)", streamConfig.getClientRefreshRateX100() / 100.0);
         }
         String configMessage = String.format(Locale.getDefault(),
-            "Streaming %dx%d @ %d FPS%s, %d Mbps%s",
+            "Streaming %dx%d @ %d FPS%s, %d Mbps, %s%s",
             prefConfig.width,
             prefConfig.height,
             prefConfig.fps,
             hostRateText,
             prefConfig.bitrate / 1000,
-            prefConfig.enableHdr ? ", HDR" : "");
+            decoderRenderer.getRendererName(),
+            prefConfig.enableHdr ? " HDR" : "");
         Toast.makeText(Game.this, configMessage, Toast.LENGTH_LONG).show();
 
         decoderRenderer.setRenderTarget(streamView.getHolder());
