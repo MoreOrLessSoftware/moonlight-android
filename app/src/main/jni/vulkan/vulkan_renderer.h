@@ -206,6 +206,8 @@ private:
     VkSurfaceFormatKHR surfaceFormat_ {};
     VkPresentModeKHR presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
     VkExtent2D extent_ {};
+    // The display rotation we render in ourselves, so the compositor needn't rotate
+    VkSurfaceTransformFlagBitsKHR preTransform_ = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     int outputBits_ = 8;
     bool outputPq_ = false;
     bool swapchainDirty_ = true;

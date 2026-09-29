@@ -9,7 +9,7 @@ layout(push_constant) uniform PushConstants {
     vec4 uvRect;
     vec4 uvClamp;
     vec4 params;   // x = dither amplitude, y = frame counter, z = output mode, w = content peak nits
-    vec4 params2;  // x = SDR reference white nits
+    vec4 params2;  // x = SDR reference white nits, y = quarter turns clockwise to pre-rotate by
 } pc;
 
 layout(location = 0) in vec2 vUv;
