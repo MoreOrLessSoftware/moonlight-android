@@ -221,6 +221,11 @@ public class StreamConfiguration {
         return clientRefreshRateX100;
     }
 
+    // Set once the display's refresh rate has been measured, before the connection starts
+    public void setClientRefreshRateX100(int refreshRateX100) {
+        clientRefreshRateX100 = refreshRateX100;
+    }
+
     public int getColorRange() {
         return colorRange;
     }
