@@ -444,6 +444,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return false;
     }
 
+    // The renderer the stream will use: "Vulkan" or "Direct". Vulkan can still fall back to
+    // direct if it fails to start when the decoder is set up.
+    public String getRendererName() {
+        return wantVulkan || vulkanRenderer != null ? "Vulkan" : "Direct";
+    }
+
     public boolean isAv1Supported() {
         return av1Decoder != null;
     }
