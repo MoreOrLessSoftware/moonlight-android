@@ -21,8 +21,13 @@ public class OverridesView {
     public static final String PREF_BITRATE_OVERRIDE = "bitrate_override";
     public static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override";
     public static final String PREF_OVERRIDES_ENABLED = "overrides_enabled";
-    private static final int BITRATE_STEP = 5000; // 5 Mbps steps in kbps
-    private static final int SEEKBAR_MAX = 50; // 50 steps * 5 Mbps = 250 Mbps max
+    public static final String PREF_CODEC_OVERRIDE = "codec_override";
+    // Bitrate remembered for each codec, suffixed with the codec index
+    private static final String PREF_BITRATE_OVERRIDE_PREFIX = "bitrate_override_codec_";
+    // Indexed by the codec override value: 0 = default, 1 = HEVC, 2 = AV1, 3 = PyroWave
+    private static final String[] CODEC_LABELS = {"Default", "HEVC", "AV1", "PyroWave"};
+    private static final int BITRATE_STEP = 10000; // 10 Mbps steps in kbps
+    private static final int SEEKBAR_MAX = 50; // 50 steps * 10 Mbps = 500 Mbps max
 
     private final Activity activity;
     private final LinearLayout overridesSection;
@@ -31,6 +36,8 @@ public class OverridesView {
     private final View perfOverlayButton;
     private final ImageView perfOverlayIcon;
     private final TextView perfOverlayLabel;
+    private final View codecButton;
+    private final TextView codecLabel;
     private ImageView overridesToggleButton;
     private final SharedPreferences preferences;
     private boolean isSliderAdjustmentMode = false;
@@ -46,9 +53,12 @@ public class OverridesView {
         this.perfOverlayButton = activity.findViewById(R.id.perfOverlayButton);
         this.perfOverlayIcon = activity.findViewById(R.id.perfOverlayIcon);
         this.perfOverlayLabel = activity.findViewById(R.id.perfOverlayLabel);
+        this.codecButton = activity.findViewById(R.id.codecButton);
+        this.codecLabel = activity.findViewById(R.id.codecLabel);
 
         initializeBitrateOverride();
         initializePerfOverlayButton();
+        initializeCodecButton();
 
         // Set initial visibility based on preference (default to disabled/hidden)
         updateOverridesSectionVisibility();
@@ -247,7 +257,7 @@ public class OverridesView {
         if (seekBarPosition == 0) {
             bitrateOverrideValue.setText(R.string.bitrate_use_default);
         } else {
-            int bitrateMbps = seekBarPosition * 5; // Each position is 5 Mbps
+            int bitrateMbps = seekBarPosition * (BITRATE_STEP / 1000);
             bitrateOverrideValue.setText(String.format("Bitrate: %d Mbps", bitrateMbps));
         }
     }
@@ -383,17 +393,67 @@ public class OverridesView {
         }
     }
 
-    public void onResume() {
-        // Reload the value in case it was changed elsewhere
+    private void initializeCodecButton() {
+        if (codecButton == null || codecLabel == null) {
+            return;
+        }
+
+        codecButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleCodec();
+            }
+        });
+
+        updateCodecButton();
+    }
+
+    private void toggleCodec() {
+        int current = preferences.getInt(PREF_CODEC_OVERRIDE, 0);
+        int next = (current + 1) % CODEC_LABELS.length;
+
+        // The active bitrate override belongs to the codec we're leaving; remember it,
+        // then bring in the one remembered for the new codec
+        int activeBitrate = preferences.getInt(PREF_BITRATE_OVERRIDE, 0);
+        int nextBitrate = preferences.getInt(PREF_BITRATE_OVERRIDE_PREFIX + next, 0);
+        preferences.edit()
+            .putInt(PREF_BITRATE_OVERRIDE_PREFIX + current, activeBitrate)
+            .putInt(PREF_CODEC_OVERRIDE, next)
+            .putInt(PREF_BITRATE_OVERRIDE, nextBitrate)
+            .apply();
+
+        updateCodecButton();
+        reloadBitrateSlider();
+    }
+
+    private void updateCodecButton() {
+        if (codecLabel == null) {
+            return;
+        }
+
+        int override = preferences.getInt(PREF_CODEC_OVERRIDE, 0);
+        if (override < 0 || override >= CODEC_LABELS.length) {
+            override = 0;
+        }
+        codecLabel.setText("Codec: " + CODEC_LABELS[override]);
+    }
+
+    private void reloadBitrateSlider() {
         if (bitrateOverrideSeekBar != null) {
             int savedBitrate = preferences.getInt(PREF_BITRATE_OVERRIDE, 0);
             int seekBarPosition = savedBitrate > 0 ? savedBitrate / BITRATE_STEP : 0;
             bitrateOverrideSeekBar.setProgress(seekBarPosition);
             updateBitrateLabel(seekBarPosition);
         }
+    }
+
+    public void onResume() {
+        // Reload the value in case it was changed elsewhere
+        reloadBitrateSlider();
 
         // Update performance overlay button state
         updatePerfOverlayButton();
+        updateCodecButton();
 
         // Update overrides section visibility and toggle button icon
         updateOverridesSectionVisibility();

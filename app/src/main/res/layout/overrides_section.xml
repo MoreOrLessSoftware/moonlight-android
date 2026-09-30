@@ -15,6 +15,13 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- Stats Overlay and Codec buttons share a row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
         <!-- Stats Overlay Button -->
         <LinearLayout
             android:id="@+id/perfOverlayButton"
@@ -27,7 +34,7 @@
             android:clickable="true"
             android:focusable="true"
             android:background="@drawable/button_border_rounded"
-            android:layout_marginBottom="8dp">
+            android:layout_marginEnd="8dp">
 
             <ImageView
                 android:id="@+id/perfOverlayIcon"
@@ -38,13 +45,42 @@
 
             <TextView
                 android:id="@+id/perfOverlayLabel"
-                android:layout_width="160dp"
+                android:layout_width="wrap_content"
+                android:minWidth="150dp"
                 android:layout_height="wrap_content"
                 android:text="Stats overlay: Default"
                 android:textSize="13sp"
                 android:singleLine="true"
                 android:ellipsize="end"
                 android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Codec Button -->
+        <LinearLayout
+            android:id="@+id/codecButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="44dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/button_border_rounded">
+
+            <TextView
+                android:id="@+id/codecLabel"
+                android:layout_width="wrap_content"
+                android:minWidth="100dp"
+                android:layout_height="wrap_content"
+                android:text="Codec: Default"
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:layout_marginStart="4dp" />
+
+        </LinearLayout>
 
         </LinearLayout>
 

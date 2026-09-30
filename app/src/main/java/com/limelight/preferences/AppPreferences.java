@@ -11,6 +11,7 @@ public class AppPreferences {
     private static final String APP_PREFERENCES_FILE = "AppPreferences";
     private static final String PREF_BITRATE_OVERRIDE = "bitrate_override"; // Global bitrate override
     private static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override"; // Global performance overlay override
+    private static final String PREF_CODEC_OVERRIDE = "codec_override"; // Global codec override
     private static final String PREF_OVERRIDES_ENABLED = "overrides_enabled"; // Whether overrides section is enabled
 
     public static class AppSettings {
@@ -249,6 +250,16 @@ public class AppPreferences {
                 config.enablePerfOverlay = false;
             }
             // If perfOverlayOverride == 0, keep the config value as is (use default)
+
+            // Apply global codec override: 0 = default, 1 = HEVC, 2 = AV1, 3 = PyroWave
+            int codecOverride = defaultPrefs.getInt(PREF_CODEC_OVERRIDE, 0);
+            if (codecOverride == 1) {
+                config.videoFormat = PreferenceConfiguration.FormatOption.FORCE_HEVC;
+            } else if (codecOverride == 2) {
+                config.videoFormat = PreferenceConfiguration.FormatOption.FORCE_AV1;
+            } else if (codecOverride == 3) {
+                config.videoFormat = PreferenceConfiguration.FormatOption.FORCE_PYROWAVE;
+            }
         }
 
         return config;
