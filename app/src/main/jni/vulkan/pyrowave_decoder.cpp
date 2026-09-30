@@ -326,14 +326,30 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
     // Each frame arrives on its own, so anything left from an earlier one is stale
     api.decoderClear(decoder_);
 
-    if (gapCount != 0) {
+    if (gapCount != 0 && recordFraming_) {
+        partialDropped_++;
+        return nullptr;
+    }
+    else if (gapCount != 0) {
         if (!pushPartialFrame(data, size, gaps, gapCount)) {
             partialDropped_++;
             return nullptr;
         }
     }
     else {
-        pyrowave_result result = api.decoderPushPacket(decoder_, data, size);
+        pyrowave_result result = PYROWAVE_SUCCESS;
+        if (recordFraming_) {
+            const bool pushed = pushRecords(data, size, [&](size_t offset, size_t length) {
+                result = api.decoderPushPacket(decoder_, data + offset, length);
+                return result == PYROWAVE_SUCCESS;
+            });
+            if (!pushed && result == PYROWAVE_SUCCESS) {
+                result = PYROWAVE_ERROR_INVALID_ARGUMENT;
+            }
+        }
+        else {
+            result = api.decoderPushPacket(decoder_, data, size);
+        }
         if (result != PYROWAVE_SUCCESS) {
             if (!loggedFailure_) {
                 ALOGE("Invalid frame (%d)", result);

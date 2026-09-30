@@ -28,9 +28,12 @@ public class MoonBridge {
     // Host codec support (serverCodecModeSupport)
     public static final int SCM_HEVC_MAIN10 = 0x00200;
     public static final int SCM_AV1_MAIN10 = 0x20000;
-    public static final int SCM_PYROWAVE = 0x01000000;
+    // As the Aurora, Solarflare and nonary hosts define them
+    public static final int SCM_PYROWAVE = 0x00800000;
+    public static final int SCM_PYROWAVE_444 = 0x01000000;
     public static final int SCM_PYROWAVE_10BIT = 0x02000000;
-    public static final int SCM_MASK_PYROWAVE = SCM_PYROWAVE | SCM_PYROWAVE_10BIT;
+    public static final int SCM_PYROWAVE_10BIT_444 = 0x04000000;
+    public static final int SCM_MASK_PYROWAVE = SCM_PYROWAVE | SCM_PYROWAVE_444 | SCM_PYROWAVE_10BIT | SCM_PYROWAVE_10BIT_444;
 
     public static final int BUFFER_TYPE_PICDATA = 0;
     public static final int BUFFER_TYPE_SPS = 1;
@@ -422,6 +425,9 @@ public class MoonBridge {
     public static native long getEstimatedRttInfo();
 
     public static native String getLaunchUrlQueryParameters();
+
+    // The PyroWave bitstream revision the host advertised, or "" (valid once the stream starts)
+    public static native String getHostPyroWaveBitstreamId();
 
     public static native byte guessControllerType(int vendorId, int productId);
 

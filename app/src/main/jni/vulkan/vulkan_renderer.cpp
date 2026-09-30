@@ -594,6 +594,10 @@ bool VulkanRenderer::createPyrowaveDecoder() {
     if (!pyrowave_) {
         return false;
     }
+    pyrowave_->setRecordFraming(config_.pyrowaveRecordFraming);
+    if (config_.pyrowaveRecordFraming) {
+        ALOGI("PyroWave host uses record framing");
+    }
 
     if (!vk_.vkWaitSemaphores) {
         ALOGE("vkWaitSemaphores not available");
@@ -1325,8 +1329,9 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         pc.ycbcr[1] = colorspace == 0 ? 0.114f : colorspace == 2 ? 0.0593f : 0.0722f;
         // Gray chroma as the host's 8-bit UNORM target stores it; 16-bit is as good as 0.5
         pc.ycbcr[2] = pyrowave_->tenBit() ? 0.5f : 128.0f / 255.0f;
-        // The host sites chroma with the left luma sample of each pair (MPEG-2 style)
-        pc.ycbcr[3] = 0.5f / bufferWidth;
+        // This fork's Sunshine sites chroma with the left luma sample of each pair (MPEG-2
+        // style); the nonary host sites it at the center of each 2x2 quad
+        pc.ycbcr[3] = pyrowave_->recordFraming() ? 0.0f : 0.5f / bufferWidth;
     }
 
     VkCommandBuffer cmd = commandBuffers_[slot];

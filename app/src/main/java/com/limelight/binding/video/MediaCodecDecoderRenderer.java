@@ -145,6 +145,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     // A PyroWave stream: no MediaCodec, the Vulkan renderer decodes it
     private boolean pyrowave;
+    // The PyroWave host advertised its bitstream revision, which the nonary host does: it sends
+    // record framing and sites chroma at the center
+    private boolean pyrowaveRecordFraming;
     private long pyrowaveDecodeNs;
 
     // Direct renderer in the host frame timing pacing mode
@@ -598,7 +601,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 getPreferredColorSpace(),
                 getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL,
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
-                pyrowave, getDisplayRefreshRate(), getPacerTraceDirectory());
+                pyrowave, pyrowaveRecordFraming, getDisplayRefreshRate(), getPacerTraceDirectory());
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");
             if (currentHdrMetadata != null) {
@@ -844,6 +847,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private int setupPyrowave() {
         pyrowave = true;
+
+        String bitstreamId = MoonBridge.getHostPyroWaveBitstreamId();
+        pyrowaveRecordFraming = bitstreamId != null && !bitstreamId.isEmpty();
+        if (pyrowaveRecordFraming) {
+            LimeLog.info("PyroWave host bitstream revision: " + bitstreamId);
+        }
 
         Surface outputSurface = renderTarget.getSurface();
         vulkanRenderer = createVulkanRenderer(outputSurface);

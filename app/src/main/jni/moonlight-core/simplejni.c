@@ -217,6 +217,11 @@ Java_com_limelight_nvstream_jni_MoonBridge_getLaunchUrlQueryParameters(JNIEnv *e
     return (*env)->NewStringUTF(env, LiGetLaunchUrlQueryParameters());
 }
 
+JNIEXPORT jstring JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_getHostPyroWaveBitstreamId(JNIEnv *env, jclass clazz) {
+    return (*env)->NewStringUTF(env, LiGetHostPyroWaveBitstreamId());
+}
+
 JNIEXPORT jbyte JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_guessControllerType(JNIEnv *env, jclass clazz, jint vendorId, jint productId) {
     unsigned int unDeviceID = MAKE_CONTROLLER_ID(vendorId, productId);
