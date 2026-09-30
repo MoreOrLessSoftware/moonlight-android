@@ -1581,7 +1581,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     @Override
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
-                                long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs) {
+                                long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
+                                int[] missingRanges) {
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
@@ -1706,7 +1707,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         if (pyrowave) {
             return submitPyrowaveFrame(decodeUnitData, decodeUnitLength, frameHostProcessingLatency,
-                    receiveTimeUs, enqueueTimeUs, presentationTimeUs);
+                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges);
         }
 
         boolean csdSubmittedForThisFrame = false;
@@ -2003,7 +2004,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private int submitPyrowaveFrame(byte[] decodeUnitData, int decodeUnitLength, char frameHostProcessingLatency,
-                                    long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs) {
+                                    long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
+                                    int[] missingRanges) {
         recordFrameReceived(frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
         numFramesIn++;
 
@@ -2016,7 +2018,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Decoding is queued on the GPU, so this is the CPU's share of it: parsing the frame
         // and recording the decode. Kept in nanoseconds, since frames take well under 1 ms.
         long startNs = System.nanoTime();
-        vulkan.submitPyrowaveFrame(decodeUnitData, decodeUnitLength, presentationTimeUs);
+        vulkan.submitPyrowaveFrame(decodeUnitData, decodeUnitLength, presentationTimeUs, missingRanges);
         pyrowaveDecodeNs += System.nanoTime() - startNs;
         long decodeMs = pyrowaveDecodeNs / 1_000_000L;
         pyrowaveDecodeNs -= decodeMs * 1_000_000L;
@@ -2077,6 +2079,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Enable direct submit on supported hardware
         if (directSubmit) {
             capabilities |= MoonBridge.CAPABILITY_DIRECT_SUBMIT;
+        }
+
+        // PyroWave frames stand alone, so one that lost packets can still be decoded from the
+        // blocks that arrived, with some blur where they're missing, rather than dropped
+        if (prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE && isPyrowaveSupported()) {
+            capabilities |= MoonBridge.CAPABILITY_PARTIAL_FRAMES;
         }
 
         return capabilities;

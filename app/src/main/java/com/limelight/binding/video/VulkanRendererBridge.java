@@ -100,10 +100,12 @@ public class VulkanRendererBridge {
      * Decodes a whole PyroWave frame and queues it to be shown.
      *
      * @param hostPtsUs the host's timestamp for the frame
+     * @param missingRanges for a frame that lost packets, offset and length pairs of the gaps in
+     *                      it (see VideoDecoderRenderer.submitDecodeUnit()), or null
      * @return false if the frame couldn't be decoded
      */
-    public boolean submitPyrowaveFrame(byte[] frame, int length, long hostPtsUs) {
-        return handle != 0 && nativeSubmitPyrowaveFrame(handle, frame, length, hostPtsUs);
+    public boolean submitPyrowaveFrame(byte[] frame, int length, long hostPtsUs, int[] missingRanges) {
+        return handle != 0 && nativeSubmitPyrowaveFrame(handle, frame, length, hostPtsUs, missingRanges);
     }
 
     /** Surface for the decoder to render into (null for PyroWave) */
@@ -173,7 +175,8 @@ public class VulkanRendererBridge {
                                             int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                             boolean fullRange, boolean tenBit, boolean pyrowave,
                                             float displayRefreshHz, String traceDirectory);
-    private static native boolean nativeSubmitPyrowaveFrame(long handle, byte[] frame, int length, long hostPtsUs);
+    private static native boolean nativeSubmitPyrowaveFrame(long handle, byte[] frame, int length, long hostPtsUs,
+                                                            int[] missingRanges);
     private static native Surface nativeGetDecoderSurface(long handle);
     private static native boolean nativeIsTracing(long handle);
     private static native void nativeNoteReceived(long handle, long hostPtsUs, long receiveTimeUs, long enqueueTimeUs);

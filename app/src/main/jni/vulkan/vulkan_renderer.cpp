@@ -924,7 +924,8 @@ void VulkanRenderer::onImageAvailable() {
     }
 }
 
-bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, int64_t hostPtsNs) {
+bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const PyrowaveDecoder::Gap* gaps,
+                                         size_t gapCount, int64_t hostPtsNs) {
     // Frames queue up behind this thread, so it gets the render thread's priority
     static thread_local bool prioritized = false;
     if (!prioritized) {
@@ -943,7 +944,7 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, int64
     }
 
     uint64_t readyValue = 0;
-    PyrowavePlanes* planes = pyrowave_->decode(data, size, &readyValue);
+    PyrowavePlanes* planes = pyrowave_->decode(data, size, gaps, gapCount, &readyValue);
     if (!planes) {
         return false;
     }

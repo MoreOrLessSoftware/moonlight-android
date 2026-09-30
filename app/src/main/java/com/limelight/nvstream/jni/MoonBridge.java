@@ -51,6 +51,7 @@ public class MoonBridge {
     public static final int CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC = 2;
     public static final int CAPABILITY_REFERENCE_FRAME_INVALIDATION_HEVC = 4;
     public static final int CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 = 0x40;
+    public static final int CAPABILITY_PARTIAL_FRAMES = 0x80;
 
     public static final int DR_OK = 0;
     public static final int DR_NEED_IDR = -1;
@@ -227,11 +228,12 @@ public class MoonBridge {
 
     public static int bridgeDrSubmitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                                int frameNumber, int frameType, char frameHostProcessingLatency,
-                                               long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs) {
+                                               long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
+                                               int[] missingRanges) {
         if (videoRenderer != null) {
             return videoRenderer.submitDecodeUnit(decodeUnitData, decodeUnitLength,
                     decodeUnitType, frameNumber, frameType, frameHostProcessingLatency,
-                    receiveTimeUs, enqueueTimeUs, presentationTimeUs);
+                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges);
         }
         else {
             return DR_OK;
