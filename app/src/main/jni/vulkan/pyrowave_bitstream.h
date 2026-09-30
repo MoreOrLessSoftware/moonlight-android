@@ -191,4 +191,44 @@ bool pushArrivedBlocks(const uint8_t* data, size_t size, const PyrowaveGap* gaps
     return pushed;
 }
 
+// Calls push(offset, length) for each run of records in a whole frame in record framing (as the
+// nonary host sends it), leaving out its padding records: 0xFFFFFFFF, a word count N, then N
+// zero words. PyroWave would take one for a broken frame header. Returns false if the records
+// don't add up to the frame, or push does.
+template <typename Push>
+bool pushRecords(const uint8_t* data, size_t size, Push push) {
+    using namespace pyrowave_bitstream;
+
+    size_t runStart = 0;
+    size_t pos = 0;
+    while (pos < size) {
+        if (size - pos < kHeaderSize) {
+            return false;
+        }
+        uint32_t first;
+        memcpy(&first, data + pos, sizeof(first));
+        if (first == 0xFFFFFFFFu) {
+            uint32_t words;
+            memcpy(&words, data + pos + 4, sizeof(words));
+            if (pos > runStart && !push(runStart, pos - runStart)) {
+                return false;
+            }
+            if (words > (size - pos - kHeaderSize) / 4) {
+                return false;
+            }
+            pos += kHeaderSize + 4 * static_cast<size_t>(words);
+            runStart = pos;
+            continue;
+        }
+
+        const BlockHeader header = readHeader(data + pos);
+        const size_t length = header.frameHeader ? kHeaderSize : 4 * static_cast<size_t>(header.payloadWords);
+        if (length < kHeaderSize || length > size - pos) {
+            return false;
+        }
+        pos += length;
+    }
+    return pos == runStart || push(runStart, pos - runStart);
+}
+
 }  // namespace vkr

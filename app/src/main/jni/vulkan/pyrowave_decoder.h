@@ -81,6 +81,12 @@ public:
     bool tenBit() const { return tenBit_; }
     bool fragmentPath() const { return fragmentPath_; }
 
+    // The host packs frames in record framing (the nonary host): blocks in any order, with
+    // padding records between them. Frames that lost packets are dropped, since finding the
+    // blocks that arrived relies on this fork's Sunshine sending them in order.
+    void setRecordFraming(bool recordFraming) { recordFraming_ = recordFraming; }
+    bool recordFraming() const { return recordFraming_; }
+
     using Gap = PyrowaveGap;
 
     // Decodes one frame into free planes. The render must wait for *readyValue on timeline()
@@ -116,6 +122,7 @@ private:
     uint32_t height_ = 0;
     bool tenBit_ = false;
     bool fragmentPath_ = false;
+    bool recordFraming_ = false;
     VkFormat format_ = VK_FORMAT_UNDEFINED;
     VkImageUsageFlags usage_ = 0;
 

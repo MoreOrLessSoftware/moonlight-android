@@ -27,7 +27,7 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
         JNIEnv* env, jclass, jobject outputSurface, jint streamWidth, jint streamHeight, jint streamFps,
         jint framePacing, jint jitterBuffer, jint ditherMode, jint colorspace, jboolean fullRange, jboolean tenBit,
-        jboolean pyrowave, jfloat displayRefreshHz, jstring traceDirectory) {
+        jboolean pyrowave, jboolean pyrowaveRecordFraming, jfloat displayRefreshHz, jstring traceDirectory) {
     ANativeWindow* output = ANativeWindow_fromSurface(env, outputSurface);
     if (!output) {
         return 0;
@@ -44,6 +44,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
     config.fullRange = fullRange;
     config.tenBit = tenBit;
     config.pyrowave = pyrowave;
+    config.pyrowaveRecordFraming = pyrowaveRecordFraming;
     config.displayRefreshHz = displayRefreshHz;
     if (traceDirectory) {
         const char* chars = env->GetStringUTFChars(traceDirectory, nullptr);

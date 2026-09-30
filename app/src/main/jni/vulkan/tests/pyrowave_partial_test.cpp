@@ -10,6 +10,7 @@
 #include <vulkan/vulkan_core.h>
 #include "pyrowave.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -245,6 +246,59 @@ int main() {
                 check(r.againstWhole > 30.0, "close to the whole frame");
             }
         }
+    }
+
+    // The same frame in record framing, as the nonary host sends it: the frame header, the
+    // blocks in another order, and padding records between them
+    {
+        printf("record framing (blocks out of order, padding records):\n");
+        std::vector<std::pair<size_t, size_t>> blocks;
+        for (size_t pos = pyrowave_bitstream::kHeaderSize; pos < frame.size();) {
+            const size_t length = 4 * pyrowave_bitstream::readHeader(frame.data() + pos).payloadWords;
+            blocks.emplace_back(pos, length);
+            pos += length;
+        }
+        std::shuffle(blocks.begin(), blocks.end(), rng);
+
+        std::vector<uint8_t> records(frame.begin(), frame.begin() + pyrowave_bitstream::kHeaderSize);
+        const auto pad = [&](uint32_t words) {
+            const uint32_t header[2] = {0xFFFFFFFFu, words};
+            records.insert(records.end(), reinterpret_cast<const uint8_t*>(header),
+                           reinterpret_cast<const uint8_t*>(header) + sizeof(header));
+            records.insert(records.end(), 4 * static_cast<size_t>(words), 0);
+        };
+        pad(3);
+        for (size_t i = 0; i < blocks.size(); i++) {
+            records.insert(records.end(), frame.begin() + blocks[i].first,
+                           frame.begin() + blocks[i].first + blocks[i].second);
+            if (i % 7 == 0) pad(static_cast<uint32_t>(i % 5));
+        }
+
+        pyrowave_decoder_clear(decoder);
+        const bool rawAccepted = pyrowave_decoder_push_packet(decoder, records.data(), records.size()) == PYROWAVE_SUCCESS &&
+                                 pyrowave_decoder_decode_is_ready(decoder, false);
+        check(!rawAccepted, "PyroWave doesn't take padding records itself");
+
+        pyrowave_decoder_clear(decoder);
+        size_t runs = 0;
+        const bool pushed = pushRecords(records.data(), records.size(), [&](size_t offset, size_t length) {
+            runs++;
+            return pyrowave_decoder_push_packet(decoder, records.data() + offset, length) == PYROWAVE_SUCCESS;
+        });
+        check(pushed, "pushRecords() took the frame");
+        printf("        %zu blocks in %zu runs\n", blocks.size(), runs);
+        const bool ready = pyrowave_decoder_decode_is_ready(decoder, false);
+        check(ready, "the frame is ready");
+        if (ready) {
+            Planes out = makeImage();
+            pyrowave_cpu_buffer outBuffer = cpuBuffer(out);
+            pyrowave_decoder_decode_cpu_buffer_synchronous(decoder, &outBuffer);
+            check(psnr(reference.y, out.y) >= 99.0, "identical to the whole frame");
+        }
+
+        std::vector<uint8_t> truncated(records.begin(), records.end() - 4);
+        check(!pushRecords(truncated.data(), truncated.size(), [](size_t, size_t) { return true; }),
+              "a frame cut short is rejected");
     }
 
     pyrowave_decoder_destroy(decoder);

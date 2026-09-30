@@ -35,6 +35,7 @@ struct RendererConfig {
     bool tenBit = false;       // The stream is 10-bit
     float displayRefreshHz = 60.0f;
     bool pyrowave = false;     // The stream is PyroWave, decoded by the renderer rather than MediaCodec
+    bool pyrowaveRecordFraming = false;  // From the nonary host: record framing, chroma sited at the center
     std::string traceDirectory;  // Where pacer traces go when enabled (see PacerTrace)
 };
 
