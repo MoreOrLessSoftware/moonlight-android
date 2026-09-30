@@ -1,6 +1,7 @@
 #include <jni.h>
 
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <Limelight.h>
@@ -85,7 +86,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeDrStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStart", "()V");
     BridgeDrStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStop", "()V");
     BridgeDrCleanupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrCleanup", "()V");
-    BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJJ)I");
+    BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJJ[I)I");
     BridgeArInitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArInit", "(III)I");
     BridgeArStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStart", "()V");
     BridgeArStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStop", "()V");
@@ -156,11 +157,39 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     PLENTRY currentEntry;
     int offset;
 
+    // A partial frame's gaps, as offset and length pairs into the frame data
+    jintArray missingRanges = NULL;
+    jint* missing = NULL;
+    int missingCount = 0;
+    if (decodeUnit->partialFrame) {
+        for (currentEntry = decodeUnit->bufferList; currentEntry != NULL; currentEntry = currentEntry->next) {
+            if (currentEntry->bufferType == BUFFER_TYPE_MISSING) {
+                missingCount++;
+            }
+        }
+        if (missingCount != 0) {
+            missing = malloc(sizeof(*missing) * 2 * missingCount);
+            if (missing == NULL) {
+                return DR_OK;
+            }
+            missingCount = 0;
+        }
+    }
+
     currentEntry = decodeUnit->bufferList;
     offset = 0;
     while (currentEntry != NULL) {
+        if (currentEntry->bufferType == BUFFER_TYPE_MISSING) {
+            // Nothing to copy: the gap is left as it is in the buffer
+            if (missing != NULL) {
+                missing[missingCount * 2] = offset;
+                missing[missingCount * 2 + 1] = currentEntry->length;
+                missingCount++;
+            }
+            offset += currentEntry->length;
+        }
         // Submit parameter set NALUs separately from picture data
-        if (currentEntry->bufferType != BUFFER_TYPE_PICDATA) {
+        else if (currentEntry->bufferType != BUFFER_TYPE_PICDATA) {
             // Use the beginning of the buffer each time since this is a separate
             // invocation of the decoder each time.
             (*env)->SetByteArrayRegion(env, DecodedFrameBuffer, 0, currentEntry->length, (jbyte*)currentEntry->data);
@@ -168,13 +197,16 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
             ret = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSubmitDecodeUnitMethod,
                                               DecodedFrameBuffer, currentEntry->length, currentEntry->bufferType,
                                               decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
-                                              (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs);
+                                              (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs,
+                                              NULL);
             if ((*env)->ExceptionCheck(env)) {
                 // We will crash here
+                free(missing);
                 (*JVM)->DetachCurrentThread(JVM);
                 return DR_OK;
             }
             else if (ret != DR_OK) {
+                free(missing);
                 return ret;
             }
         }
@@ -186,10 +218,27 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
         currentEntry = currentEntry->next;
     }
 
+    if (missing != NULL) {
+        missingRanges = (*env)->NewIntArray(env, missingCount * 2);
+        if (missingRanges != NULL) {
+            (*env)->SetIntArrayRegion(env, missingRanges, 0, missingCount * 2, missing);
+        }
+        free(missing);
+        if (missingRanges == NULL) {
+            // Without the gaps the frame can't be read
+            (*env)->ExceptionClear(env);
+            return DR_OK;
+        }
+    }
+
     ret = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSubmitDecodeUnitMethod,
                                        DecodedFrameBuffer, offset, BUFFER_TYPE_PICDATA,
                                        decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
-                                       (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs);
+                                       (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs,
+                                       missingRanges);
+    if (missingRanges != NULL) {
+        (*env)->DeleteLocalRef(env, missingRanges);
+    }
     if ((*env)->ExceptionCheck(env)) {
         // We will crash here
         (*JVM)->DetachCurrentThread(JVM);

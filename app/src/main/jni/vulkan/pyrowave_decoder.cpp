@@ -14,6 +14,7 @@ typedef VkQueueGlobalPriorityKHR VkQueueGlobalPriority;
 #include "../pyrowave/pyrowave.h"
 
 #include "frame_pacer.h"
+#include "pyrowave_bitstream.h"
 
 #define LOG_TAG "PyroWave"
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -34,6 +35,7 @@ namespace {
         decltype(&::pyrowave_decoder_clear) decoderClear;
         decltype(&::pyrowave_decoder_push_packet) decoderPushPacket;
         decltype(&::pyrowave_decoder_decode_is_ready) decoderDecodeIsReady;
+        decltype(&::pyrowave_decoder_decode_is_ready_with_sideband) decoderDecodeIsReadyWithSideband;
         decltype(&::pyrowave_decoder_decode_gpu_buffer) decoderDecodeGpuBuffer;
         decltype(&::pyrowave_decoder_destroy) decoderDestroy;
     };
@@ -113,6 +115,7 @@ bool PyrowaveDecoder::loadLibrary() {
         resolve(api.decoderClear, "pyrowave_decoder_clear");
         resolve(api.decoderPushPacket, "pyrowave_decoder_push_packet");
         resolve(api.decoderDecodeIsReady, "pyrowave_decoder_decode_is_ready");
+        resolve(api.decoderDecodeIsReadyWithSideband, "pyrowave_decoder_decode_is_ready_with_sideband");
         resolve(api.decoderDecodeGpuBuffer, "pyrowave_decoder_decode_gpu_buffer");
         resolve(api.decoderDestroy, "pyrowave_decoder_destroy");
         if (!resolved) {
@@ -318,25 +321,45 @@ PyrowaveDecoder::~PyrowaveDecoder() {
     if (sampler_) vk_.vkDestroySampler(device, sampler_, nullptr);
 }
 
-PyrowavePlanes* PyrowaveDecoder::decode(const void* data, size_t size, uint64_t* readyValue) {
-    // Each frame arrives whole, so anything left from an earlier one is stale
+PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
+                                        uint64_t* readyValue) {
+    // Each frame arrives on its own, so anything left from an earlier one is stale
     api.decoderClear(decoder_);
 
-    pyrowave_result result = api.decoderPushPacket(decoder_, data, size);
-    if (result != PYROWAVE_SUCCESS) {
-        if (!loggedFailure_) {
-            ALOGE("Invalid frame (%d)", result);
-            loggedFailure_ = true;
+    if (gapCount != 0) {
+        if (!pushPartialFrame(data, size, gaps, gapCount)) {
+            partialDropped_++;
+            return nullptr;
         }
-        return nullptr;
+    }
+    else {
+        pyrowave_result result = api.decoderPushPacket(decoder_, data, size);
+        if (result != PYROWAVE_SUCCESS) {
+            if (!loggedFailure_) {
+                ALOGE("Invalid frame (%d)", result);
+                loggedFailure_ = true;
+            }
+            return nullptr;
+        }
     }
 
     if (!api.decoderDecodeIsReady(decoder_, false)) {
-        // Missing blocks decode as zero (a little blur), which beats dropping the frame
-        if (!api.decoderDecodeIsReady(decoder_, true)) {
+        // Missing blocks decode as zero (a little blur), which beats dropping the frame. PyroWave
+        // wants the two coarsest levels complete and nine tenths of the blocks, as it does by
+        // default, told which blocks were lost rather than never sent.
+        const bool ready = gapCount != 0
+                ? api.decoderDecodeIsReadyWithSideband(decoder_, true, 2, 0.9f, lostBlocks_.data(), lostBlocks_.size())
+                : api.decoderDecodeIsReady(decoder_, true);
+        if (!ready) {
+            if (gapCount != 0) {
+                partialDropped_++;
+            }
             return nullptr;
         }
-        if (!loggedFailure_) {
+        if (gapCount != 0) {
+            partialDecoded_++;
+        }
+        else if (!loggedFailure_) {
             ALOGW("Decoding an incomplete frame");
             loggedFailure_ = true;
         }
@@ -368,7 +391,7 @@ PyrowavePlanes* PyrowaveDecoder::decode(const void* data, size_t size, uint64_t*
     pyrowave_gpu_sync_operation release {};
     release.sync = {timeline_, lastValue_ + 1};
 
-    result = api.decoderDecodeGpuBuffer(decoder_, &acquire, &release, &buffers);
+    const pyrowave_result result = api.decoderDecodeGpuBuffer(decoder_, &acquire, &release, &buffers);
     if (result != PYROWAVE_SUCCESS) {
         ALOGE("Decoding failed (%d)", result);
         this->release(planes);
@@ -385,8 +408,20 @@ PyrowavePlanes* PyrowaveDecoder::decode(const void* data, size_t size, uint64_t*
     else if (now - lastStatsNs_ >= kStatsIntervalNs) {
         lastStatsNs_ = now;
         api.reportPerformanceStats(device_, &logStat, nullptr, true);
+        if (partialDecoded_ != 0 || partialDropped_ != 0) {
+            ALOGI("Frames that lost packets: %u decoded from what arrived, %u too incomplete to decode",
+                  partialDecoded_, partialDropped_);
+            partialDecoded_ = 0;
+            partialDropped_ = 0;
+        }
     }
     return planes;
+}
+
+bool PyrowaveDecoder::pushPartialFrame(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount) {
+    return pushArrivedBlocks(data, size, gaps, gapCount, width_, height_, lostBlocks_, [&](size_t offset, size_t length) {
+        return api.decoderPushPacket(decoder_, data + offset, length) == PYROWAVE_SUCCESS;
+    });
 }
 
 void PyrowaveDecoder::release(PyrowavePlanes* planes) {

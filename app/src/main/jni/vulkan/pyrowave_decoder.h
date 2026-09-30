@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 
+#include "pyrowave_bitstream.h"
 #include "vk_api.h"
 
 struct pyrowave_device_opaque;
@@ -80,10 +81,17 @@ public:
     bool tenBit() const { return tenBit_; }
     bool fragmentPath() const { return fragmentPath_; }
 
-    // Decodes one whole frame into free planes. The render must wait for *readyValue on
-    // timeline() before sampling them. Null if the frame couldn't be decoded, or every planes
-    // are held. Not thread safe: frames come from one thread.
-    PyrowavePlanes* decode(const void* data, size_t size, uint64_t* readyValue);
+    using Gap = PyrowaveGap;
+
+    // Decodes one frame into free planes. The render must wait for *readyValue on timeline()
+    // before sampling them. Null if the frame couldn't be decoded, or every planes are held.
+    // Not thread safe: frames come from one thread.
+    //
+    // A frame that lost packets comes with its gaps, in order. The blocks that arrived whole are
+    // decoded, and the rest are left out, which blurs their area a little. PyroWave won't decode
+    // it without the frame's lowest frequency blocks, or with more than a tenth of them missing.
+    PyrowavePlanes* decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
+                           uint64_t* readyValue);
 
     // Returns planes to the pool once nothing reads them any more. Thread safe.
     void release(PyrowavePlanes* planes);
@@ -129,8 +137,18 @@ private:
     std::mutex poolMutex_;
     std::vector<std::unique_ptr<PyrowavePlanes>> planes_;
 
+    // Pushes the blocks of a frame that arrived whole, skipping the gaps
+    bool pushPartialFrame(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount);
+
     bool loggedFailure_ = false;
     int64_t lastStatsNs_ = 0;
+
+    // Blocks of the last partial frame that may have been lost (see pushArrivedBlocks())
+    std::vector<uint32_t> lostBlocks_;
+
+    // Frames that lost packets, since the last stats
+    uint32_t partialDecoded_ = 0;
+    uint32_t partialDropped_ = 0;
 };
 
 }  // namespace vkr

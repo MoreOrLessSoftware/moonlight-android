@@ -91,8 +91,10 @@ public:
     // Surface MediaCodec writes into. Owned by the renderer. Null for PyroWave.
     ANativeWindow* decoderWindow() const { return decoderWindow_; }
 
-    // Decodes a whole PyroWave frame and queues it to be shown. False if it couldn't be decoded.
-    bool submitPyrowaveFrame(const uint8_t* data, size_t size, int64_t hostPtsNs);
+    // Decodes a PyroWave frame, which may have lost some of its data (gaps), and queues it to be
+    // shown. False if it couldn't be decoded.
+    bool submitPyrowaveFrame(const uint8_t* data, size_t size, const PyrowaveDecoder::Gap* gaps, size_t gapCount,
+                             int64_t hostPtsNs);
 
     void setHdrMode(bool enabled, const uint8_t* metadata, size_t metadataLength);
 

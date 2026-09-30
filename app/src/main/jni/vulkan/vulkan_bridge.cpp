@@ -89,7 +89,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetHdrMode(
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
-        JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs) {
+        JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs, jintArray missingRanges) {
     VulkanRenderer* renderer = fromHandle(handle);
     if (!renderer || length <= 0) {
         return JNI_FALSE;
@@ -103,7 +103,22 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
     if (env->ExceptionCheck()) {
         return JNI_FALSE;
     }
-    return renderer->submitPyrowaveFrame(frame.data(), frame.size(), hostPtsUs * 1000) ? JNI_TRUE : JNI_FALSE;
+    // Offset and length pairs of the parts of a partial frame that didn't arrive
+    static thread_local std::vector<vkr::PyrowaveDecoder::Gap> gaps;
+    gaps.clear();
+    if (missingRanges) {
+        const jsize count = env->GetArrayLength(missingRanges) / 2;
+        std::vector<jint> ranges(static_cast<size_t>(count) * 2);
+        env->GetIntArrayRegion(missingRanges, 0, count * 2, ranges.data());
+        for (jsize i = 0; i < count; i++) {
+            if (ranges[i * 2] >= 0 && ranges[i * 2 + 1] > 0) {
+                gaps.push_back({static_cast<size_t>(ranges[i * 2]), static_cast<size_t>(ranges[i * 2 + 1])});
+            }
+        }
+    }
+
+    return renderer->submitPyrowaveFrame(frame.data(), frame.size(), gaps.data(), gaps.size(), hostPtsUs * 1000)
+           ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
