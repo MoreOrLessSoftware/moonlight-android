@@ -110,7 +110,7 @@
     <string name="perf_overlay_fps">FPS in/render: %1$.2f/%2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_hostprocessinglatency">Host latency min/max/avg: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="perf_overlay_netdrops">Frames dropped: %1$.2f%%</string>
-    <string name="perf_overlay_netdrops_partial">Frames dropped/partial: %1$.2f%%/%2$.2f%%</string>
+    <string name="perf_overlay_netdrops_partial">Frames dropped: %1$.2f%% (partial %2$.2f%%)</string>
     <string name="perf_overlay_netlatency">Network latency: %1$d ms (variance %2$d ms)</string>
     <string name="perf_overlay_dectime">Decoding time: %1$.2f ms</string>
     <string name="perf_overlay_bandwidth">Network bandwidth: %1$.1f Mbps</string>
