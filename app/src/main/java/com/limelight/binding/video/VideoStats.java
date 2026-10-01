@@ -11,6 +11,7 @@ class VideoStats {
     int totalFramesRendered;
     int frameLossEvents;
     int framesLost;
+    int framesPartial;
     char minHostProcessingLatency;
     char maxHostProcessingLatency;
     int totalHostProcessingLatency;
@@ -25,6 +26,7 @@ class VideoStats {
         this.totalFramesRendered += other.totalFramesRendered;
         this.frameLossEvents += other.frameLossEvents;
         this.framesLost += other.framesLost;
+        this.framesPartial += other.framesPartial;
 
         if (this.minHostProcessingLatency == 0) {
             this.minHostProcessingLatency = other.minHostProcessingLatency;
@@ -50,6 +52,7 @@ class VideoStats {
         this.totalFramesRendered = other.totalFramesRendered;
         this.frameLossEvents = other.frameLossEvents;
         this.framesLost = other.framesLost;
+        this.framesPartial = other.framesPartial;
         this.minHostProcessingLatency = other.minHostProcessingLatency;
         this.maxHostProcessingLatency = other.maxHostProcessingLatency;
         this.totalHostProcessingLatency = other.totalHostProcessingLatency;
@@ -65,6 +68,7 @@ class VideoStats {
         this.totalFramesRendered = 0;
         this.frameLossEvents = 0;
         this.framesLost = 0;
+        this.framesPartial = 0;
         this.minHostProcessingLatency = 0;
         this.maxHostProcessingLatency = 0;
         this.totalHostProcessingLatency = 0;

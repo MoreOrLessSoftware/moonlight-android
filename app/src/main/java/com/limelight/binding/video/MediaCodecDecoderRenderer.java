@@ -1668,8 +1668,16 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 sb.append('\n');
                 sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_fps, fps.receivedFps, fps.renderedFps, smoothedFpsVariance)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_netdrops,
-                        (float)lastTwo.framesLost / lastTwo.totalFrames * 100)).append('\n');
+                float droppedPercent = (float)lastTwo.framesLost / lastTwo.totalFrames * 100;
+                if (pyrowave) {
+                    // Only PyroWave delivers frames with gaps in them
+                    sb.append(context.getString(R.string.perf_overlay_netdrops_partial,
+                            droppedPercent,
+                            (float)lastTwo.framesPartial / lastTwo.totalFrames * 100)).append('\n');
+                }
+                else {
+                    sb.append(context.getString(R.string.perf_overlay_netdrops, droppedPercent)).append('\n');
+                }
                 sb.append(context.getString(R.string.perf_overlay_netlatency,
                         (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
 
@@ -2018,6 +2026,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         recordFrameReceived(frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
         numFramesIn++;
 
+        // A frame that lost packets still arrives in sequence, so it isn't a frame loss
+        if (missingRanges != null && missingRanges.length > 0) {
+            activeWindowVideoStats.framesPartial++;
+        }
+
         VulkanRendererBridge vulkan = vulkanRenderer;
         if (vulkan == null) {
             return MoonBridge.DR_OK;
@@ -2257,6 +2270,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             str += "Total frames received: "+renderer.globalVideoStats.totalFramesReceived+DELIMITER;
             str += "Total frames rendered: "+renderer.globalVideoStats.totalFramesRendered+DELIMITER;
             str += "Frame losses: "+renderer.globalVideoStats.framesLost+" in "+renderer.globalVideoStats.frameLossEvents+" loss events"+DELIMITER;
+            if (renderer.pyrowave) {
+                str += "Partial frames: "+renderer.globalVideoStats.framesPartial+DELIMITER;
+            }
             str += "Average end-to-end client latency: "+renderer.getAverageEndToEndLatency()+"ms"+DELIMITER;
             str += "Average hardware decoder latency: "+renderer.getAverageDecoderLatency()+"ms"+DELIMITER;
             str += "Frame pacing mode: "+renderer.prefs.framePacing+DELIMITER;
