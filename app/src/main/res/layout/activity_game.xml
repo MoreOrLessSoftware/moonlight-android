@@ -32,6 +32,7 @@
         android:layout_gravity="left"
         android:padding="2dp"
         android:textSize="10sp"
+        android:textColor="#BFFFFFFF"
         android:typeface="monospace"
         android:gravity="left"
         android:background="#60000000"
