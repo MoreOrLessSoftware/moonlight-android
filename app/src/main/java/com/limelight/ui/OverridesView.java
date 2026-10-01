@@ -28,6 +28,7 @@ public class OverridesView {
     private static final String[] CODEC_LABELS = {"Default", "HEVC", "AV1", "PyroWave"};
     private static final int BITRATE_STEP = 10000; // 10 Mbps steps in kbps
     private static final int SEEKBAR_MAX = 50; // 50 steps * 10 Mbps = 500 Mbps max
+    private static final int MAX_BITRATE_MBPS = 2500; // Typed in the dialog, beyond the slider's range
 
     private final Activity activity;
     private final LinearLayout overridesSection;
@@ -126,16 +127,8 @@ public class OverridesView {
         // Load saved value (0 means "Use Default")
         int savedBitrate = preferences.getInt(PREF_BITRATE_OVERRIDE, 0);
 
-        // Convert bitrate to seekbar position
-        // Position 0 = "Use Default"
-        // Position 1+ = (position * BITRATE_STEP) kbps
-        int seekBarPosition = 0;
-        if (savedBitrate > 0) {
-            seekBarPosition = savedBitrate / BITRATE_STEP;
-        }
-
-        bitrateOverrideSeekBar.setProgress(seekBarPosition);
-        updateBitrateLabel(seekBarPosition);
+        // Slider position 0 = "Use Default", 1+ = (position * BITRATE_STEP) kbps
+        showBitrate(savedBitrate);
 
         // Set up click listener on label to show custom input dialog
         bitrateOverrideValue.setClickable(true);
@@ -265,7 +258,7 @@ public class OverridesView {
     private void showBitrateInputDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(activity);
         builder.setTitle("Set Bitrate Override");
-        builder.setMessage("Enter bitrate in Mbps (0 for default, max 500)");
+        builder.setMessage("Enter bitrate in Mbps (0 for default, max " + MAX_BITRATE_MBPS + ")");
 
         final EditText input = new EditText(activity);
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
@@ -299,9 +292,9 @@ public class OverridesView {
                     // Validate range
                     if (bitrateMbps < 0) {
                         bitrateMbps = 0;
-                    } else if (bitrateMbps > 500) {
-                        Toast.makeText(activity, "Maximum bitrate is 500 Mbps", Toast.LENGTH_SHORT).show();
-                        bitrateMbps = 500;
+                    } else if (bitrateMbps > MAX_BITRATE_MBPS) {
+                        Toast.makeText(activity, "Maximum bitrate is " + MAX_BITRATE_MBPS + " Mbps", Toast.LENGTH_SHORT).show();
+                        bitrateMbps = MAX_BITRATE_MBPS;
                     }
 
                     // Convert to kbps and save
@@ -311,11 +304,7 @@ public class OverridesView {
                         .apply();
 
                     // Update seekbar to closest position
-                    int seekBarPosition = bitrateKbps > 0 ? bitrateKbps / BITRATE_STEP : 0;
-                    if (bitrateOverrideSeekBar != null) {
-                        bitrateOverrideSeekBar.setProgress(seekBarPosition);
-                    }
-                    updateBitrateLabel(seekBarPosition);
+                    showBitrate(bitrateKbps);
 
                 } catch (NumberFormatException e) {
                     Toast.makeText(activity, "Invalid number", Toast.LENGTH_SHORT).show();
@@ -440,10 +429,23 @@ public class OverridesView {
 
     private void reloadBitrateSlider() {
         if (bitrateOverrideSeekBar != null) {
-            int savedBitrate = preferences.getInt(PREF_BITRATE_OVERRIDE, 0);
-            int seekBarPosition = savedBitrate > 0 ? savedBitrate / BITRATE_STEP : 0;
-            bitrateOverrideSeekBar.setProgress(seekBarPosition);
-            updateBitrateLabel(seekBarPosition);
+            showBitrate(preferences.getInt(PREF_BITRATE_OVERRIDE, 0));
+        }
+    }
+
+    // The slider stops at SEEKBAR_MAX but the dialog accepts more, so the label shows the
+    // bitrate itself instead of the slider's (clamped) position
+    private void showBitrate(int bitrateKbps) {
+        if (bitrateOverrideSeekBar != null) {
+            bitrateOverrideSeekBar.setProgress(bitrateKbps > 0 ? bitrateKbps / BITRATE_STEP : 0);
+        }
+        if (bitrateOverrideValue != null) {
+            if (bitrateKbps <= 0) {
+                bitrateOverrideValue.setText(R.string.bitrate_use_default);
+            }
+            else {
+                bitrateOverrideValue.setText(String.format("Bitrate: %d Mbps", bitrateKbps / 1000));
+            }
         }
     }
 
