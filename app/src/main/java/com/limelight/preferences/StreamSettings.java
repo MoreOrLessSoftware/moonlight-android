@@ -568,6 +568,20 @@ public class StreamSettings extends Activity {
                 }
             });
 
+            // The jitter buffer only applies to host frame timing pacing
+            final Preference jitterBufferPref = findPreference("jitter_buffer");
+            final ListPreference framePacingPref = (ListPreference) findPreference("frame_pacing");
+            if (jitterBufferPref != null && framePacingPref != null) {
+                jitterBufferPref.setEnabled("host-timed".equals(framePacingPref.getValue()));
+                framePacingPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                    @Override
+                    public boolean onPreferenceChange(Preference preference, Object newValue) {
+                        jitterBufferPref.setEnabled("host-timed".equals(newValue));
+                        return true;
+                    }
+                });
+            }
+
             // Remove HDR preference for devices below Nougat
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
                 LimeLog.info("Excluding HDR toggle based on OS");
