@@ -329,7 +329,7 @@
     <string name="pacing_balanced_alt">Balanced with FPS limit</string>
     <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
     <string name="title_jitter_buffer">Jitter buffer</string>
-    <string name="summary_jitter_buffer">Only used with host frame timing pacing: how much delay to add so frames delayed by the network still arrive in time for their vsync. With the Vulkan renderer, Low latency also skips evening out the host\'s frame timing when the stream rate matches the display, and Lowest latency always skips it and buffers less, for some unevenly shown frames. The direct renderer only buffers less.</string>
+    <string name="summary_jitter_buffer">Only used with host frame timing pacing: how much delay to add so frames delayed by the network still arrive in time for their vsync. With the Vulkan renderer, Low latency and Lowest latency also skip evening out the host\'s frame timing when the stream rate matches the display, and Lowest latency buffers less, for some unevenly shown frames. The direct renderer only buffers less.</string>
     <string name="jitter_buffer_lowest_latency">Lowest latency (less even)</string>
     <string name="jitter_buffer_low_latency">Low latency</string>
     <string name="jitter_buffer_balanced">Balanced (Recommended)</string>

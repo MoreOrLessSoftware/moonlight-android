@@ -351,11 +351,13 @@ void FramePacer::updatePhase(FrameTiming& frame) {
 
     // At a frame a vsync, locking only evens out the host's own timing, and schedules frames
     // as late as the latest recent one: on a Pixel 10 Pro at 120 fps, about 3 ms more delay for
-    // 15-60% fewer uneven frames. Low latency takes the delay off. Lowest latency takes it off
-    // at any rate: with a frame every few vsyncs, frames then change on whichever vsync their
-    // own timestamp lands before, and the odd one is shown a vsync early or late.
-    if ((slotVsyncs_ == 1 && timeline_.jitterBuffer() == JitterBuffer::LowLatency) ||
-            timeline_.jitterBuffer() == JitterBuffer::LowestLatency) {
+    // 15-60% fewer uneven frames. Low latency and Lowest latency take the delay off. With a
+    // frame every few vsyncs, both lock: unlocked, frames change on whichever vsync their own
+    // timestamp lands before, and when that sits near a vsync, the slightest jitter shows one a
+    // vsync early or late. At 60 fps on a 120 Hz Pixel 10 Pro, unlocked Lowest latency showed
+    // about one frame in a hundred for one vsync or three instead of two.
+    if (slotVsyncs_ == 1 && (timeline_.jitterBuffer() == JitterBuffer::LowLatency ||
+                             timeline_.jitterBuffer() == JitterBuffer::LowestLatency)) {
         phaseSamples_.clear();
         phaseLocked_ = false;
         shiftNs_ = 0;
