@@ -361,13 +361,14 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
 
     if (!api.decoderDecodeIsReady(decoder_, false)) {
         // Missing blocks decode as zero (a little blur), which beats dropping the frame. PyroWave
-        // wants the two coarsest levels complete and nine tenths of the blocks, as it does by
-        // default, told which blocks were lost rather than never sent. A frame cut short at its
+        // wants the two coarsest levels complete and, for a frame that lost packets, a share of
+        // the blocks (setLostFrameMinBlocks()), told which blocks were lost rather than never
+        // sent. A frame cut short at its
         // deadline needs only the coarsest levels: it's missing the finest blocks at its end,
         // and was only cut with most of its packets in. Dropping it would leave the frame before
         // on screen for another frame, worse than the late frame it was cut short to avoid.
         const bool ready = partial != Partial::None
-                ? api.decoderDecodeIsReadyWithSideband(decoder_, true, 2, partial == Partial::Cut ? 0.0f : 0.9f,
+                ? api.decoderDecodeIsReadyWithSideband(decoder_, true, 2, partial == Partial::Cut ? 0.0f : lostFrameMinBlocks_,
                                                        lostBlocks_.data(), lostBlocks_.size())
                 : api.decoderDecodeIsReady(decoder_, true);
         if (!ready) {

@@ -372,6 +372,9 @@ private:
     bool partialEnabled_ = true;
     int partialMinPercent_ = 30;
     int64_t partialMarginNs_ = 2'000'000;
+    // Also from the setting, or debug.moonlight.partial_lost_pct: the share of its blocks a frame
+    // that lost packets must still have to be shown (PyrowaveDecoder::setLostFrameMinBlocks())
+    int lostFrameMinPercent_ = 75;
 
     // Running totals of skipped frames as the overlay last sampled them, for a count over the
     // last kRecentSkipsNs
