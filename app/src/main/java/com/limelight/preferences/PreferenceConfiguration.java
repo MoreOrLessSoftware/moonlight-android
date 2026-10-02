@@ -159,6 +159,7 @@ public class PreferenceConfiguration {
     public static final int PYROWAVE_LATE_FRAMES_SHARP = 1;
     public static final int PYROWAVE_LATE_FRAMES_BALANCED = 2;
     public static final int PYROWAVE_LATE_FRAMES_SMOOTH = 3;
+    public static final int PYROWAVE_LATE_FRAMES_SMOOTHEST = 4;
 
     public static final String RES_360P = "640x360";
     public static final String RES_480P = "854x480";
@@ -468,6 +469,9 @@ public class PreferenceConfiguration {
         }
         else if (str.equals("smooth")) {
             return PYROWAVE_LATE_FRAMES_SMOOTH;
+        }
+        else if (str.equals("smoothest")) {
+            return PYROWAVE_LATE_FRAMES_SMOOTHEST;
         }
         else {
             return PYROWAVE_LATE_FRAMES_BALANCED;

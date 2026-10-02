@@ -398,21 +398,35 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
     // around them are late too, so they wait behind them. Without one, four in ten frames cut
     // were still late; 1 ms left one in eight, 2 ms with a 30% minimum one in a hundred, and
     // each extra millisecond cut about a tenth more of the frames.
+    //
+    // The same trade applies to frames that lost packets: shown blurrier with less of them, or
+    // dropped, which on a link that lost about a frame in 130 (a Pixel 10 Pro at 60 fps) was
+    // about half of its stutters. Off and Sharper keep PyroWave's default of nine tenths.
     switch (config.pyrowaveLateFrames) {
     case 0:  // Off
         partialEnabled_ = false;
+        lostFrameMinPercent_ = 90;
         break;
     case 1:  // Sharper
         partialMinPercent_ = 50;
         partialMarginNs_ = 1'000'000;
+        lostFrameMinPercent_ = 90;
         break;
     case 3:  // Smoother
         partialMinPercent_ = 25;
         partialMarginNs_ = 3'000'000;
+        lostFrameMinPercent_ = 50;
+        break;
+    case 4:  // Smoothest: any frame with its coarsest levels is shown, however blurred, and
+             // frames are cut early enough to cover most of a slow decode
+        partialMinPercent_ = 10;
+        partialMarginNs_ = 5'000'000;
+        lostFrameMinPercent_ = 0;
         break;
     default:  // Balanced
         partialMinPercent_ = 30;
         partialMarginNs_ = 2'000'000;
+        lostFrameMinPercent_ = 75;
         break;
     }
 
@@ -426,6 +440,10 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
     if (__system_property_get("debug.moonlight.partial_margin_us", value) > 0) {
         partialMarginNs_ = static_cast<int64_t>(std::clamp(atoi(value), -20000, 20000)) * 1000;
     }
+    if (__system_property_get("debug.moonlight.partial_lost_pct", value) > 0) {
+        lostFrameMinPercent_ = std::clamp(atoi(value), 0, 100);
+    }
+    ALOGI("PyroWave frames that lost packets shown with at least %d%% of their blocks", lostFrameMinPercent_);
     ALOGI("Late PyroWave frames cut short: %s", partialEnabled_ ? "on" : "off");
     if (partialEnabled_) {
         ALOGI("Cut with %d%% of their packets in, %lld us margin", partialMinPercent_,
@@ -638,6 +656,7 @@ bool VulkanRenderer::createPyrowaveDecoder() {
         return false;
     }
     pyrowave_->setRecordFraming(config_.pyrowaveRecordFraming);
+    pyrowave_->setLostFrameMinBlocks(lostFrameMinPercent_ / 100.0f);
     if (config_.pyrowaveRecordFraming) {
         ALOGI("PyroWave host uses record framing");
     }

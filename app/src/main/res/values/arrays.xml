@@ -126,12 +126,14 @@
         <item>@string/pyrowave_late_frames_sharp</item>
         <item>@string/pyrowave_late_frames_balanced</item>
         <item>@string/pyrowave_late_frames_smooth</item>
+        <item>@string/pyrowave_late_frames_smoothest</item>
     </string-array>
     <string-array name="pyrowave_late_frames_values" translatable="false">
         <item>off</item>
         <item>sharp</item>
         <item>balanced</item>
         <item>smooth</item>
+        <item>smoothest</item>
     </string-array>
 
     <string-array name="jitter_buffer_names">

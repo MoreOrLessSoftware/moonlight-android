@@ -87,6 +87,10 @@ public:
     void setRecordFraming(bool recordFraming) { recordFraming_ = recordFraming; }
     bool recordFraming() const { return recordFraming_; }
 
+    // The share of its blocks a frame that lost packets must still have to be decoded, rather
+    // than dropped. PyroWave's own default is nine tenths.
+    void setLostFrameMinBlocks(float fraction) { lostFrameMinBlocks_ = fraction; }
+
     using Gap = PyrowaveGap;
 
     // Whether a frame is whole. Matches MoonBridge.PARTIAL_KIND_*.
@@ -103,8 +107,8 @@ public:
     // A partial frame comes with its gaps, in order, if it has any. The blocks that arrived whole
     // are decoded, and the rest are left out, which blurs their area a little. PyroWave won't
     // decode it without the frame's lowest frequency blocks, or, for a frame that lost packets,
-    // with more than a tenth of them missing. A frame cut short is missing its finest blocks,
-    // and showing it beats showing it late, so it needs only the lowest frequency ones.
+    // with fewer than setLostFrameMinBlocks() of them. A frame cut short is missing its finest
+    // blocks, and showing it beats showing it late, so it needs only the lowest frequency ones.
     PyrowavePlanes* decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount, Partial partial,
                            uint64_t* readyValue);
 
@@ -132,6 +136,7 @@ private:
     bool tenBit_ = false;
     bool fragmentPath_ = false;
     bool recordFraming_ = false;
+    float lostFrameMinBlocks_ = 0.9f;
     VkFormat format_ = VK_FORMAT_UNDEFINED;
     VkImageUsageFlags usage_ = 0;
 
