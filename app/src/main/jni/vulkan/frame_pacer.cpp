@@ -612,6 +612,16 @@ int FramePacer::onVsync(int64_t vsyncNs, const FrameTiming* frames, size_t count
                 break;
             }
 
+            // Frames presented ahead are only shown from here when they can't be. A frame that
+            // waited because its vsync was too far off to commit to (often one moved to the
+            // next slot, see plannedVsyncNs()) can be committed now, and the caller does that
+            // right after this, for the vsync planned for it. Shown from here, it went out a
+            // vsync late: on a Pixel 10 Pro at 60 Hz, half of the frames held on screen an
+            // extra vsync came right before one of these.
+            if (presentAhead_ && frameVsyncNs(frames[0], true) != 0) {
+                break;
+            }
+
             const int64_t tolerance = periodNs_ / 4;
             int newestDue = -1;
             for (size_t i = 0; i < count; i++) {
