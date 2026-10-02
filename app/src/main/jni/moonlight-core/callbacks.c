@@ -11,6 +11,11 @@
 
 #include <cpu-features.h>
 
+// Matches MoonBridge.PARTIAL_KIND_*
+#define PARTIAL_KIND_NONE 0
+#define PARTIAL_KIND_LOST 1 // Packets were lost
+#define PARTIAL_KIND_CUT 2  // Cut short at its deadline (see LiSetPartialFrameDeadline())
+
 static OpusMSDecoder* Decoder;
 static OPUS_MULTISTREAM_CONFIGURATION OpusConfig;
 
@@ -86,7 +91,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeDrStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStart", "()V");
     BridgeDrStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStop", "()V");
     BridgeDrCleanupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrCleanup", "()V");
-    BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJJ[I)I");
+    BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJJ[II)I");
     BridgeArInitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArInit", "(III)I");
     BridgeArStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStart", "()V");
     BridgeArStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStop", "()V");
@@ -157,6 +162,11 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     PLENTRY currentEntry;
     int offset;
 
+    // Whether, and how, the frame is partial (MoonBridge.PARTIAL_KIND_*). A frame cut short at
+    // its deadline may have no gaps: it can end where a block of its packets did.
+    const jint partialKind = !decodeUnit->partialFrame ? PARTIAL_KIND_NONE :
+                             decodeUnit->partialLate ? PARTIAL_KIND_CUT : PARTIAL_KIND_LOST;
+
     // A partial frame's gaps, as offset and length pairs into the frame data
     jintArray missingRanges = NULL;
     jint* missing = NULL;
@@ -198,7 +208,7 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
                                               DecodedFrameBuffer, currentEntry->length, currentEntry->bufferType,
                                               decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
                                               (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs,
-                                              NULL);
+                                              NULL, PARTIAL_KIND_NONE);
             if ((*env)->ExceptionCheck(env)) {
                 // We will crash here
                 free(missing);
@@ -235,7 +245,7 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
                                        DecodedFrameBuffer, offset, BUFFER_TYPE_PICDATA,
                                        decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
                                        (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs,
-                                       missingRanges);
+                                       missingRanges, partialKind);
     if (missingRanges != NULL) {
         (*env)->DeleteLocalRef(env, missingRanges);
     }

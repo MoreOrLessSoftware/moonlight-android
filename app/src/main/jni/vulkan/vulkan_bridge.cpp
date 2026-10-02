@@ -27,7 +27,8 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
         JNIEnv* env, jclass, jobject outputSurface, jint streamWidth, jint streamHeight, jint streamFps,
         jint framePacing, jint jitterBuffer, jint ditherMode, jint colorspace, jboolean fullRange, jboolean tenBit,
-        jboolean pyrowave, jboolean pyrowaveRecordFraming, jfloat displayRefreshHz, jstring traceDirectory) {
+        jboolean pyrowave, jboolean pyrowaveRecordFraming, jint pyrowaveLateFrames, jfloat displayRefreshHz,
+        jstring traceDirectory) {
     ANativeWindow* output = ANativeWindow_fromSurface(env, outputSurface);
     if (!output) {
         return 0;
@@ -45,6 +46,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
     config.tenBit = tenBit;
     config.pyrowave = pyrowave;
     config.pyrowaveRecordFraming = pyrowaveRecordFraming;
+    config.pyrowaveLateFrames = pyrowaveLateFrames;
     config.displayRefreshHz = displayRefreshHz;
     if (traceDirectory) {
         const char* chars = env->GetStringUTFChars(traceDirectory, nullptr);
@@ -90,7 +92,8 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetHdrMode(
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
-        JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs, jintArray missingRanges) {
+        JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs, jlong lastPacketUs,
+        jintArray missingRanges, jint partialKind) {
     VulkanRenderer* renderer = fromHandle(handle);
     if (!renderer || length <= 0) {
         return JNI_FALSE;
@@ -118,7 +121,9 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
         }
     }
 
-    return renderer->submitPyrowaveFrame(frame.data(), frame.size(), gaps.data(), gaps.size(), hostPtsUs * 1000)
+    return renderer->submitPyrowaveFrame(frame.data(), frame.size(), gaps.data(), gaps.size(),
+                                         static_cast<vkr::PyrowaveDecoder::Partial>(partialKind), hostPtsUs * 1000,
+                                         lastPacketUs)
            ? JNI_TRUE : JNI_FALSE;
 }
 
