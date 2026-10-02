@@ -56,6 +56,9 @@ public:
 
     bool hasEstimate() const { return !window_.empty(); }
 
+    // Past the warm-up at the start of the stream (kWarmupNs), which runs with no buffer
+    bool warmedUp() const { return warmedUp_; }
+
     // Local time minus host time that frames are scheduled at
     int64_t offsetNs() const { return offsetNs_; }
 
@@ -76,9 +79,8 @@ public:
     void setMaxBufferNs(int64_t maxBufferNs) { maxBufferNs_ = maxBufferNs; }
 
     // The start of a stream, when its first frames arrive late (the first keyframe is large):
-    // the buffer covers less of the transit times then, so those don't set it
+    // no buffer then, and those frames don't count toward the buffer after it (see addSample())
     static constexpr int64_t kWarmupNs = 1'000'000'000;
-    static constexpr double kWarmupCoverage = 0.9;
 
 private:
     JitterBuffer jitterBuffer_;
