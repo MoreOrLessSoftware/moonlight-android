@@ -110,6 +110,14 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
     const bool warmingUp = arrivalNs - startNs_ < kWarmupNs;
     const Sample sample {arrivalNs, arrivalNs - hostPtsNs};
 
+    // The warm-up's frames (the first keyframe is large, and the decoder is starting) say little
+    // about the stream once it settles. Kept in the window, they held the buffer near its cap
+    // for seconds: 50 ms at the start of a 60 fps stream, taking five seconds to come down.
+    if (!warmingUp && !warmedUp_) {
+        window_.clear();
+        minQueue_.clear();
+    }
+
     window_.push_back(sample);
     while (!minQueue_.empty() && minQueue_.back().transitNs >= sample.transitNs) {
         minQueue_.pop_back();
@@ -124,6 +132,15 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
         window_.pop_front();
     }
 
+    // Through the warm-up, no buffer: frames are scheduled by the quickest transit seen, and any
+    // that arrive later are shown as they arrive. The buffer then starts from the settled stream,
+    // growing at once if frames arrive later and coming down slowly.
+    if (warmingUp) {
+        offsetNs_ = minTransitNs();
+        return continuous;
+    }
+    warmedUp_ = true;
+
     // Until there are enough samples for a percentile, cover all of them. After that, leave out
     // at least the two slowest: with few samples, the percentile is otherwise just the slowest
     // frame, which may be a one-off.
@@ -134,29 +151,19 @@ bool HostTimeline::addSample(int64_t hostPtsNs, int64_t arrivalNs) {
     const double n = static_cast<double>(scratch_.size());
     size_t index = scratch_.size() - 1;
     if (scratch_.size() >= 8) {
-        double coverage = std::min(coverage_, 1.0 - 2.0 / n);
-        if (warmingUp) {
-            coverage = std::min(coverage, kWarmupCoverage);
-        }
+        const double coverage = std::min(coverage_, 1.0 - 2.0 / n);
         index = static_cast<size_t>(std::ceil(coverage * (n - 1)));
     }
     std::nth_element(scratch_.begin(), scratch_.begin() + index, scratch_.end());
     const int64_t target = scratch_[index];
 
     // Take more delay right away when frames start arriving later, and give it back slowly
-    // so one quiet stretch doesn't leave us exposed to the next burst of jitter. At the end of
-    // the warm-up, it goes straight to what the stream has shown since.
-    if (first || target > offsetNs_) {
-        offsetNs_ = target;
-    }
-    else if (!warmingUp && !warmedUp_) {
+    // so one quiet stretch doesn't leave us exposed to the next burst of jitter
+    if (target > offsetNs_) {
         offsetNs_ = target;
     }
     else {
         offsetNs_ -= (offsetNs_ - target) / decayDivisor_;
-    }
-    if (!warmingUp) {
-        warmedUp_ = true;
     }
 
     if (maxBufferNs_ > 0) {
@@ -769,7 +776,8 @@ void FramePacer::addReadyCost(int64_t costNs) {
 
 bool FramePacer::partialDeadlineOffsetNs(const FrameTiming& frame, int64_t* offsetNs, int64_t* readyByNs,
                                          int64_t* readyCostNs) const {
-    if (mode_ != PacingMode::HostTimed || !timeline_.hasEstimate() || readyCosts_.size() < kPartialMinReadySamples) {
+    // Not through the warm-up: with no buffer then, nearly every frame would be cut
+    if (mode_ != PacingMode::HostTimed || !timeline_.warmedUp() || readyCosts_.size() < kPartialMinReadySamples) {
         return false;
     }
 
