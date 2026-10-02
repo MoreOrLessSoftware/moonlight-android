@@ -419,6 +419,10 @@ int main(int argc, char** argv) {
     // How long presented-ahead frames waited in the replay before their vsync: the time the GPU
     // and compositor get to finish them
     std::vector<int64_t> aheadSlack;
+    // Each replayed frame's wait from reaching the renderer to the vsync it was scheduled for,
+    // with the time it was shown. Only the client's clock is involved, so a slow rise (as the
+    // schedule moves a vsync later and stays there) shows up here and not in host timestamps.
+    std::vector<std::pair<int64_t, int64_t>> shownWait;
     uint64_t aheadCount = 0;
     uint64_t atVsyncCount = 0;
 
@@ -468,6 +472,7 @@ int main(int argc, char** argv) {
                     if (showVsync == 0) break;
                     pacer.onPresentedAhead(showVsync);
                     aheadSlack.push_back(showVsync - timing.arrivalNs);
+                    shownWait.push_back({showVsync, showVsync - queue.front().arrivalNs});
                     aheadCount++;
                     replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.phaseLocked(),
                                      (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
@@ -567,6 +572,7 @@ int main(int argc, char** argv) {
                 decisionsDiffering++;
             }
             if (choice >= 0) {
+                shownWait.push_back({vsyncNs, vsyncNs - queue[static_cast<size_t>(choice)].arrivalNs});
                 queue.erase(queue.begin(), queue.begin() + choice + 1);
                 atVsyncCount++;
             }
@@ -578,6 +584,7 @@ int main(int argc, char** argv) {
                     if (showVsync == 0) break;
                     pacer.onPresentedAhead(showVsync);
                     aheadSlack.push_back(showVsync - vsyncNs);
+                    shownWait.push_back({showVsync, showVsync - queue.front().arrivalNs});
                     aheadCount++;
                     replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.phaseLocked(),
                                      (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
@@ -605,6 +612,29 @@ int main(int argc, char** argv) {
     device.print();
     printf("\n");
     replayed.print(maxEvents);
+    if (!shownWait.empty()) {
+        // The median over each 20 s, after the first 3 s while the pacer settles
+        std::map<int64_t, std::vector<int64_t>> byWindow;
+        std::vector<int64_t> all;
+        double sum = 0;
+        const int64_t start = shownWait.front().first;
+        for (const auto& w : shownWait) {
+            if (w.first - start < 3'000'000'000) continue;
+            byWindow[(w.first - start) / 20'000'000'000].push_back(w.second);
+            all.push_back(w.second);
+            sum += static_cast<double>(w.second);
+        }
+        if (!all.empty()) {
+            printf("  arrival -> scheduled vsync (replay): mean %.2f ms, %s\n", sum / all.size() / 1e6,
+                   percentiles(all, false).c_str());
+            printf("    median per 20 s:");
+            for (auto& entry : byWindow) {
+                std::sort(entry.second.begin(), entry.second.end());
+                printf(" %.1f", entry.second[entry.second.size() / 2] / 1e6);
+            }
+            printf("\n");
+        }
+    }
     printf("\n%" PRIu64 " of %" PRIu64 " vsync decisions differ between the device and the replay%s\n",
            decisionsDiffering, recorded.vsyncs,
            decisionsDiffering ? " (expected if the pacer changed since the trace was recorded)" : "");
