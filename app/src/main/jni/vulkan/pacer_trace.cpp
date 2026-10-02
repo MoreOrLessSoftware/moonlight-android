@@ -135,6 +135,17 @@ void PacerTrace::decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, i
           static_cast<long long>(queuedNs), static_cast<long long>(doneNs));
 }
 
+void PacerTrace::partial(int64_t hostPtsNs, int kind) {
+    write("K,%lld,%d\n", static_cast<long long>(hostPtsNs), kind);
+}
+
+void PacerTrace::partialDeadline(int64_t hostPtsNs, int64_t readyByNs, int64_t readyCostNs, int64_t commonToLocalNs,
+                                 int64_t offsetUs) {
+    write("L,%lld,%lld,%lld,%lld,%lld\n", static_cast<long long>(hostPtsNs), static_cast<long long>(readyByNs),
+          static_cast<long long>(readyCostNs), static_cast<long long>(commonToLocalNs),
+          static_cast<long long>(offsetUs));
+}
+
 void PacerTrace::received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs) {
     write("N,%lld,%lld,%lld\n", static_cast<long long>(hostPtsNs), static_cast<long long>(receiveNs),
           static_cast<long long>(enqueueNs));

@@ -36,6 +36,7 @@ struct RendererConfig {
     float displayRefreshHz = 60.0f;
     bool pyrowave = false;     // The stream is PyroWave, decoded by the renderer rather than MediaCodec
     bool pyrowaveRecordFraming = false;  // From the nonary host: record framing, chroma sited at the center
+    int pyrowaveLateFrames = 2;  // PreferenceConfiguration.PYROWAVE_LATE_FRAMES_*
     std::string traceDirectory;  // Where pacer traces go when enabled (see PacerTrace)
 };
 
@@ -61,6 +62,7 @@ struct VideoFrame {
     uint64_t readyValue = 0;  // Timeline value the decode into the planes signals
     int64_t decodeStartNs = 0;   // Handed to the renderer
     int64_t decodeQueuedNs = 0;  // Decode queued on the GPU
+    int64_t lastPacketUs = 0;    // When its last packet arrived, on moonlight-common-c's clock
 
     AImageCropRect crop {};
     FrameTiming timing;
@@ -92,10 +94,15 @@ public:
     // Surface MediaCodec writes into. Owned by the renderer. Null for PyroWave.
     ANativeWindow* decoderWindow() const { return decoderWindow_; }
 
-    // Decodes a PyroWave frame, which may have lost some of its data (gaps), and queues it to be
-    // shown. False if it couldn't be decoded.
+    // Decodes a PyroWave frame, which may have lost some of its data (gaps) or been cut short,
+    // and queues it to be shown. lastPacketUs is when its last packet arrived, on
+    // moonlight-common-c's clock. False if it couldn't be decoded.
+    //
+    // Also tells moonlight-common-c when to cut short frames still arriving (see
+    // updatePartialDeadline()). It's called on moonlight-common-c's decoder thread, which stops
+    // before the video stream does.
     bool submitPyrowaveFrame(const uint8_t* data, size_t size, const PyrowaveDecoder::Gap* gaps, size_t gapCount,
-                             int64_t hostPtsNs);
+                             PyrowaveDecoder::Partial partial, int64_t hostPtsNs, int64_t lastPacketUs);
 
     void setHdrMode(bool enabled, const uint8_t* metadata, size_t metadataLength);
 
@@ -347,6 +354,24 @@ private:
     PacerTrace trace_;
     std::deque<FramePtr> pending_;
     uint64_t queueOverflowDrops_ = 0;
+
+    // The deadline frames still arriving are cut short at (LiSetPartialFrameDeadline()), worked
+    // out as frames arrive and handed to moonlight-common-c with the next frame submitted
+    void updatePartialDeadline(const VideoFrame& frame);
+    bool partialDeadlineEnabled_ = false;
+    int64_t partialDeadlineOffsetUs_ = 0;
+    // What moonlight-common-c was last told. Only on its decoder thread. Taken as set at first,
+    // since a renderer before this one may have set a deadline, so the first frame clears it.
+    bool partialDeadlineSent_ = true;
+    int64_t partialDeadlineSentUs_ = 0;
+    // From the PyroWave late frames setting (config.pyrowaveLateFrames): whether frames are cut,
+    // only with at least this share of their packets in, and how much earlier than they must
+    // be. debug.moonlight.partial (0 off, 1 on), debug.moonlight.partial_min_pct and
+    // debug.moonlight.partial_margin_us override it, with adb shell setprop. Read when the
+    // renderer is made.
+    bool partialEnabled_ = true;
+    int partialMinPercent_ = 30;
+    int64_t partialMarginNs_ = 2'000'000;
 
     // Running totals of skipped frames as the overlay last sampled them, for a count over the
     // last kRecentSkipsNs

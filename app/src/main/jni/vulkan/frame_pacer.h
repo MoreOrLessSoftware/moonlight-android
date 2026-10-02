@@ -142,7 +142,7 @@ public:
     // must be within kMaxPresentAheadVsyncs of the next vsync. Every frame presented ahead holds
     // a swapchain image until it's on screen; with too many, the render thread blocks waiting
     // for a free one, which makes it late for vsyncs and for frames arriving.
-    int64_t plannedVsyncNs(const FrameTiming& frame) const;
+    int64_t plannedVsyncNs(const FrameTiming& frame) const { return frameVsyncNs(frame, true); }
     static constexpr int64_t kMaxPresentAheadVsyncs = 1;
 
     // A frame was presented ahead of time for vsyncNs (from plannedVsyncNs())
@@ -177,6 +177,24 @@ public:
     // Frames the pacer chose not to show
     uint64_t framesSkipped() const { return framesSkipped_; }
 
+    // Frames still arriving when they should be ready are cut short then, where the decoder can
+    // show what arrived (PyroWave), rather than shown late (LiSetPartialFrameDeadline()).
+    //
+    // How long a frame took from its last packet to being ready to show (decoded)
+    void addReadyCost(int64_t costNs);
+
+    // HostTimed: how long after a frame's host timestamp its last packet must be in for it to be
+    // ready in time to be shown on schedule, judged from a frame that just arrived: the time it
+    // must be ready by, less the 90th percentile of recent ready costs. False when frames aren't
+    // scheduled by their timestamps, or before there are enough ready costs to go on.
+    // readyByNs and readyCostNs, if given, get the time the frame must be ready by and the
+    // percentile of ready costs, for the trace.
+    bool partialDeadlineOffsetNs(const FrameTiming& frame, int64_t* offsetNs, int64_t* readyByNs = nullptr,
+                                 int64_t* readyCostNs = nullptr) const;
+    static constexpr int kPartialReadyPercentile = 90;
+    static constexpr size_t kPartialReadySamples = 64;
+    static constexpr size_t kPartialMinReadySamples = 16;
+
     // How far the host's frames drift against our vsyncs, in slots per frame
     double phaseDriftPerFrame() const { return driftPerFrame_; }
 
@@ -191,6 +209,9 @@ public:
     static constexpr int64_t kRelockWindowNs = 4'000'000'000;
 
 private:
+    // plannedVsyncNs(), or with committable false, the vsync even if it's too far off to
+    // commit the frame to yet
+    int64_t frameVsyncNs(const FrameTiming& frame, bool committable) const;
     void trackVsync(int64_t vsyncNs);
     void updateSlot(const FrameTiming& frame);
     void updatePhase(FrameTiming& frame);
@@ -241,6 +262,9 @@ private:
     };
     std::deque<PhaseSample> phaseSamples_;
     int64_t frameIndex_ = 0;
+
+    // Recent ready costs (addReadyCost())
+    std::deque<int64_t> readyCosts_;
 };
 
 }  // namespace vkr

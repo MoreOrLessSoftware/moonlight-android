@@ -322,15 +322,15 @@ PyrowaveDecoder::~PyrowaveDecoder() {
 }
 
 PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
-                                        uint64_t* readyValue) {
+                                        Partial partial, uint64_t* readyValue) {
     // Each frame arrives on its own, so anything left from an earlier one is stale
     api.decoderClear(decoder_);
 
-    if (gapCount != 0 && recordFraming_) {
+    if (partial != Partial::None && recordFraming_) {
         partialDropped_++;
         return nullptr;
     }
-    else if (gapCount != 0) {
+    else if (partial != Partial::None) {
         if (!pushPartialFrame(data, size, gaps, gapCount)) {
             partialDropped_++;
             return nullptr;
@@ -362,17 +362,21 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
     if (!api.decoderDecodeIsReady(decoder_, false)) {
         // Missing blocks decode as zero (a little blur), which beats dropping the frame. PyroWave
         // wants the two coarsest levels complete and nine tenths of the blocks, as it does by
-        // default, told which blocks were lost rather than never sent.
-        const bool ready = gapCount != 0
-                ? api.decoderDecodeIsReadyWithSideband(decoder_, true, 2, 0.9f, lostBlocks_.data(), lostBlocks_.size())
+        // default, told which blocks were lost rather than never sent. A frame cut short at its
+        // deadline needs only the coarsest levels: it's missing the finest blocks at its end,
+        // and was only cut with most of its packets in. Dropping it would leave the frame before
+        // on screen for another frame, worse than the late frame it was cut short to avoid.
+        const bool ready = partial != Partial::None
+                ? api.decoderDecodeIsReadyWithSideband(decoder_, true, 2, partial == Partial::Cut ? 0.0f : 0.9f,
+                                                       lostBlocks_.data(), lostBlocks_.size())
                 : api.decoderDecodeIsReady(decoder_, true);
         if (!ready) {
-            if (gapCount != 0) {
+            if (partial != Partial::None) {
                 partialDropped_++;
             }
             return nullptr;
         }
-        if (gapCount != 0) {
+        if (partial != Partial::None) {
             partialDecoded_++;
         }
         else if (!loggedFailure_) {
@@ -425,7 +429,7 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
         lastStatsNs_ = now;
         api.reportPerformanceStats(device_, &logStat, nullptr, true);
         if (partialDecoded_ != 0 || partialDropped_ != 0) {
-            ALOGI("Frames that lost packets: %u decoded from what arrived, %u too incomplete to decode",
+            ALOGI("Partial frames (lost packets or cut short): %u decoded from what arrived, %u too incomplete to decode",
                   partialDecoded_, partialDropped_);
             partialDecoded_ = 0;
             partialDropped_ = 0;

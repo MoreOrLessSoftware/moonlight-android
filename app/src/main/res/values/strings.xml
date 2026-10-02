@@ -257,6 +257,12 @@
     <string name="title_disable_frame_drop">Never drop frames</string>
     <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
     <string name="title_video_format">Change codec settings</string>
+    <string name="title_pyrowave_late_frames">PyroWave late frames</string>
+    <string name="summary_pyrowave_late_frames">Only used with PyroWave and host frame timing pacing: a frame still arriving when it should be ready is cut short and shown with what has arrived, a little blurred, rather than shown a refresh late. Cutting more frames means fewer stutters on a busy network, but more blur.</string>
+    <string name="pyrowave_late_frames_off">Off (show late frames late)</string>
+    <string name="pyrowave_late_frames_sharp">Sharper (cut fewer frames)</string>
+    <string name="pyrowave_late_frames_balanced">Balanced (Recommended)</string>
+    <string name="pyrowave_late_frames_smooth">Smoother (cut more frames, more blur)</string>
     <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>
     <string name="title_enable_hdr">Enable HDR / 10-bit SDR (Experimental)</string>
     <string name="summary_enable_hdr">Stream HDR / 10-bit SDR when the game and PC GPU support it. Requires a GPU with HEVC Main 10 encoding support.</string>

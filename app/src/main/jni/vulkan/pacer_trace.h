@@ -45,6 +45,14 @@ namespace vkr {
 //   D,hostPtsNs,startNs,queuedNs,doneNs
 //                                    a PyroWave frame's decode: handed to the renderer, queued on
 //                                    the GPU, and finished there (then it arrives, as F)
+//   K,hostPtsNs,kind                 a partial PyroWave frame handed to the renderer: 1 it lost
+//                                    packets, 2 it was cut short at its deadline
+//   L,hostPtsNs,readyByNs,readyCostNs,commonToLocalNs,offsetUs
+//                                    the deadline for cutting frames short, worked out from the
+//                                    frame that just arrived (F): when it had to be ready by, the
+//                                    percentile of ready costs, CLOCK_MONOTONIC minus
+//                                    moonlight-common-c's clock, and the offset after a frame's
+//                                    host timestamp handed to moonlight-common-c (on its clock)
 //
 // Every call must be made with the renderer's lock held.
 class PacerTrace {
@@ -69,6 +77,9 @@ public:
     void rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs, int64_t queuedNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
     void decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs);
+    void partial(int64_t hostPtsNs, int kind);
+    void partialDeadline(int64_t hostPtsNs, int64_t readyByNs, int64_t readyCostNs, int64_t commonToLocalNs,
+                         int64_t offsetUs);
 
 private:
     void summarize(int64_t vsyncNs, const FramePacer& pacer);

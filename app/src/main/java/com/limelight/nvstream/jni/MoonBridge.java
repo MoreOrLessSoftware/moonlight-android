@@ -56,6 +56,11 @@ public class MoonBridge {
     public static final int CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 = 0x40;
     public static final int CAPABILITY_PARTIAL_FRAMES = 0x80;
 
+    // How a decode unit is partial (see VideoDecoderRenderer.submitDecodeUnit())
+    public static final int PARTIAL_KIND_NONE = 0;
+    public static final int PARTIAL_KIND_LOST = 1; // Packets were lost
+    public static final int PARTIAL_KIND_CUT = 2;  // Cut short at its deadline
+
     public static final int DR_OK = 0;
     public static final int DR_NEED_IDR = -1;
 
@@ -232,11 +237,11 @@ public class MoonBridge {
     public static int bridgeDrSubmitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                                int frameNumber, int frameType, char frameHostProcessingLatency,
                                                long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
-                                               int[] missingRanges) {
+                                               int[] missingRanges, int partialKind) {
         if (videoRenderer != null) {
             return videoRenderer.submitDecodeUnit(decodeUnitData, decodeUnitLength,
                     decodeUnitType, frameNumber, frameType, frameHostProcessingLatency,
-                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges);
+                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges, partialKind);
         }
         else {
             return DR_OK;

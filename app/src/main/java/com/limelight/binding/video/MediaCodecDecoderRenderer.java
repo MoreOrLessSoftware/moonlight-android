@@ -601,7 +601,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 getPreferredColorSpace(),
                 getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL,
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
-                pyrowave, pyrowaveRecordFraming, getDisplayRefreshRate(), getPacerTraceDirectory());
+                pyrowave, pyrowaveRecordFraming, prefs.pyrowaveLateFrames, getDisplayRefreshRate(),
+                getPacerTraceDirectory());
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");
             if (currentHdrMetadata != null) {
@@ -1591,7 +1592,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
                                 long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
-                                int[] missingRanges) {
+                                int[] missingRanges, int partialKind) {
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
@@ -1724,7 +1725,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         if (pyrowave) {
             return submitPyrowaveFrame(decodeUnitData, decodeUnitLength, frameHostProcessingLatency,
-                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges);
+                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges, partialKind);
         }
 
         boolean csdSubmittedForThisFrame = false;
@@ -2022,12 +2023,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private int submitPyrowaveFrame(byte[] decodeUnitData, int decodeUnitLength, char frameHostProcessingLatency,
                                     long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
-                                    int[] missingRanges) {
+                                    int[] missingRanges, int partialKind) {
         recordFrameReceived(frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
         numFramesIn++;
 
-        // A frame that lost packets still arrives in sequence, so it isn't a frame loss
-        if (missingRanges != null && missingRanges.length > 0) {
+        // A frame that lost packets or was cut short still arrives in sequence, so it isn't a
+        // frame loss
+        if (partialKind != MoonBridge.PARTIAL_KIND_NONE) {
             activeWindowVideoStats.framesPartial++;
         }
 
@@ -2040,7 +2042,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Decoding is queued on the GPU, so this is the CPU's share of it: parsing the frame
         // and recording the decode. Kept in nanoseconds, since frames take well under 1 ms.
         long startNs = System.nanoTime();
-        vulkan.submitPyrowaveFrame(decodeUnitData, decodeUnitLength, presentationTimeUs, missingRanges);
+        vulkan.submitPyrowaveFrame(decodeUnitData, decodeUnitLength, presentationTimeUs, enqueueTimeUs,
+                missingRanges, partialKind);
         pyrowaveDecodeNs += System.nanoTime() - startNs;
         long decodeMs = pyrowaveDecodeNs / 1_000_000L;
         pyrowaveDecodeNs -= decodeMs * 1_000_000L;

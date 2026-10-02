@@ -669,7 +669,7 @@ int FramePacer::onVsync(int64_t vsyncNs, const FrameTiming* frames, size_t count
     return choice;
 }
 
-int64_t FramePacer::plannedVsyncNs(const FrameTiming& frame) const {
+int64_t FramePacer::frameVsyncNs(const FrameTiming& frame, bool committable) const {
     if (mode_ != PacingMode::HostTimed || lastVsyncNs_ == 0) {
         return 0;
     }
@@ -720,7 +720,7 @@ int64_t FramePacer::plannedVsyncNs(const FrameTiming& frame) const {
 
     // Not further ahead than the next vsync. A frame due later is presented at the vsync
     // before its own, still a vsync early.
-    if (index - vsyncIndex_ > kMaxPresentAheadVsyncs) {
+    if (committable && index - vsyncIndex_ > kMaxPresentAheadVsyncs) {
         return 0;
     }
 
@@ -746,6 +746,46 @@ void FramePacer::onPresentedAhead(int64_t vsyncNs) {
 
 void FramePacer::onPresentedImmediately(int64_t nowNs) {
     lastPresentVsyncNs_ = nowNs;
+}
+
+void FramePacer::addReadyCost(int64_t costNs) {
+    readyCosts_.push_back(costNs);
+    if (readyCosts_.size() > kPartialReadySamples) {
+        readyCosts_.pop_front();
+    }
+}
+
+bool FramePacer::partialDeadlineOffsetNs(const FrameTiming& frame, int64_t* offsetNs, int64_t* readyByNs,
+                                         int64_t* readyCostNs) const {
+    if (mode_ != PacingMode::HostTimed || !timeline_.hasEstimate() || readyCosts_.size() < kPartialMinReadySamples) {
+        return false;
+    }
+
+    std::vector<int64_t> costs(readyCosts_.begin(), readyCosts_.end());
+    const auto percentile = costs.begin() + (costs.size() - 1) * kPartialReadyPercentile / 100;
+    std::nth_element(costs.begin(), percentile, costs.end());
+
+    // When the frame must be ready by to be shown on time. Presented ahead, that's the guard
+    // before the vsync it's planned for, which can be most of a vsync after it's due (more with
+    // several vsyncs a frame). Otherwise, it's when it's due. The frames after this one are
+    // taken to have as long after their host timestamps as this one does.
+    int64_t readyBy = frame.targetNs + shiftNs_;
+    if (presentAhead_) {
+        // Its vsync even if that's too far off to commit the frame to yet, as for a frame
+        // that arrived early
+        const int64_t vsyncNs = frameVsyncNs(frame, false);
+        if (vsyncNs != 0) {
+            readyBy = std::max(readyBy, vsyncNs - presentGuardNs());
+        }
+    }
+    *offsetNs = readyBy - frame.hostPtsNs - *percentile;
+    if (readyByNs) {
+        *readyByNs = readyBy;
+    }
+    if (readyCostNs) {
+        *readyCostNs = *percentile;
+    }
+    return true;
 }
 
 }  // namespace vkr

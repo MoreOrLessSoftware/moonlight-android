@@ -287,6 +287,13 @@
             android:summary="@string/summary_video_format"
             android:defaultValue="auto" />
         <ListPreference
+            android:key="pyrowave_late_frames"
+            android:title="@string/title_pyrowave_late_frames"
+            android:entries="@array/pyrowave_late_frames_names"
+            android:entryValues="@array/pyrowave_late_frames_values"
+            android:summary="@string/summary_pyrowave_late_frames"
+            android:defaultValue="balanced" />
+        <ListPreference
             android:key="video_renderer"
             android:title="@string/title_video_renderer"
             android:entries="@array/video_renderer_names"

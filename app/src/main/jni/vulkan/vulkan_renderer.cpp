@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <sys/eventfd.h>
@@ -12,6 +13,10 @@
 #include <android/looper.h>
 
 #include "shaders_spv.h"
+
+#include <sys/system_properties.h>
+
+#include <Limelight.h>
 
 #define LOG_TAG "VulkanRenderer"
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -388,6 +393,44 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
       pacer_(static_cast<PacingMode>(config.framePacing), config.streamFps,
              config.displayRefreshHz > 1.0f ? static_cast<int64_t>(1e9 / config.displayRefreshHz) : 16'666'667,
              static_cast<JitterBuffer>(config.jitterBuffer)) {
+    // The presets, from 144 fps lowest latency runs on a link the stream nearly filled. The
+    // margin covers frames that arrive late taking longer than most to decode: the frames
+    // around them are late too, so they wait behind them. Without one, four in ten frames cut
+    // were still late; 1 ms left one in eight, 2 ms with a 30% minimum one in a hundred, and
+    // each extra millisecond cut about a tenth more of the frames.
+    switch (config.pyrowaveLateFrames) {
+    case 0:  // Off
+        partialEnabled_ = false;
+        break;
+    case 1:  // Sharper
+        partialMinPercent_ = 50;
+        partialMarginNs_ = 1'000'000;
+        break;
+    case 3:  // Smoother
+        partialMinPercent_ = 25;
+        partialMarginNs_ = 3'000'000;
+        break;
+    default:  // Balanced
+        partialMinPercent_ = 30;
+        partialMarginNs_ = 2'000'000;
+        break;
+    }
+
+    char value[PROP_VALUE_MAX] = {};
+    if (__system_property_get("debug.moonlight.partial", value) > 0) {
+        partialEnabled_ = atoi(value) != 0;
+    }
+    if (__system_property_get("debug.moonlight.partial_min_pct", value) > 0) {
+        partialMinPercent_ = std::clamp(atoi(value), 0, 100);
+    }
+    if (__system_property_get("debug.moonlight.partial_margin_us", value) > 0) {
+        partialMarginNs_ = static_cast<int64_t>(std::clamp(atoi(value), -20000, 20000)) * 1000;
+    }
+    ALOGI("Late PyroWave frames cut short: %s", partialEnabled_ ? "on" : "off");
+    if (partialEnabled_) {
+        ALOGI("Cut with %d%% of their packets in, %lld us margin", partialMinPercent_,
+              static_cast<long long>(partialMarginNs_ / 1000));
+    }
 }
 
 bool VulkanRenderer::init(ANativeWindow* output) {
@@ -929,7 +972,8 @@ void VulkanRenderer::onImageAvailable() {
 }
 
 bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const PyrowaveDecoder::Gap* gaps,
-                                         size_t gapCount, int64_t hostPtsNs) {
+                                         size_t gapCount, PyrowaveDecoder::Partial partial, int64_t hostPtsNs,
+                                         int64_t lastPacketUs) {
     // Frames queue up behind this thread, so it gets the render thread's priority
     static thread_local bool prioritized = false;
     if (!prioritized) {
@@ -940,15 +984,27 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const
     if (!pyrowave_) {
         return false;
     }
+    bool deadlineEnabled;
+    int64_t deadlineOffsetUs;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (closing_) {
             return false;
         }
+        deadlineEnabled = partialDeadlineEnabled_;
+        deadlineOffsetUs = partialDeadlineOffsetUs_;
+        if (partial != PyrowaveDecoder::Partial::None) {
+            trace_.partial(hostPtsNs, static_cast<int>(partial));
+        }
+    }
+    if (deadlineEnabled != partialDeadlineSent_ || (deadlineEnabled && deadlineOffsetUs != partialDeadlineSentUs_)) {
+        LiSetPartialFrameDeadline(deadlineEnabled, deadlineOffsetUs, partialMinPercent_);
+        partialDeadlineSent_ = deadlineEnabled;
+        partialDeadlineSentUs_ = deadlineOffsetUs;
     }
 
     uint64_t readyValue = 0;
-    PyrowavePlanes* planes = pyrowave_->decode(data, size, gaps, gapCount, &readyValue);
+    PyrowavePlanes* planes = pyrowave_->decode(data, size, gaps, gapCount, partial, &readyValue);
     if (!planes) {
         return false;
     }
@@ -958,6 +1014,7 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const
     frame->timing.hostPtsNs = hostPtsNs;
     frame->decodeStartNs = startNs;
     frame->decodeQueuedNs = nowNs();
+    frame->lastPacketUs = lastPacketUs;
     {
         std::lock_guard<std::mutex> lock(decodingMutex_);
         if (decodingQuit_) {
@@ -977,6 +1034,9 @@ void VulkanRenderer::enqueueFrame(FramePtr frame) {
             return;
         }
         pacer_.onFrameArrived(frame->timing);
+        if (frame->lastPacketUs != 0) {
+            updatePartialDeadline(*frame);
+        }
         trace_.frame(frame->timing, pending_.size() + 1, queueOverflowDrops_);
         pending_.push_back(std::move(frame));
         while (pending_.size() > pacer_.maxQueued()) {
@@ -999,6 +1059,30 @@ void VulkanRenderer::enqueueFrame(FramePtr frame) {
         wake(kWakeFrame);
     }
     // Frames in `dropped` are released here, outside the lock
+}
+
+// A frame still arriving when it should be ready to show is cut short then, rather than shown a
+// vsync late: PyroWave sends the coarsest detail first, so it's missing only its finest. On a
+// link the stream nearly fills, the last packets of some frames come late even though their
+// first come on time. The deadline is the frame's due time less how long frames take from their
+// last packet to being decoded (FramePacer::partialDeadlineOffsetNs()). Under mutex_.
+void VulkanRenderer::updatePartialDeadline(const VideoFrame& frame) {
+    // moonlight-common-c's clock is CLOCK_MONOTONIC_RAW, which runs a little apart from ours
+    const int64_t commonToLocalNs = nowNs() - static_cast<int64_t>(LiGetMicroseconds()) * 1000;
+    const int64_t lastPacketNs = frame.lastPacketUs * 1000 + commonToLocalNs;
+    if (frame.timing.arrivalNs >= lastPacketNs) {
+        pacer_.addReadyCost(frame.timing.arrivalNs - lastPacketNs);
+    }
+
+    int64_t offsetNs, readyByNs, readyCostNs;
+    partialDeadlineEnabled_ = partialEnabled_ &&
+            pacer_.partialDeadlineOffsetNs(frame.timing, &offsetNs, &readyByNs, &readyCostNs);
+    if (partialDeadlineEnabled_) {
+        // Host timestamps are the same on both sides; the deadline is on moonlight-common-c's clock
+        partialDeadlineOffsetUs_ = (offsetNs - partialMarginNs_ - commonToLocalNs) / 1000;
+        trace_.partialDeadline(frame.timing.hostPtsNs, readyByNs, readyCostNs, commonToLocalNs,
+                               partialDeadlineOffsetUs_);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

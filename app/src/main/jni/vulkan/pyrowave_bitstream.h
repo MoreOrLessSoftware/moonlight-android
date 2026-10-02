@@ -47,9 +47,10 @@ namespace pyrowave_bitstream {
 // anything was pushed.
 //
 // lostBlocks gets a bit set for each block that may have been lost, by block index (bit i of
-// word i / 32). The encoder leaves out blocks that are all zero, and blocks come in increasing
-// order, so a block missing between two that arrived next to each other was never sent. PyroWave
-// needs that to tell when a partial frame still has all of its coarsest blocks.
+// word i / 32), including every block after the last one found. The encoder leaves out blocks
+// that are all zero, and blocks come in increasing order, so a block missing between two that
+// arrived next to each other was never sent. PyroWave needs that to tell when a partial frame
+// still has all of its coarsest blocks.
 template <typename Push>
 bool pushArrivedBlocks(const uint8_t* data, size_t size, const PyrowaveGap* gaps, size_t gapCount, uint32_t width,
                        uint32_t height, std::vector<uint32_t>& lostBlocks, Push push) {
@@ -185,9 +186,9 @@ bool pushArrivedBlocks(const uint8_t* data, size_t size, const PyrowaveGap* gaps
         offset = end;
     }
     flush();
-    if (lostTrack) {
-        markLost(lastBlock + 1, static_cast<int64_t>(maxBlocks) - 1);
-    }
+    // Anything after the last block found may have been lost too: the frame's end may not have
+    // arrived, or it was cut short at its deadline, even where the data ends with a whole block
+    markLost(lastBlock + 1, static_cast<int64_t>(maxBlocks) - 1);
     return pushed;
 }
 

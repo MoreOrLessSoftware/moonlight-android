@@ -89,14 +89,23 @@ public:
 
     using Gap = PyrowaveGap;
 
+    // Whether a frame is whole. Matches MoonBridge.PARTIAL_KIND_*.
+    enum class Partial : int {
+        None = 0,
+        Lost = 1,  // Packets were lost
+        Cut = 2,   // Cut short at its deadline (LiSetPartialFrameDeadline())
+    };
+
     // Decodes one frame into free planes. The render must wait for *readyValue on timeline()
     // before sampling them. Null if the frame couldn't be decoded, or every planes are held.
     // Not thread safe: frames come from one thread.
     //
-    // A frame that lost packets comes with its gaps, in order. The blocks that arrived whole are
-    // decoded, and the rest are left out, which blurs their area a little. PyroWave won't decode
-    // it without the frame's lowest frequency blocks, or with more than a tenth of them missing.
-    PyrowavePlanes* decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
+    // A partial frame comes with its gaps, in order, if it has any. The blocks that arrived whole
+    // are decoded, and the rest are left out, which blurs their area a little. PyroWave won't
+    // decode it without the frame's lowest frequency blocks, or, for a frame that lost packets,
+    // with more than a tenth of them missing. A frame cut short is missing its finest blocks,
+    // and showing it beats showing it late, so it needs only the lowest frequency ones.
+    PyrowavePlanes* decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount, Partial partial,
                            uint64_t* readyValue);
 
     // Returns planes to the pool once nothing reads them any more. Thread safe.
@@ -153,7 +162,7 @@ private:
     // Blocks of the last partial frame that may have been lost (see pushArrivedBlocks())
     std::vector<uint32_t> lostBlocks_;
 
-    // Frames that lost packets, since the last stats
+    // Partial frames, since the last stats
     uint32_t partialDecoded_ = 0;
     uint32_t partialDropped_ = 0;
 };

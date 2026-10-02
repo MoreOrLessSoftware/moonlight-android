@@ -121,6 +121,19 @@
         <item>vulkan</item>
     </string-array>
 
+    <string-array name="pyrowave_late_frames_names">
+        <item>@string/pyrowave_late_frames_off</item>
+        <item>@string/pyrowave_late_frames_sharp</item>
+        <item>@string/pyrowave_late_frames_balanced</item>
+        <item>@string/pyrowave_late_frames_smooth</item>
+    </string-array>
+    <string-array name="pyrowave_late_frames_values" translatable="false">
+        <item>off</item>
+        <item>sharp</item>
+        <item>balanced</item>
+        <item>smooth</item>
+    </string-array>
+
     <string-array name="jitter_buffer_names">
         <item>@string/jitter_buffer_lowest_latency</item>
         <item>@string/jitter_buffer_low_latency</item>
