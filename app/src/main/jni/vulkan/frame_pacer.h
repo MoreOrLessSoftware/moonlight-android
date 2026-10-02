@@ -66,6 +66,10 @@ public:
 
     JitterBuffer jitterBuffer() const { return jitterBuffer_; }
 
+    // How many vsyncs each frame stays on screen (FramePacer::updateSlot()). With more than one,
+    // LowLatency covers less of the transit times (see the presets in frame_pacer.cpp).
+    void setSlotVsyncs(int64_t slotVsyncs);
+
     // Largest buffer worth keeping. Frames wait in a queue of limited size for their time, so
     // beyond what it holds, a bigger buffer only pushes frames out of the queue unshown.
     void setMaxBufferNs(int64_t maxBufferNs) { maxBufferNs_ = maxBufferNs; }
@@ -84,6 +88,7 @@ private:
     // The offset covers this fraction of transit times. The rest arrive after their
     // scheduled time and are shown at the first vsync after they arrive.
     double coverage_;
+    double baseCoverage_;
 
     // When transit times come down, the offset follows by this fraction of the difference
     // per frame

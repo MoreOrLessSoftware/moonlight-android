@@ -43,6 +43,12 @@ namespace {
 // frames 10 ms sooner than LowLatency at 60 fps on 120 Hz (11 ms against 21) and 4.6 ms sooner at
 // 120 fps, for about 1.5-2.5% of frames held a vsync long or short. Covering 95% saved about a
 // quarter less; 80% doubled the uneven frames again for 3 ms more.
+//
+// With a frame every two vsyncs or more, LowLatency covers 95% instead: over 13 steady
+// 72 fps on 144 Hz sessions, that took 1.3 ms off the delay for 0.3 more uneven frames a minute
+// (36 a minute). At a frame a vsync it cost 40% more uneven frames, so 98% stays there.
+constexpr double kLowLatencySlowSlotCoverage = 0.95;
+
 HostTimeline::HostTimeline(JitterBuffer jitterBuffer) : jitterBuffer_(jitterBuffer) {
     switch (jitterBuffer) {
         case JitterBuffer::LowLatency:
@@ -66,6 +72,13 @@ HostTimeline::HostTimeline(JitterBuffer jitterBuffer) : jitterBuffer_(jitterBuff
             coverage_ = 0.99;
             decayDivisor_ = 512;
             break;
+    }
+    baseCoverage_ = coverage_;
+}
+
+void HostTimeline::setSlotVsyncs(int64_t slotVsyncs) {
+    if (jitterBuffer_ == JitterBuffer::LowLatency) {
+        coverage_ = slotVsyncs >= 2 ? std::min(baseCoverage_, kLowLatencySlowSlotCoverage) : baseCoverage_;
     }
 }
 
@@ -299,6 +312,7 @@ void FramePacer::updateSlot(const FrameTiming& frame) {
 
     if (slot != slotVsyncs_) {
         slotVsyncs_ = slot;
+        timeline_.setSlotVsyncs(slot);
         resetPhase();
     }
 }
