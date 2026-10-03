@@ -50,11 +50,19 @@ public:
 
     void reset();
 
-    // Records a decoded frame. Returns false if it broke the timeline (the stream restarted
-    // or timestamps jumped) and the estimate was reset.
-    bool addSample(int64_t hostPtsNs, int64_t arrivalNs);
+    // Checks a frame's host timestamp against the last one. Returns false if it broke the
+    // timeline (the stream restarted or timestamps jumped) and the estimate was reset.
+    bool checkContinuity(int64_t hostPtsNs);
 
-    bool hasEstimate() const { return !window_.empty(); }
+    // Records a decoded frame, measured against the host time it's scheduled from (its host
+    // timestamp, or its place on the line the pacer fits to them)
+    void addSample(int64_t scheduledPtsNs, int64_t arrivalNs);
+
+    // Starts the window over, keeping the delay, for when what samples are measured against
+    // changes. Against the fitted line, the window is at least minWindowNs long.
+    void restartWindow(int64_t minWindowNs, int64_t minDecayDivisor);
+
+    bool hasEstimate() const { return started_; }
 
     // Past the warm-up at the start of the stream (kWarmupNs), which runs with no buffer
     bool warmedUp() const { return warmedUp_; }
@@ -87,6 +95,8 @@ private:
 
     // Window of transit samples the offset is taken from
     int64_t windowNs_;
+    int64_t baseWindowNs_ = 0;
+    int64_t baseDecayDivisor_ = 0;
 
     // The offset covers this fraction of transit times. The rest arrive after their
     // scheduled time and are shown at the first vsync after they arrive.
@@ -111,6 +121,7 @@ private:
     std::vector<int64_t> scratch_;
     int64_t offsetNs_ = 0;
     int64_t lastPtsNs_ = 0;
+    bool started_ = false;
 };
 
 class FramePacer {
@@ -218,6 +229,7 @@ private:
     void trackVsync(int64_t vsyncNs);
     void updateSlot(const FrameTiming& frame);
     void updatePhase(FrameTiming& frame);
+    void scheduleFrom(FrameTiming& frame, int64_t measuredPtsNs, bool onLine, int64_t scheduledPtsNs);
     void resetPhase();
     int64_t slotPeriodNs() const { return slotVsyncs_ * periodNs_; }
 
@@ -248,6 +260,7 @@ private:
     double lateNs_ = 0;  // How far after the fitted line frames are scheduled
     double scheduledPtsNs_ = 0;  // Host time the last frame was scheduled at
     int64_t scheduledIndex_ = 0;
+    bool transitOnLine_ = false;  // The timeline's samples are measured against the fitted line
     int64_t lockedSinceNs_ = 0;
 
     // Frames are shown every slotVsyncs_ vsyncs when the phase is locked, on the vsyncs whose
