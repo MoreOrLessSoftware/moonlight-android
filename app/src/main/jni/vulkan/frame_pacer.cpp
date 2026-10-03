@@ -44,6 +44,13 @@ namespace {
 // 120 fps, for about 1.5-2.5% of frames held a vsync long or short. Covering 95% saved about a
 // quarter less; 80% doubled the uneven frames again for 3 ms more.
 //
+// Balanced looks at the last 3 s rather than 10, and gives delay back over about a second
+// (64 frames) rather than eight: with 10 s, a burst of late frames held the buffer up for
+// most of a minute. Replayed through four 60 fps Pixel 10 Pro sessions at 60 and 120 Hz, as
+// many frames arrived after their schedule (0.8-1.0%), the median buffer was 1-2 ms lower, and
+// the 90th percentile 7-20 ms lower where bursts had held it up. Covering 98% instead saved
+// 2-3 ms more but doubled the late frames.
+//
 // With a frame every two vsyncs or more, LowLatency covers 95% instead: over 13 steady
 // 72 fps on 144 Hz sessions, that took 1.3 ms off the delay for 0.3 more uneven frames a minute
 // (36 a minute). At a frame a vsync it cost 40% more uneven frames, so 98% stays there.
@@ -68,9 +75,9 @@ HostTimeline::HostTimeline(JitterBuffer jitterBuffer) : jitterBuffer_(jitterBuff
             break;
         case JitterBuffer::Balanced:
         default:
-            windowNs_ = 10'000'000'000;
+            windowNs_ = 3'000'000'000;
             coverage_ = 0.99;
-            decayDivisor_ = 512;
+            decayDivisor_ = 64;
             break;
     }
     baseCoverage_ = coverage_;
