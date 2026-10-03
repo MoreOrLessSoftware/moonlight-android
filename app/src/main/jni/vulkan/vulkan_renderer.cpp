@@ -227,9 +227,20 @@ bool VulkanRenderer::prepareDevice(VkApi& vk, VkPhysicalDevice device, uint32_t 
 
     setup.queue.queueFamilyIndex = queueFamily;
     setup.queue.queueCount = 1;
-    if (pyrowave && queueFamily < familyCount && families[queueFamily].queueCount >= 2) {
+    // To compare where PyroWave decodes: adb shell setprop debug.moonlight.pyrowave_queue low (its
+    // own queue below rendering, the default), equal (its own queue, same priority) or shared
+    // (rendering's queue). On a Pixel 10 Pro at 60 fps, a tenth of decodes take 10-16 ms instead
+    // of 6, in streaks of a few frames, whichever queue they're on; shared also showed a few
+    // times more frames late to the screen, a render waiting behind a decode.
+    char queueMode[PROP_VALUE_MAX] = {};
+    __system_property_get("debug.moonlight.pyrowave_queue", queueMode);
+    if (pyrowave && strcmp(queueMode, "shared") != 0 && queueFamily < familyCount &&
+            families[queueFamily].queueCount >= 2) {
         setup.queue.queueCount = 2;
-        setup.priorities[0] = 0.0f;
+        setup.priorities[0] = strcmp(queueMode, "equal") == 0 ? 1.0f : 0.0f;
+    }
+    if (pyrowave && queueMode[0] != 0) {
+        ALOGI("PyroWave queue: %s was asked for", queueMode);
     }
     setup.queue.pQueuePriorities = setup.priorities;
 
@@ -649,7 +660,8 @@ bool VulkanRenderer::createPyrowaveDecoder() {
     info.queueFamily = queueFamily_;
     info.queueMutex = &queueMutex_;
     if (decodeQueue_) {
-        ALOGI("PyroWave decodes on its own queue, below rendering");
+        ALOGI("PyroWave decodes on its own queue, %s rendering",
+              deviceSetup_.priorities[0] < deviceSetup_.priorities[1] ? "below" : "level with");
     }
     pyrowave_ = PyrowaveDecoder::create(vk_, info, config_.streamWidth, config_.streamHeight, config_.tenBit);
     if (!pyrowave_) {
