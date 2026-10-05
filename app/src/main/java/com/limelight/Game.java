@@ -130,6 +130,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private NvConnection conn;
     private SpinnerDialog spinner;
     private boolean displayedFailureDialog = false;
+    // Set by launchFailed() on any thread, so stageFailed() doesn't show its own dialog too
+    private volatile boolean launchFailureShown = false;
     private boolean connecting = false;
     private boolean connected = false;
     private boolean userInitiatedDisconnect = false;
@@ -479,14 +481,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 glPrefs.glRenderer,
                 this);
 
-        // PyroWave decodes in the Vulkan renderer, and only when it's chosen explicitly
-        boolean usePyrowave = false;
-        if (prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
-            usePyrowave = decoderRenderer.isPyrowaveSupported();
-            if (!usePyrowave) {
-                Toast.makeText(this, "This device can't decode PyroWave. It needs Vulkan 1.3 on a 64-bit ARM device.", Toast.LENGTH_LONG).show();
-            }
-        }
+        // PyroWave decodes in the Vulkan renderer, and only when it's chosen explicitly.
+        // If it can't, the launch fails below.
+        boolean usePyrowave = prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE &&
+                decoderRenderer.isPyrowaveSupported();
 
         // Don't stream HDR if the decoder can't support it
         if (willStreamHdr && !decoderRenderer.isHevcMain10Hdr10Supported() && !decoderRenderer.isAv1Main10Supported() &&
@@ -519,9 +517,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 supportedVideoFormats |= MoonBridge.VIDEO_FORMAT_AV1_MAIN10;
             }
         }
-        // Preferred over the others when the host has it. Otherwise HEVC or H.264 is used.
+        // The only codec offered when chosen, with no fallback to another. NvConnection and
+        // MoonBridge fail the launch if the host can't stream it.
         if (usePyrowave) {
-            supportedVideoFormats |= MoonBridge.VIDEO_FORMAT_PYROWAVE;
+            supportedVideoFormats = MoonBridge.VIDEO_FORMAT_PYROWAVE;
             if (willStreamHdr) {
                 supportedVideoFormats |= MoonBridge.VIDEO_FORMAT_PYROWAVE_10BIT;
             }
@@ -643,6 +642,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // Start the USB driver
             bindService(new Intent(this, UsbDriverService.class),
                     usbDriverServiceConnection, Service.BIND_AUTO_CREATE);
+        }
+
+        if (prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE && !usePyrowave) {
+            if (spinner != null) {
+                spinner.dismiss();
+                spinner = null;
+            }
+
+            // PyroWave never falls back to another codec
+            Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
+                    "This device can't decode PyroWave. It needs Vulkan 1.3 on a 64-bit ARM device.", true);
+            return;
         }
 
         if (!decoderRenderer.isAvcSupported()) {
@@ -2516,6 +2527,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public void stageFailed(final String stage, final int portFlags, final int errorCode) {
+        // launchFailed() already explained why the stream can't start
+        if (launchFailureShown) {
+            return;
+        }
+
         // Perform a connection test if the failure could be due to a blocked port
         // This does network I/O, so don't do it on the main thread.
         final int portTestResult = MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags);
@@ -2701,6 +2717,27 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             @Override
             public void run() {
                 Toast.makeText(Game.this, message, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    @Override
+    public void launchFailed(final String message) {
+        launchFailureShown = true;
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (spinner != null) {
+                    spinner.dismiss();
+                    spinner = null;
+                }
+
+                if (!displayedFailureDialog) {
+                    displayedFailureDialog = true;
+                    LimeLog.severe("Launch failed: " + message);
+                    Dialog.displayDialog(Game.this, getResources().getString(R.string.conn_error_title), message, true);
+                }
             }
         });
     }

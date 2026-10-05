@@ -146,6 +146,7 @@ public class MoonBridge {
     private static AudioRenderer audioRenderer;
     private static VideoDecoderRenderer videoRenderer;
     private static NvConnectionListener connectionListener;
+    private static int supportedVideoFormats;
 
     static {
         System.loadLibrary("moonlight-core");
@@ -208,6 +209,17 @@ public class MoonBridge {
     }
 
     public static int bridgeDrSetup(int videoFormat, int width, int height, int redrawRate) {
+        // moonlight-common-c picks H.264 if the host doesn't offer PyroWave when the stream
+        // starts, even when it was the only codec asked for. PyroWave never falls back.
+        if ((supportedVideoFormats & VIDEO_FORMAT_MASK_PYROWAVE) != 0 &&
+                (videoFormat & VIDEO_FORMAT_MASK_PYROWAVE) == 0) {
+            if (connectionListener != null) {
+                connectionListener.launchFailed("Your host PC couldn't start a PyroWave stream. " +
+                        "Check the host's Sunshine log for PyroWave encoder errors.");
+            }
+            return -1;
+        }
+
         if (videoRenderer != null) {
             return videoRenderer.setup(videoFormat, width, height, redrawRate);
         }
@@ -347,16 +359,19 @@ public class MoonBridge {
         }
     }
 
-    public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer, NvConnectionListener connectionListener) {
+    public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer,
+                                   NvConnectionListener connectionListener, int supportedVideoFormats) {
         MoonBridge.videoRenderer = videoRenderer;
         MoonBridge.audioRenderer = audioRenderer;
         MoonBridge.connectionListener = connectionListener;
+        MoonBridge.supportedVideoFormats = supportedVideoFormats;
     }
 
     public static void cleanupBridge() {
         MoonBridge.videoRenderer = null;
         MoonBridge.audioRenderer = null;
         MoonBridge.connectionListener = null;
+        MoonBridge.supportedVideoFormats = 0;
     }
 
     public static native int startConnection(String address, String appVersion, String gfeVersion,

@@ -251,9 +251,12 @@ public class NvConnection {
             context.negotiatedHdr = false;
         }
 
+        // PyroWave never falls back to another codec. This device only decodes PyroWave
+        // 4:2:0, so the host has to have that.
         if ((context.streamConfig.getSupportedVideoFormats() & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0 &&
-                (context.serverCodecModeSupport & MoonBridge.SCM_MASK_PYROWAVE) == 0) {
-            context.connListener.displayTransientMessage("Your host PC doesn't support PyroWave, which needs the matching Sunshine build. The stream will use another codec.");
+                (context.serverCodecModeSupport & (MoonBridge.SCM_PYROWAVE | MoonBridge.SCM_PYROWAVE_10BIT)) == 0) {
+            context.connListener.launchFailed("Your host PC doesn't support PyroWave. It needs the matching Sunshine build.");
+            return false;
         }
         
         //
@@ -430,7 +433,8 @@ public class NvConnection {
                 // Moonlight-core is not thread-safe with respect to connection start and stop, so
                 // we must not invoke that functionality in parallel.
                 synchronized (MoonBridge.class) {
-                    MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener);
+                    MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener,
+                            context.streamConfig.getSupportedVideoFormats());
                     int ret = MoonBridge.startConnection(context.serverAddress.address,
                             context.serverAppVersion, context.serverGfeVersion, context.rtspSessionUrl,
                             context.serverCodecModeSupport,
