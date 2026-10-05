@@ -5,14 +5,19 @@ import android.content.Context;
 import android.os.Bundle;
 import android.preference.DialogPreference;
 import android.util.AttributeSet;
+import android.text.InputType;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
+
+import com.limelight.R;
 
 import java.util.Locale;
 
@@ -34,7 +39,9 @@ public class SeekBarPreference extends DialogPreference
     private final int stepSize;
     private final int keyStepSize;
     private final int divisor;
+    private final boolean allowCustom;
     private int currentValue;
+    private boolean sliderTouched;
 
     public SeekBarPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -65,10 +72,12 @@ public class SeekBarPreference extends DialogPreference
         stepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "step", 1);
         divisor = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "divisor", 1);
         keyStepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "keyStep", 0);
+        allowCustom = attrs.getAttributeBooleanValue(SEEKBAR_SCHEMA_URL, "custom", false);
     }
 
     @Override
     protected View onCreateDialogView() {
+        sliderTouched = false;
 
         LinearLayout.LayoutParams params;
         LinearLayout layout = new LinearLayout(context);
@@ -101,10 +110,20 @@ public class SeekBarPreference extends DialogPreference
                     return;
                 }
 
+                if (b) {
+                    sliderTouched = true;
+                }
+
                 int roundedValue = ((value + (stepSize - 1))/stepSize)*stepSize;
                 if (roundedValue != value) {
                     seekBar.setProgress(roundedValue);
                     return;
+                }
+
+                // A custom value above the slider's max is clamped by the SeekBar; show the real value
+                if (!sliderTouched && currentValue > maxValue) {
+                    roundedValue = currentValue;
+                    value = currentValue;
                 }
 
                 String t;
@@ -173,17 +192,83 @@ public class SeekBarPreference extends DialogPreference
     }
 
     @Override
+    protected void onPrepareDialogBuilder(AlertDialog.Builder builder) {
+        super.onPrepareDialogBuilder(builder);
+        if (allowCustom) {
+            // Listener is replaced in showDialog() so the click doesn't auto-dismiss
+            builder.setNeutralButton(R.string.seekbar_custom, null);
+        }
+    }
+
+    private void showCustomValueDialog() {
+        final EditText input = new EditText(context);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        int shownValue = (!sliderTouched && currentValue > maxValue) ? currentValue : seekBar.getProgress();
+        input.setText(String.format((Locale)null, "%.1f", shownValue / (float)divisor));
+        input.setSelectAllOnFocus(true);
+
+        final AlertDialog dialog = new AlertDialog.Builder(context)
+                .setTitle(getTitle())
+                .setMessage(suffix == null ? null : context.getString(R.string.seekbar_custom_message, suffix))
+                .setView(input)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        dialog.show();
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                float entered;
+                try {
+                    entered = Float.parseFloat(input.getText().toString().trim());
+                } catch (NumberFormatException e) {
+                    entered = 0;
+                }
+
+                int value = Math.round(entered * divisor);
+                if (value <= 0) {
+                    input.setError(context.getString(R.string.seekbar_custom_invalid));
+                    return;
+                }
+
+                currentValue = value;
+                if (shouldPersist()) {
+                    persistInt(value);
+                    callChangeListener(value);
+                }
+                dialog.dismiss();
+                if (getDialog() != null) {
+                    getDialog().dismiss();
+                }
+            }
+        });
+    }
+
+    @Override
     public void showDialog(Bundle state) {
         super.showDialog(state);
+
+        if (allowCustom) {
+            ((AlertDialog) getDialog()).getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    showCustomValueDialog();
+                }
+            });
+        }
 
         Button positiveButton = ((AlertDialog) getDialog()).getButton(AlertDialog.BUTTON_POSITIVE);
         positiveButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (shouldPersist()) {
+                // Keep an out-of-range custom value unless the slider was actually moved
+                boolean keepCustom = !sliderTouched && currentValue > maxValue;
+                if (shouldPersist() && !keepCustom) {
                     currentValue = seekBar.getProgress();
-                    persistInt(seekBar.getProgress());
-                    callChangeListener(seekBar.getProgress());
+                    persistInt(currentValue);
+                    callChangeListener(currentValue);
                 }
 
                 getDialog().dismiss();
