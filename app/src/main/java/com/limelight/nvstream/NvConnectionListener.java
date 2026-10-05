@@ -12,6 +12,10 @@ public interface NvConnectionListener {
     void displayMessage(String message);
     void displayTransientMessage(String message);
 
+    // The launch can't go ahead, for the reason in message. Shown in place of the
+    // generic failure for the stageFailed() that follows.
+    void launchFailed(String message);
+
     void rumble(short controllerNumber, short lowFreqMotor, short highFreqMotor);
     void rumbleTriggers(short controllerNumber, short leftTrigger, short rightTrigger);
 
