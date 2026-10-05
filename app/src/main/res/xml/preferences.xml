@@ -26,6 +26,7 @@
             seekbar:step="500"
             seekbar:keyStep="1000"
             seekbar:divisor="1000"
+            seekbar:custom="true"
             android:summary="@string/summary_seekbar_bitrate"
             android:text="@string/suffix_seekbar_bitrate_mbps"
             android:title="@string/title_seekbar_bitrate" />
