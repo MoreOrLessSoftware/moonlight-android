@@ -369,7 +369,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         super.onDestroy();
 
         SpinnerDialog.closeDialogs(this);
-        Dialog.closeDialogs();
+        Dialog.closeDialogs(this);
 
         if (managerBinder != null) {
             unbindService(serviceConnection);

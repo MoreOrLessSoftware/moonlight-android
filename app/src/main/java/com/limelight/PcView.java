@@ -415,7 +415,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     protected void onStop() {
         super.onStop();
 
-        Dialog.closeDialogs();
+        Dialog.closeDialogs(this);
     }
 
     @Override
@@ -570,7 +570,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
                     message = e.getMessage();
                 }
 
-                Dialog.closeDialogs();
+                Dialog.closeDialogs(PcView.this);
 
                 final String toastMessage = message;
                 final boolean toastSuccess = success;
