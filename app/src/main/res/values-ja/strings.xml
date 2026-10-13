@@ -175,8 +175,7 @@
     <string name="perf_overlay_decoder">デコーダー: %1$s</string>
     <string name="slow_connection_msg">PCへの接続が低速
 \nビットレートを下げてください</string>
-    <string name="perf_overlay_incomingfps">ネットワークからの受信フレームレート: %1$.2f FPS</string>
-    <string name="perf_overlay_renderingfps">レンダリングフレームレート: %1$.2f FPS</string>
+    <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="text_native_res_dialog">ネイティブ解像度やFPSがストリーミングサーバーによってサポートされていない可能性があります。ホストPCに対して、手動で一致するカスタム表示モードを設定する必要があるでしょう。
 \n
 \nNVIDIAコントロールパネルでカスタム解像度を作成して画面設定に合わせることを選択した場合は、モニターに損傷やPCの不安定性、その他の潜在的な問題の可能性についてNVIDIAの警告を読み、理解したことを確認してください。

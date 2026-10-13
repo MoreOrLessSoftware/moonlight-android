@@ -113,7 +113,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private long lastTimestampUs;
     private int lastFrameNumber;
-    private long baseTimestampUs;
     private int refreshRate;
     private PreferenceConfiguration prefs;
 
