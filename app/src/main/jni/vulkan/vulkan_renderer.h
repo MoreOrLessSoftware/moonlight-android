@@ -35,7 +35,7 @@ struct RendererConfig {
     bool tenBit = false;       // The stream is 10-bit
     float displayRefreshHz = 60.0f;
     bool pyrowave = false;     // The stream is PyroWave, decoded by the renderer rather than MediaCodec
-    bool pyrowaveRecordFraming = false;  // From the nonary host: record framing, chroma sited at the center
+    bool pyrowaveCenterChroma = false;  // From the nonary host: 4:2:0 chroma sited at the center
     int pyrowaveLateFrames = 2;  // PreferenceConfiguration.PYROWAVE_LATE_FRAMES_*
     std::string traceDirectory;  // Where pacer traces go when enabled (see PacerTrace)
 };
@@ -102,7 +102,8 @@ public:
     // updatePartialDeadline()). It's called on moonlight-common-c's decoder thread, which stops
     // before the video stream does.
     bool submitPyrowaveFrame(const uint8_t* data, size_t size, const PyrowaveDecoder::Gap* gaps, size_t gapCount,
-                             PyrowaveDecoder::Partial partial, int64_t hostPtsNs, int64_t lastPacketUs);
+                             const std::vector<size_t>* recordStarts, PyrowaveDecoder::Partial partial,
+                             int64_t hostPtsNs, int64_t lastPacketUs);
 
     void setHdrMode(bool enabled, const uint8_t* metadata, size_t metadataLength);
 

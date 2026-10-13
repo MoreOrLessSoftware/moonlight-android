@@ -667,11 +667,7 @@ bool VulkanRenderer::createPyrowaveDecoder() {
     if (!pyrowave_) {
         return false;
     }
-    pyrowave_->setRecordFraming(config_.pyrowaveRecordFraming);
     pyrowave_->setLostFrameMinBlocks(lostFrameMinPercent_ / 100.0f);
-    if (config_.pyrowaveRecordFraming) {
-        ALOGI("PyroWave host uses record framing");
-    }
 
     if (!vk_.vkWaitSemaphores) {
         ALOGE("vkWaitSemaphores not available");
@@ -1003,8 +999,8 @@ void VulkanRenderer::onImageAvailable() {
 }
 
 bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const PyrowaveDecoder::Gap* gaps,
-                                         size_t gapCount, PyrowaveDecoder::Partial partial, int64_t hostPtsNs,
-                                         int64_t lastPacketUs) {
+                                         size_t gapCount, const std::vector<size_t>* recordStarts,
+                                         PyrowaveDecoder::Partial partial, int64_t hostPtsNs, int64_t lastPacketUs) {
     // Frames queue up behind this thread, so it gets the render thread's priority
     static thread_local bool prioritized = false;
     if (!prioritized) {
@@ -1035,7 +1031,8 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const
     }
 
     uint64_t readyValue = 0;
-    PyrowavePlanes* planes = pyrowave_->decode(data, size, gaps, gapCount, partial, &readyValue);
+    PyrowavePlanes* planes = pyrowave_->decode(data, size, gaps, gapCount, recordStarts, partial,
+                                               &readyValue);
     if (!planes) {
         return false;
     }
@@ -1446,7 +1443,7 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         pc.ycbcr[2] = pyrowave_->tenBit() ? 0.5f : 128.0f / 255.0f;
         // This fork's Sunshine sites chroma with the left luma sample of each pair (MPEG-2
         // style); the nonary host sites it at the center of each 2x2 quad
-        pc.ycbcr[3] = pyrowave_->recordFraming() ? 0.0f : 0.5f / bufferWidth;
+        pc.ycbcr[3] = config_.pyrowaveCenterChroma ? 0.0f : 0.5f / bufferWidth;
     }
 
     VkCommandBuffer cmd = commandBuffers_[slot];

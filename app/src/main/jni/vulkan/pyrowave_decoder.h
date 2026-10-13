@@ -81,12 +81,6 @@ public:
     bool tenBit() const { return tenBit_; }
     bool fragmentPath() const { return fragmentPath_; }
 
-    // The host packs frames in record framing (the nonary host): blocks in any order, with
-    // padding records between them. Frames that lost packets are dropped, since finding the
-    // blocks that arrived relies on this fork's Sunshine sending them in order.
-    void setRecordFraming(bool recordFraming) { recordFraming_ = recordFraming; }
-    bool recordFraming() const { return recordFraming_; }
-
     // The share of its blocks a frame that lost packets must still have to be decoded, rather
     // than dropped. PyroWave's own default is nine tenths.
     void setLostFrameMinBlocks(float fraction) { lostFrameMinBlocks_ = fraction; }
@@ -109,8 +103,15 @@ public:
     // decode it without the frame's lowest frequency blocks, or, for a frame that lost packets,
     // with fewer than setLostFrameMinBlocks() of them. A frame cut short is missing its finest
     // blocks, and showing it beats showing it late, so it needs only the lowest frequency ones.
-    PyrowavePlanes* decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount, Partial partial,
-                           uint64_t* readyValue);
+    //
+    // Frames are in record framing, which we ask hosts for: padding records between the blocks
+    // may need stripping. A partial frame whose host laid its records out on packets comes with
+    // the offsets where records start in it (see pushArrivedRecords()), as its blocks needn't be
+    // in order. moonlight-common-c only delivers one if the packets holding its lowest frequency
+    // blocks arrived, so it's decoded with whatever else did. Otherwise recordStarts is null, and
+    // its blocks are in order.
+    PyrowavePlanes* decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
+                           const std::vector<size_t>* recordStarts, Partial partial, uint64_t* readyValue);
 
     // Returns planes to the pool once nothing reads them any more. Thread safe.
     void release(PyrowavePlanes* planes);
@@ -135,7 +136,6 @@ private:
     uint32_t height_ = 0;
     bool tenBit_ = false;
     bool fragmentPath_ = false;
-    bool recordFraming_ = false;
     float lostFrameMinBlocks_ = 0.9f;
     VkFormat format_ = VK_FORMAT_UNDEFINED;
     VkImageUsageFlags usage_ = 0;

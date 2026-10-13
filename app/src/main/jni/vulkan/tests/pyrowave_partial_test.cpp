@@ -301,6 +301,113 @@ int main() {
               "a frame cut short is rejected");
     }
 
+    // Record framing that lost packets, laid out as the nonary host does: the coarsest blocks
+    // first, a padding record before a record that would otherwise cross into the next packet,
+    // and the packets that start with a record flagged
+    {
+        printf("record framing with lost packets:\n");
+        std::vector<std::pair<size_t, size_t>> blocks;
+        for (size_t pos = pyrowave_bitstream::kHeaderSize; pos < frame.size();) {
+            const size_t length = 4 * pyrowave_bitstream::readHeader(frame.data() + pos).payloadWords;
+            blocks.emplace_back(pos, length);
+            pos += length;
+        }
+        // PyroWave puts the coarsest blocks first. The host sends them first too, and protects them.
+        const size_t coarse = blocks.size() / 2;
+        std::shuffle(blocks.begin() + coarse, blocks.end(), rng);
+
+        std::vector<uint8_t> records(frame.begin(), frame.begin() + pyrowave_bitstream::kHeaderSize);
+        std::vector<bool> startsRecord;
+        const auto markStart = [&]() {
+            if ((records.size() + kFrameHeader) % kShardPayload == 0) {
+                const size_t packet = (records.size() + kFrameHeader) / kShardPayload;
+                startsRecord.resize(packet + 1, false);
+                startsRecord[packet] = true;
+            }
+        };
+        size_t coarseEnd = 0;
+        for (size_t i = 0; i < blocks.size(); i++) {
+            const size_t room = kShardPayload - (records.size() + kFrameHeader) % kShardPayload;
+            if (blocks[i].second > room && blocks[i].second <= kShardPayload && room >= 8) {
+                markStart();
+                const uint32_t header[2] = {0xFFFFFFFFu, static_cast<uint32_t>((room - 8) / 4)};
+                records.insert(records.end(), reinterpret_cast<const uint8_t*>(header),
+                               reinterpret_cast<const uint8_t*>(header) + sizeof(header));
+                records.insert(records.end(), room - 8, 0);
+            }
+            markStart();
+            records.insert(records.end(), frame.begin() + blocks[i].first,
+                           frame.begin() + blocks[i].first + blocks[i].second);
+            if (i + 1 == coarse) {
+                coarseEnd = records.size();
+            }
+        }
+        const size_t packets = (records.size() + kFrameHeader + kShardPayload - 1) / kShardPayload;
+        const size_t criticalPackets = (coarseEnd + kFrameHeader + kShardPayload - 1) / kShardPayload;
+        startsRecord.resize(packets, false);
+        size_t flagged = 0;
+        for (size_t k = 1; k < packets; k++) {
+            flagged += startsRecord[k];
+        }
+        printf("        %zu packets, %zu flagged as starting a record, %zu critical\n", packets, flagged,
+               criticalPackets);
+
+        const std::vector<std::vector<size_t>> cases = {
+            {},
+            {criticalPackets},
+            {criticalPackets + 3, criticalPackets + 4, packets * 3 / 4},
+            {packets - 1},
+        };
+        for (const auto& lost : cases) {
+            std::vector<uint8_t> received = records;
+            std::vector<PyrowaveGap> gaps;
+            for (size_t k : lost) {
+                const size_t begin = k * kShardPayload - kFrameHeader;
+                const size_t end = std::min(received.size(), begin + kShardPayload);
+                std::fill(received.begin() + begin, received.begin() + end, 0xAB);
+                gaps.push_back({begin, end - begin});
+            }
+            // What moonlight-common-c passes: the offsets of the flagged packets that arrived
+            std::vector<size_t> recordStarts;
+            for (size_t k = 1; k < packets; k++) {
+                if (startsRecord[k] && std::find(lost.begin(), lost.end(), k) == lost.end()) {
+                    recordStarts.push_back(k * kShardPayload - kFrameHeader);
+                }
+            }
+
+            pyrowave_decoder_clear(decoder);
+            bool intact = true;
+            size_t pushedBytes = 0;
+            const bool pushed = pushArrivedRecords(received.data(), received.size(), gaps.data(), gaps.size(),
+                                                   recordStarts.data(), recordStarts.size(),
+                                                   [&](size_t offset, size_t length) {
+                for (const PyrowaveGap& gap : gaps) {
+                    if (gap.offset < offset + length && offset < gap.offset + gap.length) {
+                        intact = false;
+                    }
+                }
+                pushedBytes += length;
+                return pyrowave_decoder_push_packet(decoder, received.data() + offset, length) == PYROWAVE_SUCCESS;
+            });
+            // The frame without its padding records
+            printf("    %zu packets lost: %.1f%% of the frame pushed\n", lost.size(),
+                   100.0 * pushedBytes / frame.size());
+            if (lost.empty()) {
+                check(pushedBytes == frame.size(), "all of it was pushed");
+            }
+            check(pushed, "pushArrivedRecords() took the frame");
+            check(intact, "nothing from a lost packet was pushed");
+            const bool ready = pyrowave_decoder_decode_is_ready_with_sideband(decoder, true, 0, 0.0f, nullptr, 0);
+            check(ready, "the frame is ready");
+            if (ready) {
+                Planes out = makeImage();
+                pyrowave_cpu_buffer outBuffer = cpuBuffer(out);
+                pyrowave_decoder_decode_cpu_buffer_synchronous(decoder, &outBuffer);
+                check(psnr(reference.y, out.y) > 30.0, "close to the whole frame");
+            }
+        }
+    }
+
     pyrowave_decoder_destroy(decoder);
     pyrowave_encoder_destroy(encoder);
     pyrowave_device_destroy(device);

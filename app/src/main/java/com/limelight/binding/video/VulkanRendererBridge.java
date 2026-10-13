@@ -67,7 +67,8 @@ public class VulkanRendererBridge {
      * @param ditherMode 0 = off, 1 = low, 2 = high
      * @param colorspace one of MoonBridge.COLORSPACE_*
      * @param pyrowave the stream is PyroWave, which the renderer decodes itself
-     * @param pyrowaveRecordFraming the PyroWave host uses record framing (the nonary host)
+     * @param pyrowaveCenterChroma the PyroWave host sites 4:2:0 chroma at the center (the nonary
+     *                             host) rather than with the left luma sample
      * @param pyrowaveLateFrames one of PreferenceConfiguration.PYROWAVE_LATE_FRAMES_*
      * @param traceDirectory where frame pacing traces are written when switched on with
      *                       {@code adb shell setprop debug.moonlight.pacer_trace 1}, or null
@@ -75,14 +76,14 @@ public class VulkanRendererBridge {
     public static VulkanRendererBridge create(Surface output, int streamWidth, int streamHeight, int streamFps,
                                               int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                               boolean fullRange, boolean tenBit, boolean pyrowave,
-                                              boolean pyrowaveRecordFraming, int pyrowaveLateFrames,
+                                              boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
                                               float displayRefreshHz, String traceDirectory) {
         if (!isSupported() || (pyrowave && !isPyrowaveSupported())) {
             return null;
         }
 
         long handle = nativeCreate(output, streamWidth, streamHeight, streamFps, framePacing, jitterBuffer, ditherMode,
-                colorspace, fullRange, tenBit, pyrowave, pyrowaveRecordFraming, pyrowaveLateFrames, displayRefreshHz,
+                colorspace, fullRange, tenBit, pyrowave, pyrowaveCenterChroma, pyrowaveLateFrames, displayRefreshHz,
                 traceDirectory);
         if (handle == 0) {
             return null;
@@ -108,13 +109,15 @@ public class VulkanRendererBridge {
      *                     clock. Frames still arriving at their deadline are cut short from it.
      * @param missingRanges for a partial frame, offset and length pairs of the gaps in it (see
      *                      VideoDecoderRenderer.submitDecodeUnit()), or null
+     * @param recordStarts for a partial frame in record framing, offsets where records start in
+     *                     it (possibly none), or null
      * @param partialKind MoonBridge.PARTIAL_KIND_*
      * @return false if the frame couldn't be decoded
      */
     public boolean submitPyrowaveFrame(byte[] frame, int length, long hostPtsUs, long lastPacketUs,
-                                       int[] missingRanges, int partialKind) {
+                                       int[] missingRanges, int[] recordStarts, int partialKind) {
         return handle != 0 && nativeSubmitPyrowaveFrame(handle, frame, length, hostPtsUs, lastPacketUs,
-                missingRanges, partialKind);
+                missingRanges, recordStarts, partialKind);
     }
 
     /** Surface for the decoder to render into (null for PyroWave) */
@@ -183,11 +186,11 @@ public class VulkanRendererBridge {
     private static native long nativeCreate(Surface output, int streamWidth, int streamHeight, int streamFps,
                                             int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                             boolean fullRange, boolean tenBit, boolean pyrowave,
-                                            boolean pyrowaveRecordFraming, int pyrowaveLateFrames,
+                                            boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
                                             float displayRefreshHz, String traceDirectory);
     private static native boolean nativeSubmitPyrowaveFrame(long handle, byte[] frame, int length, long hostPtsUs,
                                                             long lastPacketUs, int[] missingRanges,
-                                                            int partialKind);
+                                                            int[] recordStarts, int partialKind);
     private static native Surface nativeGetDecoderSurface(long handle);
     private static native boolean nativeIsTracing(long handle);
     private static native void nativeNoteReceived(long handle, long hostPtsUs, long receiveTimeUs, long enqueueTimeUs);

@@ -91,7 +91,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeDrStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStart", "()V");
     BridgeDrStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStop", "()V");
     BridgeDrCleanupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrCleanup", "()V");
-    BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJJ[II)I");
+    BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJJ[I[II)I");
     BridgeArInitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArInit", "(III)I");
     BridgeArStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStart", "()V");
     BridgeArStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStop", "()V");
@@ -167,14 +167,21 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     const jint partialKind = !decodeUnit->partialFrame ? PARTIAL_KIND_NONE :
                              decodeUnit->partialLate ? PARTIAL_KIND_CUT : PARTIAL_KIND_LOST;
 
-    // A partial frame's gaps, as offset and length pairs into the frame data
+    // A partial frame's gaps, as offset and length pairs into the frame data, and in record
+    // framing where records start in it (an empty array if nowhere but the frame's start)
     jintArray missingRanges = NULL;
     jint* missing = NULL;
     int missingCount = 0;
+    jintArray recordStartOffsets = NULL;
+    jint* recordStarts = NULL;
+    int recordStartCount = 0;
     if (decodeUnit->partialFrame) {
         for (currentEntry = decodeUnit->bufferList; currentEntry != NULL; currentEntry = currentEntry->next) {
             if (currentEntry->bufferType == BUFFER_TYPE_MISSING) {
                 missingCount++;
+            }
+            else if (currentEntry->bufferType == BUFFER_TYPE_RECORD_START) {
+                recordStartCount++;
             }
         }
         if (missingCount != 0) {
@@ -183,6 +190,15 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
                 return DR_OK;
             }
             missingCount = 0;
+        }
+        if (decodeUnit->partialRecords) {
+            // At least one, so it's never NULL
+            recordStarts = malloc(sizeof(*recordStarts) * (recordStartCount + 1));
+            if (recordStarts == NULL) {
+                free(missing);
+                return DR_OK;
+            }
+            recordStartCount = 0;
         }
     }
 
@@ -199,7 +215,7 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
             offset += currentEntry->length;
         }
         // Submit parameter set NALUs separately from picture data
-        else if (currentEntry->bufferType != BUFFER_TYPE_PICDATA) {
+        else if (currentEntry->bufferType != BUFFER_TYPE_PICDATA && currentEntry->bufferType != BUFFER_TYPE_RECORD_START) {
             // Use the beginning of the buffer each time since this is a separate
             // invocation of the decoder each time.
             (*env)->SetByteArrayRegion(env, DecodedFrameBuffer, 0, currentEntry->length, (jbyte*)currentEntry->data);
@@ -212,15 +228,20 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
             if ((*env)->ExceptionCheck(env)) {
                 // We will crash here
                 free(missing);
+                free(recordStarts);
                 (*JVM)->DetachCurrentThread(JVM);
                 return DR_OK;
             }
             else if (ret != DR_OK) {
                 free(missing);
+                free(recordStarts);
                 return ret;
             }
         }
         else {
+            if (recordStarts != NULL && currentEntry->bufferType == BUFFER_TYPE_RECORD_START) {
+                recordStarts[recordStartCount++] = offset;
+            }
             (*env)->SetByteArrayRegion(env, DecodedFrameBuffer, offset, currentEntry->length, (jbyte*)currentEntry->data);
             offset += currentEntry->length;
         }
@@ -237,6 +258,21 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
         if (missingRanges == NULL) {
             // Without the gaps the frame can't be read
             (*env)->ExceptionClear(env);
+            free(recordStarts);
+            return DR_OK;
+        }
+    }
+    if (recordStarts != NULL) {
+        recordStartOffsets = (*env)->NewIntArray(env, recordStartCount);
+        if (recordStartOffsets != NULL) {
+            (*env)->SetIntArrayRegion(env, recordStartOffsets, 0, recordStartCount, recordStarts);
+        }
+        free(recordStarts);
+        if (recordStartOffsets == NULL) {
+            (*env)->ExceptionClear(env);
+            if (missingRanges != NULL) {
+                (*env)->DeleteLocalRef(env, missingRanges);
+            }
             return DR_OK;
         }
     }
@@ -245,9 +281,12 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
                                        DecodedFrameBuffer, offset, BUFFER_TYPE_PICDATA,
                                        decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
                                        (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs,
-                                       missingRanges, partialKind);
+                                       missingRanges, recordStartOffsets, partialKind);
     if (missingRanges != NULL) {
         (*env)->DeleteLocalRef(env, missingRanges);
+    }
+    if (recordStartOffsets != NULL) {
+        (*env)->DeleteLocalRef(env, recordStartOffsets);
     }
     if ((*env)->ExceptionCheck(env)) {
         // We will crash here

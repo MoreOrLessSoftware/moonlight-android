@@ -27,7 +27,7 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
         JNIEnv* env, jclass, jobject outputSurface, jint streamWidth, jint streamHeight, jint streamFps,
         jint framePacing, jint jitterBuffer, jint ditherMode, jint colorspace, jboolean fullRange, jboolean tenBit,
-        jboolean pyrowave, jboolean pyrowaveRecordFraming, jint pyrowaveLateFrames, jfloat displayRefreshHz,
+        jboolean pyrowave, jboolean pyrowaveCenterChroma, jint pyrowaveLateFrames, jfloat displayRefreshHz,
         jstring traceDirectory) {
     ANativeWindow* output = ANativeWindow_fromSurface(env, outputSurface);
     if (!output) {
@@ -45,7 +45,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
     config.fullRange = fullRange;
     config.tenBit = tenBit;
     config.pyrowave = pyrowave;
-    config.pyrowaveRecordFraming = pyrowaveRecordFraming;
+    config.pyrowaveCenterChroma = pyrowaveCenterChroma;
     config.pyrowaveLateFrames = pyrowaveLateFrames;
     config.displayRefreshHz = displayRefreshHz;
     if (traceDirectory) {
@@ -93,7 +93,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetHdrMode(
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
         JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs, jlong lastPacketUs,
-        jintArray missingRanges, jint partialKind) {
+        jintArray missingRanges, jintArray recordStartOffsets, jint partialKind) {
     VulkanRenderer* renderer = fromHandle(handle);
     if (!renderer || length <= 0) {
         return JNI_FALSE;
@@ -121,7 +121,22 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
         }
     }
 
+    // In record framing, the offsets where records start in it
+    static thread_local std::vector<size_t> recordStarts;
+    recordStarts.clear();
+    if (recordStartOffsets) {
+        const jsize count = env->GetArrayLength(recordStartOffsets);
+        std::vector<jint> offsets(static_cast<size_t>(count));
+        env->GetIntArrayRegion(recordStartOffsets, 0, count, offsets.data());
+        for (jint offset : offsets) {
+            if (offset >= 0) {
+                recordStarts.push_back(static_cast<size_t>(offset));
+            }
+        }
+    }
+
     return renderer->submitPyrowaveFrame(frame.data(), frame.size(), gaps.data(), gaps.size(),
+                                         recordStartOffsets ? &recordStarts : nullptr,
                                          static_cast<vkr::PyrowaveDecoder::Partial>(partialKind), hostPtsUs * 1000,
                                          lastPacketUs)
            ? JNI_TRUE : JNI_FALSE;

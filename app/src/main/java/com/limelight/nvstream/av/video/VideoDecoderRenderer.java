@@ -15,11 +15,13 @@ public abstract class VideoDecoderRenderer {
     // it lost packets, or was cut short at its deadline (LiSetPartialFrameDeadline(), which the Vulkan renderer sets).
     // missingRanges then holds offset and length pairs of the gaps in decodeUnitData, whose
     // contents there are undefined, or is null if it has none. Data after the last byte may
-    // also be missing.
+    // also be missing. For a partial PyroWave frame in record framing, whose records needn't be in
+    // block order, recordStarts holds the offsets in decodeUnitData where the host flagged a
+    // record as starting (besides the start of the frame), possibly none. It is null otherwise.
     public abstract int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                          int frameNumber, int frameType, char frameHostProcessingLatency,
                                          long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
-                                         int[] missingRanges, int partialKind);
+                                         int[] missingRanges, int[] recordStarts, int partialKind);
     
     public abstract void cleanup();
 

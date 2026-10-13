@@ -232,4 +232,92 @@ bool pushRecords(const uint8_t* data, size_t size, Push push) {
     return pos == runStart || push(runStart, pos - runStart);
 }
 
+// Calls push(offset, length) for each run of records that arrived whole in a partial frame in
+// record framing, leaving out padding records, as pushRecords() does for a whole frame. A record
+// that lost any of its data is left out. Its header gives its length, so the next record is still
+// found; if the header itself was lost, parsing resumes at the next of recordStarts (in
+// increasing order), where the host flagged a packet as starting with a record. Records aren't in
+// block order, so there's no telling where one starts otherwise. Returns whether anything was
+// pushed.
+template <typename Push>
+bool pushArrivedRecords(const uint8_t* data, size_t size, const PyrowaveGap* gaps, size_t gapCount,
+                        const size_t* recordStarts, size_t recordStartCount, Push push) {
+    using namespace pyrowave_bitstream;
+
+    // Whether any of [begin, end) is in a gap
+    const auto missing = [&](size_t begin, size_t end) {
+        for (size_t i = 0; i < gapCount; i++) {
+            if (gaps[i].offset < end && begin < gaps[i].offset + gaps[i].length) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // The first record start after from, or the end if there's none
+    size_t nextStart = 0;
+    const auto resync = [&](size_t from) -> size_t {
+        while (nextStart < recordStartCount && recordStarts[nextStart] <= from) {
+            nextStart++;
+        }
+        return nextStart < recordStartCount ? recordStarts[nextStart] : size;
+    };
+
+    // Runs of whole records, pushed as they end
+    size_t runStart = SIZE_MAX;
+    size_t runEnd = 0;
+    bool pushed = false;
+    const auto flush = [&]() {
+        if (runStart != SIZE_MAX) {
+            if (push(runStart, runEnd - runStart)) {
+                pushed = true;
+            }
+            runStart = SIZE_MAX;
+        }
+    };
+
+    size_t pos = 0;
+    while (pos < size) {
+        if (size - pos < kHeaderSize || missing(pos, pos + kHeaderSize)) {
+            flush();
+            pos = resync(pos);
+            continue;
+        }
+
+        uint32_t first;
+        memcpy(&first, data + pos, sizeof(first));
+        const bool padding = first == 0xFFFFFFFFu;
+        size_t length;
+        if (padding) {
+            uint32_t words;
+            memcpy(&words, data + pos + 4, sizeof(words));
+            length = words <= (size - pos - kHeaderSize) / 4 ? kHeaderSize + 4 * static_cast<size_t>(words) : SIZE_MAX;
+        }
+        else {
+            const BlockHeader header = readHeader(data + pos);
+            length = header.frameHeader ? kHeaderSize : 4 * static_cast<size_t>(header.payloadWords);
+        }
+        if (length < kHeaderSize || length > size - pos) {
+            // Not a record, or it runs past what arrived of the frame
+            flush();
+            pos = resync(pos);
+            continue;
+        }
+
+        const size_t end = pos + length;
+        if (padding || missing(pos, end)) {
+            flush();
+        }
+        else {
+            if (runStart == SIZE_MAX) {
+                runStart = pos;
+            }
+            runEnd = end;
+        }
+        pos = end;
+    }
+    flush();
+    return pushed;
+}
+
 }  // namespace vkr

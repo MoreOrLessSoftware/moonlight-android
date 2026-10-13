@@ -144,7 +144,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private boolean pyrowave;
     // The PyroWave host advertised its bitstream revision, which the nonary host does: it sends
     // record framing and sites chroma at the center
-    private boolean pyrowaveRecordFraming;
+    private boolean pyrowaveCenterChroma;
     private long pyrowaveDecodeNs;
 
     // Direct renderer in the host frame timing pacing mode
@@ -579,7 +579,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 getPreferredColorSpace(),
                 getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL,
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
-                pyrowave, pyrowaveRecordFraming, prefs.pyrowaveLateFrames, getDisplayRefreshRate(),
+                pyrowave, pyrowaveCenterChroma, prefs.pyrowaveLateFrames, getDisplayRefreshRate(),
                 getPacerTraceDirectory());
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");
@@ -822,9 +822,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int setupPyrowave() {
         pyrowave = true;
 
+        // Only the nonary host says which PyroWave it encodes with, and it sites 4:2:0 chroma at
+        // the center
         String bitstreamId = MoonBridge.getHostPyroWaveBitstreamId();
-        pyrowaveRecordFraming = bitstreamId != null && !bitstreamId.isEmpty();
-        if (pyrowaveRecordFraming) {
+        pyrowaveCenterChroma = bitstreamId != null && !bitstreamId.isEmpty();
+        if (pyrowaveCenterChroma) {
             LimeLog.info("PyroWave host bitstream revision: " + bitstreamId);
         }
 
@@ -1540,7 +1542,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
                                 long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
-                                int[] missingRanges, int partialKind) {
+                                int[] missingRanges, int[] recordStarts, int partialKind) {
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
@@ -1673,7 +1675,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         if (pyrowave) {
             return submitPyrowaveFrame(decodeUnitData, decodeUnitLength, frameHostProcessingLatency,
-                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges, partialKind);
+                    receiveTimeUs, enqueueTimeUs, presentationTimeUs, missingRanges, recordStarts, partialKind);
         }
 
         boolean csdSubmittedForThisFrame = false;
@@ -1971,7 +1973,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private int submitPyrowaveFrame(byte[] decodeUnitData, int decodeUnitLength, char frameHostProcessingLatency,
                                     long receiveTimeUs, long enqueueTimeUs, long presentationTimeUs,
-                                    int[] missingRanges, int partialKind) {
+                                    int[] missingRanges, int[] recordStarts, int partialKind) {
         recordFrameReceived(frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
         numFramesIn++;
 
@@ -1991,7 +1993,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // and recording the decode. Kept in nanoseconds, since frames take well under 1 ms.
         long startNs = System.nanoTime();
         vulkan.submitPyrowaveFrame(decodeUnitData, decodeUnitLength, presentationTimeUs, enqueueTimeUs,
-                missingRanges, partialKind);
+                missingRanges, recordStarts, partialKind);
         pyrowaveDecodeNs += System.nanoTime() - startNs;
         long decodeMs = pyrowaveDecodeNs / 1_000_000L;
         pyrowaveDecodeNs -= decodeMs * 1_000_000L;

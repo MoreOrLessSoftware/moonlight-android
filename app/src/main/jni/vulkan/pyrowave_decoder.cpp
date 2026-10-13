@@ -322,33 +322,32 @@ PyrowaveDecoder::~PyrowaveDecoder() {
 }
 
 PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
-                                        Partial partial, uint64_t* readyValue) {
+                                        const std::vector<size_t>* recordStarts, Partial partial,
+                                        uint64_t* readyValue) {
     // Each frame arrives on its own, so anything left from an earlier one is stale
     api.decoderClear(decoder_);
 
-    if (partial != Partial::None && recordFraming_) {
-        partialDropped_++;
-        return nullptr;
-    }
-    else if (partial != Partial::None) {
-        if (!pushPartialFrame(data, size, gaps, gapCount)) {
+    if (partial != Partial::None) {
+        const bool pushed = recordStarts
+                ? pushArrivedRecords(data, size, gaps, gapCount, recordStarts->data(), recordStarts->size(),
+                                     [&](size_t offset, size_t length) {
+                                         return api.decoderPushPacket(decoder_, data + offset, length) == PYROWAVE_SUCCESS;
+                                     })
+                : pushPartialFrame(data, size, gaps, gapCount);
+        if (!pushed) {
             partialDropped_++;
             return nullptr;
         }
     }
     else {
+        // Without padding records, that's the whole frame in one go
         pyrowave_result result = PYROWAVE_SUCCESS;
-        if (recordFraming_) {
-            const bool pushed = pushRecords(data, size, [&](size_t offset, size_t length) {
-                result = api.decoderPushPacket(decoder_, data + offset, length);
-                return result == PYROWAVE_SUCCESS;
-            });
-            if (!pushed && result == PYROWAVE_SUCCESS) {
-                result = PYROWAVE_ERROR_INVALID_ARGUMENT;
-            }
-        }
-        else {
-            result = api.decoderPushPacket(decoder_, data, size);
+        const bool pushed = pushRecords(data, size, [&](size_t offset, size_t length) {
+            result = api.decoderPushPacket(decoder_, data + offset, length);
+            return result == PYROWAVE_SUCCESS;
+        });
+        if (!pushed && result == PYROWAVE_SUCCESS) {
+            result = PYROWAVE_ERROR_INVALID_ARGUMENT;
         }
         if (result != PYROWAVE_SUCCESS) {
             if (!loggedFailure_) {
@@ -366,11 +365,20 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
         // sent. A frame cut short at its
         // deadline needs only the coarsest levels: it's missing the finest blocks at its end,
         // and was only cut with most of its packets in. Dropping it would leave the frame before
-        // on screen for another frame, worse than the late frame it was cut short to avoid.
-        const bool ready = partial != Partial::None
-                ? api.decoderDecodeIsReadyWithSideband(decoder_, true, 2, partial == Partial::Cut ? 0.0f : lostFrameMinBlocks_,
-                                                       lostBlocks_.data(), lostBlocks_.size())
-                : api.decoderDecodeIsReady(decoder_, true);
+        // on screen for another frame, worse than the late frame it was cut short to avoid. In
+        // record framing, moonlight-common-c already checked that the coarsest level arrived, and
+        // which blocks were sent can't be told, so it needs nothing more.
+        bool ready;
+        if (partial == Partial::None) {
+            ready = api.decoderDecodeIsReady(decoder_, true);
+        }
+        else if (recordStarts) {
+            ready = api.decoderDecodeIsReadyWithSideband(decoder_, true, 0, 0.0f, nullptr, 0);
+        }
+        else {
+            ready = api.decoderDecodeIsReadyWithSideband(decoder_, true, 2, partial == Partial::Cut ? 0.0f : lostFrameMinBlocks_,
+                                                         lostBlocks_.data(), lostBlocks_.size());
+        }
         if (!ready) {
             if (partial != Partial::None) {
                 partialDropped_++;
