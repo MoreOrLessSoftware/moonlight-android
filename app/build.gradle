@@ -81,9 +81,9 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".debug"
-            resValue "string", "app_label", "Moonlight (Debug)"
-            resValue "string", "app_label_root", "Moonlight (Root Debug)"
+            applicationIdSuffix ".mlsoft.debug"
+            resValue "string", "app_label", "Moonlight X (Debug)"
+            resValue "string", "app_label_root", "Moonlight X (Root Debug)"
 
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -119,9 +119,9 @@ android {
             // is to please change the applicationId before you publish.
             //
             // TL;DR: Leave the following line alone!
-            applicationIdSuffix ".unofficial"
-            resValue "string", "app_label", "Moonlight"
-            resValue "string", "app_label_root", "Moonlight (Root)"
+            applicationIdSuffix ".mlsoft"
+            resValue "string", "app_label", "Moonlight X"
+            resValue "string", "app_label_root", "Moonlight X (Root)"
 
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
