@@ -224,7 +224,7 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
                                               DecodedFrameBuffer, currentEntry->length, currentEntry->bufferType,
                                               decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
                                               (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs, (jlong)decodeUnit->presentationTimeUs,
-                                              NULL, PARTIAL_KIND_NONE);
+                                              NULL, NULL, PARTIAL_KIND_NONE);
             if ((*env)->ExceptionCheck(env)) {
                 // We will crash here
                 free(missing);
