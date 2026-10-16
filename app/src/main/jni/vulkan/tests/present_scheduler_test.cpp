@@ -38,6 +38,9 @@ struct Scenario {
     bool reportsMargin = true;  // Some devices may leave presentMargin at 0
     int slotVsyncs = 1;         // Vsyncs per frame (2 for 72 fps on 144 Hz)
     int slotVsyncsAfter = 0;    // From halfway, if set: the game's frame rate changes
+    double hiccupEveryS = 0;    // If set: this often, the stream pauses for about 90 ms, and the
+                                // compositor shows the two frames after it a vsync late however
+                                // early they were presented (the iPlay 70 mini Ultra at 120 Hz)
     unsigned seed = 12345;
 };
 
@@ -62,6 +65,7 @@ Result run(const Scenario& s, bool verbose = true) {
     int lastDelay = scheduler.delayVsyncs();
     Result r {0, 0, 0, 0, -1};
     int counted = 0, missed = 0;
+    int resumeLate = 0;
 
     for (int i = 0; i < s.frames; i++) {
         const bool secondHalf = i >= s.frames / 2;
@@ -92,7 +96,19 @@ Result run(const Scenario& s, bool verbose = true) {
         while (slack + (earliestK - 1) * period < need) {
             earliestK++;
         }
-        const int shownK = std::max(earliestK, delay);
+        int shownK = std::max(earliestK, delay);
+        if (s.hiccupEveryS > 0) {
+            const double phaseS = std::fmod((vsync - startNs) / 1e9, s.hiccupEveryS);
+            if (phaseS >= s.hiccupEveryS - 0.09) {
+                // Paused: no frame
+                resumeLate = 2;
+                continue;
+            }
+            if (resumeLate > 0) {
+                resumeLate--;
+                shownK++;
+            }
+        }
         const int64_t target = vsync + delay * period;
         const int64_t actual = vsync + shownK * period;
         const int64_t earliest = vsync + earliestK * period - period / 32;
@@ -101,7 +117,7 @@ Result run(const Scenario& s, bool verbose = true) {
 
         scheduler.onAheadOutcome(slack, vsync, delay, true, actual, earliest, margin, period);
         if (!late) {
-            scheduler.onPresented(vsync, delay, period, actual, earliest, margin);
+            scheduler.onPresented(vsync, delay, period, actual, earliest, margin, slack);
             if (i > s.frames / 2) {
                 counted++;
                 missed += failed ? 1 : 0;
@@ -176,6 +192,17 @@ int main() {
         printf("  lowered in %d, still lowered at the end in %d\n", lowered, wrongAtEnd);
         check(lowered <= runs / 4, "just over the edge", "seconds of learning shouldn't often lower wrongly");
         check(wrongAtEnd == 0, "just over the edge", "a wrong lowering should be undone");
+    }
+    {
+        // The iPlay at 60 fps on 120 Hz: every so often the compositor shows a few frames a vsync
+        // late within a couple of seconds, at any delay. That's no reason to raise the delay.
+        Scenario s {"120 Hz at 60 fps, 7.1 ms, compositor hiccups every 30 s", 120.0, 7.1};
+        s.needJitterMs = 0.2;
+        s.slotVsyncs = 2;
+        s.hiccupEveryS = 30;
+        Result r = runAndReport(s);
+        check(r.finalDelay == 1, s.name, "should lower to one vsync and stay there through the hiccups");
+        check(r.changes == 1, s.name, "hiccups shouldn't move the delay");
     }
     {
         // Lowered at 72 fps, then the game runs at 144 fps: the guard no longer fits a frame's

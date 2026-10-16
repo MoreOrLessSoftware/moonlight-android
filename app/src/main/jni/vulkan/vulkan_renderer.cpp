@@ -1747,7 +1747,8 @@ void VulkanRenderer::collectPresentTimings() {
             presentScheduler_.onPresented(pending->second.vsyncNs, pending->second.delayVsyncs, currentPeriodNs_,
                                           static_cast<int64_t>(t.actualPresentTime),
                                           static_cast<int64_t>(t.earliestPresentTime),
-                                          static_cast<int64_t>(t.presentMargin));
+                                          static_cast<int64_t>(t.presentMargin),
+                                          pending->second.ahead ? pending->second.slackNs : -1);
         }
         if (pending != pendingPresents_.end()) {
             pendingPresents_.erase(pending);

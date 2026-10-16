@@ -45,9 +45,21 @@ public:
     }
 
     // Feedback for one present: the vsync it was made at, the delay it asked for, and when the
-    // device reports it reached the screen and could have at the earliest
+    // device reports it reached the screen and could have at the earliest. slackNs is how long
+    // before its vsync a frame presented ahead was presented (-1 for others).
+    //
+    // Two kinds of miss don't count toward raising the delay, since more delay wouldn't have
+    // shown the frame on time:
+    // - frames shown just after a pause in the stream (kResumeGapNs, and at least three frames'
+    //   time, without a present): on an
+    //   iPlay 70 mini Ultra, the first frames after the network stalled for about 90 ms reached
+    //   the screen a vsync late at any delay, the device reporting they couldn't have been
+    //   sooner. Five of them within 2 s raised the delay to three vsyncs, where they went on.
+    // - frames presented ahead with more than a vsync beyond the guard to spare
     void onPresented(int64_t vsyncNs, int delayUsed, int64_t periodNs, int64_t actualNs, int64_t earliestNs,
-                     int64_t marginNs);
+                     int64_t marginNs, int64_t slackNs = -1);
+    static constexpr int64_t kResumeGapNs = 50'000'000;
+    static constexpr uint32_t kResumePresents = 3;  // Presents after a pause its misses are excused for
 
     // Whether a present that reached the screen at or after targetNs could have made the vsync
     // before it: the image was ready in time for it (earliest), or it was ready over a vsync
@@ -167,6 +179,8 @@ private:
     int64_t guardBeforeLower_ = 0;
     int64_t loweredGuardCapNs_ = 0;
     int64_t aheadWindowNs_ = 0;  // 0 until set: one vsync
+    int64_t lastReportVsyncNs_ = 0;   // The vsync of the last present reported to onPresented()
+    uint32_t resumingPresents_ = 0;   // Presents left whose misses a pause before them excuses
 };
 
 }  // namespace vkr

@@ -221,14 +221,27 @@ void PresentScheduler::resetWindows() {
 }
 
 void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t periodNs, int64_t actualNs,
-                                   int64_t earliestNs, int64_t marginNs) {
+                                   int64_t earliestNs, int64_t marginNs, int64_t slackNs) {
     if (periodNs <= 0) {
         return;
     }
 
     const int64_t target = vsyncNs + delayUsed * periodNs;
-    const bool missed = actualNs > target + periodNs / 2;
-    missedTotal_ += missed ? 1 : 0;
+    const bool late = actualNs > target + periodNs / 2;
+    missedTotal_ += late ? 1 : 0;
+
+    // Not too short a delay, but a pause in the stream or a compositor hiccup (see the header)
+    // A pause is at least a few frames' time, however slow the stream (the window is a frame)
+    const int64_t pauseNs = std::max(kResumeGapNs, 3 * (aheadWindowNs_ > 0 ? aheadWindowNs_ : periodNs));
+    if (lastReportVsyncNs_ != 0 && vsyncNs - lastReportVsyncNs_ >= pauseNs) {
+        resumingPresents_ = kResumePresents;
+    }
+    lastReportVsyncNs_ = vsyncNs;
+    const bool resuming = resumingPresents_ > 0;
+    if (resuming) {
+        resumingPresents_--;
+    }
+    const bool missed = late && !resuming && !(slackNs >= 0 && slackNs >= guardNs_ + periodNs);
 
     if (settling_ > 0) {
         settling_--;
