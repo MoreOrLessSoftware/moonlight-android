@@ -325,8 +325,10 @@ private:
     FramePtr slotFrames_[kFramesInFlight];
     uint64_t frameCounter_ = 0;
 
-    // While tracing, timestamps at the start and end of each frame's rendering on the GPU (two
-    // queries per frame in flight), and the present each frame in flight belongs to (0 if none)
+    // While tracing, timestamps of each frame's rendering on the GPU: its start, after taking
+    // the decoder's buffer, after drawing, and its end (after handing the buffer back). Also the
+    // present each frame in flight belongs to (0 if none).
+    static constexpr uint32_t kTimestampsPerFrame = 4;
     VkQueryPool timestampPool_ = VK_NULL_HANDLE;
     bool gpuTiming_ = false;
     uint32_t timestampValidBits_ = 0;

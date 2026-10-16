@@ -52,7 +52,11 @@ namespace vkr {
 //                                    clock, in ns: only compare within the record, or offset
 //                                    it by when the CPU saw the same work finish (the next Q
 //                                    using its fence). Written when that fence is next waited
-//                                    on, so it comes after later Q lines.
+//                                    on, so it comes after later Q lines. Then, if present,
+//                                    acquiredNs,drawnNs: after taking MediaCodec's buffer from
+//                                    the decoder (its layout change) and after drawing, so the
+//                                    run splits into taking the buffer, drawing, and handing it
+//                                    back. For PyroWave, which has neither, all three are close.
 //   N,hostPtsNs,receiveNs,enqueueNs  a frame's network timing from moonlight-common-c: when its
 //                                    first packet arrived and when it was fully assembled
 //                                    (CLOCK_MONOTONIC_RAW, so only compare within the column)
@@ -91,7 +95,7 @@ public:
     void rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs, int64_t queuedNs,
                   uint32_t imageIndex, bool fenceWaited, int64_t releasedNs);
     // When a present's rendering ran on the GPU, on the GPU's clock
-    void gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEndNs);
+    void gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEndNs, int64_t acquiredNs, int64_t drawnNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
     void decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs);
     void partial(int64_t hostPtsNs, int kind);

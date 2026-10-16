@@ -512,7 +512,7 @@ bool VulkanRenderer::init(ANativeWindow* output) {
             vk_.vkDestroyQueryPool && vk_.vkGetQueryPoolResults && vk_.vkCmdResetQueryPool && vk_.vkCmdWriteTimestamp) {
         VkQueryPoolCreateInfo queryInfo {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
         queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
-        queryInfo.queryCount = 2 * kFramesInFlight;
+        queryInfo.queryCount = kTimestampsPerFrame * kFramesInFlight;
         gpuTiming_ = vk_.vkCreateQueryPool(device_, &queryInfo, nullptr, &timestampPool_) == VK_SUCCESS;
     }
 
@@ -1436,15 +1436,15 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
 
     // The fence covers the last present rendered in this slot, so its timestamps are written
     if (gpuTiming_ && slotPresentIds_[slot] != 0) {
-        uint64_t ticks[2] = {};
-        if (vk_.vkGetQueryPoolResults(device_, timestampPool_, 2 * slot, 2, sizeof(ticks), ticks, sizeof(ticks[0]),
-                                      VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
+        uint64_t ticks[kTimestampsPerFrame] = {};
+        if (vk_.vkGetQueryPoolResults(device_, timestampPool_, kTimestampsPerFrame * slot, kTimestampsPerFrame,
+                                      sizeof(ticks), ticks, sizeof(ticks[0]), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
             const uint64_t mask = timestampValidBits_ >= 64 ? ~0ULL : (1ULL << timestampValidBits_) - 1;
             const auto toNs = [&](uint64_t t) {
                 return static_cast<int64_t>(static_cast<double>(t & mask) * timestampPeriodNs_);
             };
             std::lock_guard<std::mutex> lock(mutex_);
-            trace_.gpuTimes(slotPresentIds_[slot], toNs(ticks[0]), toNs(ticks[1]));
+            trace_.gpuTimes(slotPresentIds_[slot], toNs(ticks[0]), toNs(ticks[3]), toNs(ticks[1]), toNs(ticks[2]));
         }
     }
     slotPresentIds_[slot] = 0;
@@ -1530,8 +1530,8 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
 
     const bool timed = gpuTiming_ && presentId != 0;
     if (timed) {
-        vk_.vkCmdResetQueryPool(cmd, timestampPool_, 2 * slot, 2);
-        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timestampPool_, 2 * slot);
+        vk_.vkCmdResetQueryPool(cmd, timestampPool_, kTimestampsPerFrame * slot, kTimestampsPerFrame);
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timestampPool_, kTimestampsPerFrame * slot);
     }
 
     // Take the decoder's buffer from the foreign (non-Vulkan) queue family. PyroWave's planes
@@ -1548,6 +1548,9 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         acquire.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
         vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                  0, 0, nullptr, 0, nullptr, 1, &acquire);
+    }
+    if (timed) {
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampPool_, kTimestampsPerFrame * slot + 1);
     }
 
     VkRenderPassBeginInfo rpBegin {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -1568,6 +1571,9 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
                            0, sizeof(pc), &pc);
     vk_.vkCmdDraw(cmd, 3, 1, 0, 0);
     vk_.vkCmdEndRenderPass(cmd);
+    if (timed) {
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampPool_, kTimestampsPerFrame * slot + 2);
+    }
 
     // Hand the buffer back to the decoder
     if (!planar) {
@@ -1583,7 +1589,7 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     }
 
     if (timed) {
-        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampPool_, 2 * slot + 1);
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampPool_, kTimestampsPerFrame * slot + 3);
     }
     vk_.vkEndCommandBuffer(cmd);
 
