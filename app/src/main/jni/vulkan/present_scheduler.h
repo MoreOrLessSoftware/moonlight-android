@@ -26,6 +26,10 @@ public:
 
     int delayVsyncs() const { return delay_; }
 
+    // Holds the delay (in vsyncs) or the guard (in ns) at a value rather than learning it, for
+    // trying a setting on a device. Either can be left out (0, or below 0 for the guard).
+    void fix(int delayVsyncs, int64_t guardNs);
+
     // When to ask for an image presented at `vsyncNs` to reach the screen: halfway through the
     // vsync interval before the one we want, so the compositor takes it for that vsync.
     int64_t desiredPresentNs(int64_t vsyncNs, int64_t periodNs) const {
@@ -86,6 +90,8 @@ private:
     void resetWindows();
 
     int delay_ = 2;
+    bool delayFixed_ = false;
+    bool guardFixed_ = false;
     uint32_t raiseCount_ = 0;
     uint32_t raiseMisses_ = 0;
     uint32_t lowerCount_ = 0;

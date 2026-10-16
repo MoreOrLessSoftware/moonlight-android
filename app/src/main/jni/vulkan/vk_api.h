@@ -95,11 +95,19 @@
     X(vkDestroySemaphore)
 
 // Present only when the device extension that provides them is enabled, or (timeline
-// semaphores) on Vulkan 1.2 devices
+// semaphores) on Vulkan 1.2 devices. The query pool functions and vkGetFenceStatus are core,
+// but nothing depends on them (only traces use the queries, and a fence can be waited on
+// instead), so a device missing one still renders.
 #define VK_OPTIONAL_DEVICE_FUNCTIONS(X) \
     X(vkSetHdrMetadataEXT) \
     X(vkGetPastPresentationTimingGOOGLE) \
-    X(vkWaitSemaphores)
+    X(vkWaitSemaphores) \
+    X(vkGetFenceStatus) \
+    X(vkCreateQueryPool) \
+    X(vkDestroyQueryPool) \
+    X(vkGetQueryPoolResults) \
+    X(vkCmdResetQueryPool) \
+    X(vkCmdWriteTimestamp)
 
 #define VK_DECLARE_FUNCTION(name) PFN_##name name = nullptr;
 

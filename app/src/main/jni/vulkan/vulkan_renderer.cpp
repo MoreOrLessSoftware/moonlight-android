@@ -476,6 +476,26 @@ bool VulkanRenderer::init(ANativeWindow* output) {
         return false;
     }
 
+    // To try a present delay or guard rather than the ones learned (PresentScheduler):
+    // adb shell setprop debug.moonlight.present_delay 1 (vsyncs), and
+    // adb shell setprop debug.moonlight.present_guard_us 6000. Empty or 0 delay learns as usual.
+    {
+        char value[PROP_VALUE_MAX] = {};
+        int fixedDelay = 0;
+        int64_t fixedGuardNs = -1;
+        if (__system_property_get("debug.moonlight.present_delay", value) > 0) {
+            fixedDelay = atoi(value);
+        }
+        if (__system_property_get("debug.moonlight.present_guard_us", value) > 0) {
+            fixedGuardNs = static_cast<int64_t>(std::clamp(atoi(value), 0, 20000)) * 1000;
+        }
+        presentScheduler_.fix(fixedDelay, fixedGuardNs);
+        if (fixedDelay > 0 || fixedGuardNs >= 0) {
+            ALOGI("Present delay %s, guard %s", fixedDelay > 0 ? std::to_string(presentScheduler_.delayVsyncs()).c_str() : "learned",
+                  fixedGuardNs >= 0 ? (std::to_string(fixedGuardNs / 1000) + " us").c_str() : "learned");
+        }
+    }
+
     presentAhead_ = hasDisplayTimingExt_ && pacer_.mode() == PacingMode::HostTimed;
     pacer_.setPresentAhead(presentAhead_);
     pacer_.setPresentGuardNs(presentScheduler_.guardNs());
@@ -487,6 +507,14 @@ bool VulkanRenderer::init(ANativeWindow* output) {
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
              config_.ditherMode);
     trace_.start(config_.traceDirectory, configuration);
+
+    if (trace_.recording() && timestampValidBits_ > 0 && timestampPeriodNs_ > 0 && vk_.vkCreateQueryPool &&
+            vk_.vkDestroyQueryPool && vk_.vkGetQueryPoolResults && vk_.vkCmdResetQueryPool && vk_.vkCmdWriteTimestamp) {
+        VkQueryPoolCreateInfo queryInfo {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+        queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        queryInfo.queryCount = 2 * kFramesInFlight;
+        gpuTiming_ = vk_.vkCreateQueryPool(device_, &queryInfo, nullptr, &timestampPool_) == VK_SUCCESS;
+    }
 
     wakeFd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (wakeFd_ < 0) {
@@ -551,6 +579,8 @@ bool VulkanRenderer::pickDevice() {
 
                 VkPhysicalDeviceProperties props;
                 vk_.vkGetPhysicalDeviceProperties(device, &props);
+                timestampValidBits_ = families[i].timestampValidBits;
+                timestampPeriodNs_ = props.limits.timestampPeriod;
                 ALOGI("Using %s (Vulkan %u.%u.%u), queue family %u", props.deviceName,
                       VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion),
                       VK_API_VERSION_PATCH(props.apiVersion), i);
@@ -797,6 +827,7 @@ VulkanRenderer::~VulkanRenderer() {
             if (fences_[i]) vk_.vkDestroyFence(device_, fences_[i], nullptr);
             if (imageAcquired_[i]) vk_.vkDestroySemaphore(device_, imageAcquired_[i], nullptr);
         }
+        if (timestampPool_) vk_.vkDestroyQueryPool(device_, timestampPool_, nullptr);
         if (commandPool_) vk_.vkDestroyCommandPool(device_, commandPool_, nullptr);
         if (vertShader_) vk_.vkDestroyShaderModule(device_, vertShader_, nullptr);
         if (fragShader_) vk_.vkDestroyShaderModule(device_, fragShader_, nullptr);
@@ -1388,13 +1419,35 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     }
 
     const int slot = static_cast<int>(frameCounter_ % kFramesInFlight);
-    VkResult result = vk_.vkWaitForFences(device_, 1, &fences_[slot], VK_TRUE, kFenceTimeoutNs);
+    // The fence is nearly always done by now, so ask before waiting on it
+    VkResult result = vk_.vkGetFenceStatus ? vk_.vkGetFenceStatus(device_, fences_[slot]) : VK_NOT_READY;
+    const bool fenceWaited = result != VK_SUCCESS;
+    if (fenceWaited) {
+        result = vk_.vkWaitForFences(device_, 1, &fences_[slot], VK_TRUE, kFenceTimeoutNs);
+    }
     if (result != VK_SUCCESS) {
         ALOGE("Timed out waiting for the GPU: %d", result);
         return false;
     }
-    slotFrames_[slot].reset();
     const int64_t fencedNs = nowNs();
+    // Gives MediaCodec's image back to the reader (see onImageAvailable())
+    slotFrames_[slot].reset();
+    const int64_t releasedNs = nowNs();
+
+    // The fence covers the last present rendered in this slot, so its timestamps are written
+    if (gpuTiming_ && slotPresentIds_[slot] != 0) {
+        uint64_t ticks[2] = {};
+        if (vk_.vkGetQueryPoolResults(device_, timestampPool_, 2 * slot, 2, sizeof(ticks), ticks, sizeof(ticks[0]),
+                                      VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
+            const uint64_t mask = timestampValidBits_ >= 64 ? ~0ULL : (1ULL << timestampValidBits_) - 1;
+            const auto toNs = [&](uint64_t t) {
+                return static_cast<int64_t>(static_cast<double>(t & mask) * timestampPeriodNs_);
+            };
+            std::lock_guard<std::mutex> lock(mutex_);
+            trace_.gpuTimes(slotPresentIds_[slot], toNs(ticks[0]), toNs(ticks[1]));
+        }
+    }
+    slotPresentIds_[slot] = 0;
 
     uint32_t imageIndex = 0;
     result = vk_.vkAcquireNextImageKHR(device_, swapchain_, kAcquireTimeoutNs, imageAcquired_[slot],
@@ -1475,6 +1528,12 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vk_.vkBeginCommandBuffer(cmd, &beginInfo);
 
+    const bool timed = gpuTiming_ && presentId != 0;
+    if (timed) {
+        vk_.vkCmdResetQueryPool(cmd, timestampPool_, 2 * slot, 2);
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timestampPool_, 2 * slot);
+    }
+
     // Take the decoder's buffer from the foreign (non-Vulkan) queue family. PyroWave's planes
     // are ours and stay in GENERAL, and the wait for their decode makes its writes visible.
     VkImageMemoryBarrier acquire {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
@@ -1523,12 +1582,18 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
                                  0, 0, nullptr, 0, nullptr, 1, &release);
     }
 
+    if (timed) {
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampPool_, 2 * slot + 1);
+    }
     vk_.vkEndCommandBuffer(cmd);
 
-    // The swapchain image, and for PyroWave the decode into the planes
+    // The swapchain image, and for PyroWave the decode into the planes. Timed, everything waits
+    // for the image, so the start timestamp shows when it was free; only a draw's vertex work
+    // could otherwise go ahead of it, which for one triangle is nothing.
     const VkSemaphore waitSemaphores[2] = {imageAcquired_[slot], planar ? pyrowave_->timeline() : VK_NULL_HANDLE};
-    const VkPipelineStageFlags waitStages[2] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
+    const VkPipelineStageFlags waitStages[2] = {
+            timed ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
     const uint64_t waitValues[2] = {0, frame->readyValue};
     VkTimelineSemaphoreSubmitInfo timelineInfo {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
     timelineInfo.waitSemaphoreValueCount = 2;
@@ -1552,6 +1617,9 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     if (result != VK_SUCCESS) {
         ALOGE("vkQueueSubmit failed: %d", result);
         return false;
+    }
+    if (timed) {
+        slotPresentIds_[slot] = presentId;
     }
 
     VkPresentInfoKHR present {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
@@ -1593,7 +1661,7 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     if (presentId != 0) {
         const int64_t queuedNs = nowNs();
         std::lock_guard<std::mutex> lock(mutex_);
-        trace_.rendered(presentId, startNs, fencedNs, acquiredNs, queuedNs);
+        trace_.rendered(presentId, startNs, fencedNs, acquiredNs, queuedNs, imageIndex, fenceWaited, releasedNs);
     }
 
     slotFrames_[slot] = frame;

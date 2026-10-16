@@ -4,9 +4,20 @@
 
 namespace vkr {
 
+void PresentScheduler::fix(int delayVsyncs, int64_t guardNs) {
+    if (delayVsyncs > 0) {
+        delay_ = std::min(std::max(delayVsyncs, kMinDelay), kMaxDelay);
+        delayFixed_ = true;
+    }
+    if (guardNs >= 0) {
+        guardNs_ = guardNs;
+        guardFixed_ = true;
+    }
+}
+
 void PresentScheduler::onAheadOutcome(int64_t slackNs, bool failed, int64_t periodNs) {
     // A new swapchain's first presents fail for reasons of their own (onSwapchainCreated())
-    if (slackNs < 0 || periodNs <= 0 || settling_ > 0) {
+    if (guardFixed_ || slackNs < 0 || periodNs <= 0 || settling_ > 0) {
         return;
     }
     const int bucket = static_cast<int>(std::min<int64_t>(slackNs / kGuardBucketNs, kGuardBuckets - 1));
@@ -122,7 +133,7 @@ void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t perio
     }
 
     // Presents made before the last change tell us nothing about the current delay
-    if (delayUsed != delay_) {
+    if (delayFixed_ || delayUsed != delay_) {
         return;
     }
 

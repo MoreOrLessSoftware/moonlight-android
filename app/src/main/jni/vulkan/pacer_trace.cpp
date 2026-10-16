@@ -107,9 +107,15 @@ void PacerTrace::immediate(int64_t nowNs) {
 }
 
 void PacerTrace::rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs,
-                          int64_t queuedNs) {
-    write("Q,%llu,%lld,%lld,%lld,%lld\n", static_cast<unsigned long long>(presentId), static_cast<long long>(startNs),
-          static_cast<long long>(fencedNs), static_cast<long long>(acquiredNs), static_cast<long long>(queuedNs));
+                          int64_t queuedNs, uint32_t imageIndex, bool fenceWaited, int64_t releasedNs) {
+    write("Q,%llu,%lld,%lld,%lld,%lld,%u,%d,%lld\n", static_cast<unsigned long long>(presentId),
+          static_cast<long long>(startNs), static_cast<long long>(fencedNs), static_cast<long long>(acquiredNs),
+          static_cast<long long>(queuedNs), imageIndex, fenceWaited ? 1 : 0, static_cast<long long>(releasedNs));
+}
+
+void PacerTrace::gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEndNs) {
+    write("G,%llu,%lld,%lld\n", static_cast<unsigned long long>(presentId), static_cast<long long>(gpuStartNs),
+          static_cast<long long>(gpuEndNs));
 }
 
 void PacerTrace::presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs) {

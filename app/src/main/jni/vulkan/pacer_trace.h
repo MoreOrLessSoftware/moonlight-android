@@ -36,9 +36,23 @@ namespace vkr {
 //   P,presentId,actualNs,earliestNs,marginNs
 //                                    when a present actually reached the screen
 //                                    (VK_GOOGLE_display_timing), reported a few frames later
-//   Q,presentId,startNs,fencedNs,acquiredNs,queuedNs
+//   Q,presentId,startNs,fencedNs,acquiredNs,queuedNs,imageIndex,fenceWaited,releasedNs
 //                                    rendering a present: started, done waiting for the GPU,
-//                                    got a swapchain image, and handed to the compositor
+//                                    got a swapchain image, and handed to the compositor, and
+//                                    which swapchain image it went to. fenceWaited is 1 if the
+//                                    GPU wasn't done when asked, so the fence was waited on.
+//                                    releasedNs is when the frame last rendered in the same slot
+//                                    had been let go of (giving MediaCodec its image back), which
+//                                    is between fencedNs and acquiredNs. (In traces from before
+//                                    it was added, fencedNs came after letting go.)
+//   G,presentId,gpuStartNs,gpuEndNs  when a present's rendering ran on the GPU, from timestamps
+//                                    at the start and end of its commands: the start comes after
+//                                    its swapchain image was free, so a late start is a wait for
+//                                    the image and a long run is slow rendering. On the GPU's
+//                                    clock, in ns: only compare within the record, or offset
+//                                    it by when the CPU saw the same work finish (the next Q
+//                                    using its fence). Written when that fence is next waited
+//                                    on, so it comes after later Q lines.
 //   N,hostPtsNs,receiveNs,enqueueNs  a frame's network timing from moonlight-common-c: when its
 //                                    first packet arrived and when it was fully assembled
 //                                    (CLOCK_MONOTONIC_RAW, so only compare within the column)
@@ -74,7 +88,10 @@ public:
                const FramePacer& pacer);
     void presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs);
     // Rendering a present: started, done waiting for the GPU, got a swapchain image, presented
-    void rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs, int64_t queuedNs);
+    void rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs, int64_t queuedNs,
+                  uint32_t imageIndex, bool fenceWaited, int64_t releasedNs);
+    // When a present's rendering ran on the GPU, on the GPU's clock
+    void gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEndNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
     void decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs);
     void partial(int64_t hostPtsNs, int kind);

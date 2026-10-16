@@ -212,6 +212,7 @@ struct DeviceTiming {
         int64_t fenced;
         int64_t acquired;
         int64_t queued;
+        int64_t released;  // Let go of the slot's last frame; fenced in traces without it
     };
     std::map<uint64_t, Rendered> rendered;      // presentId -> render timing (Q lines)
     int64_t periodNs = 0;
@@ -271,13 +272,14 @@ struct DeviceTiming {
             }
             // Where the time between committing a frame presented ahead and handing it to the
             // compositor goes (it eats into the present guard)
-            std::vector<int64_t> commitToStart, gpuWait, acquireWait, queueTime, commitToQueued;
+            std::vector<int64_t> commitToStart, gpuWait, releaseTime, acquireWait, queueTime, commitToQueued;
             for (const auto& [id, r] : rendered) {
                 auto commit = presentCommit.find(id);
                 if (commit == presentCommit.end()) continue;
                 commitToStart.push_back(r.start - commit->second);
                 gpuWait.push_back(r.fenced - r.start);
-                acquireWait.push_back(r.acquired - r.fenced);
+                releaseTime.push_back(r.released - r.fenced);
+                acquireWait.push_back(r.acquired - r.released);
                 queueTime.push_back(r.queued - r.acquired);
                 commitToQueued.push_back(r.queued - commit->second);
             }
@@ -285,6 +287,7 @@ struct DeviceTiming {
                 printf("  committed -> handed to the compositor: %s\n", percentiles(commitToQueued, false).c_str());
                 printf("    waiting to render:        %s\n", percentiles(commitToStart, false).c_str());
                 printf("    waiting for the GPU:      %s\n", percentiles(gpuWait, false).c_str());
+                printf("    letting go of a frame:    %s\n", percentiles(releaseTime, false).c_str());
                 printf("    waiting for an image:     %s\n", percentiles(acquireWait, false).c_str());
                 printf("    recording and presenting: %s\n", percentiles(queueTime, false).c_str());
             }
@@ -498,7 +501,9 @@ int main(int argc, char** argv) {
             device.presentCommit[presentId] = toInt(f[1]);
         }
         else if (f[0] == "Q" && f.size() >= 6) {
-            device.rendered[static_cast<uint64_t>(toInt(f[1]))] = {toInt(f[2]), toInt(f[3]), toInt(f[4]), toInt(f[5])};
+            const int64_t fenced = toInt(f[3]);
+            device.rendered[static_cast<uint64_t>(toInt(f[1]))] = {toInt(f[2]), fenced, toInt(f[4]), toInt(f[5]),
+                                                                   f.size() >= 10 ? toInt(f[9]) : fenced};
         }
         else if (f[0] == "P" && f.size() >= 5) {
             device.presentActual[static_cast<uint64_t>(toInt(f[1]))] = toInt(f[2]);
