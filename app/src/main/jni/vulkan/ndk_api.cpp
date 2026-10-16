@@ -48,6 +48,7 @@ namespace {
         ok &= loadSymbol("AImageReader_getWindow", api.AImageReader_getWindow);
         ok &= loadSymbol("AImageReader_setImageListener", api.AImageReader_setImageListener);
         ok &= loadSymbol("AImageReader_acquireNextImage", api.AImageReader_acquireNextImage);
+        loadSymbol("AImageReader_acquireNextImageAsync", api.AImageReader_acquireNextImageAsync, false);
         ok &= loadSymbol("AImage_delete", api.AImage_delete);
         ok &= loadSymbol("AImage_getHardwareBuffer", api.AImage_getHardwareBuffer);
         ok &= loadSymbol("AImage_getTimestamp", api.AImage_getTimestamp);

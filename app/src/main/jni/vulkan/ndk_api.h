@@ -25,6 +25,8 @@ struct NdkApi {
     media_status_t (*AImageReader_getWindow)(AImageReader* reader, ANativeWindow** window);
     media_status_t (*AImageReader_setImageListener)(AImageReader* reader, AImageReader_ImageListener* listener);
     media_status_t (*AImageReader_acquireNextImage)(AImageReader* reader, AImage** image);
+    // Optional (API 26): leaves waiting for the decoder to the caller, outside the reader's lock
+    media_status_t (*AImageReader_acquireNextImageAsync)(AImageReader* reader, AImage** image, int* acquireFenceFd);
     void (*AImage_delete)(AImage* image);
     media_status_t (*AImage_getHardwareBuffer)(const AImage* image, AHardwareBuffer** buffer);
     media_status_t (*AImage_getTimestamp)(const AImage* image, int64_t* timestampNs);

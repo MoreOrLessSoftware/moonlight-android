@@ -1,11 +1,13 @@
 #include "vulkan_renderer.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <poll.h>
 #include <sys/eventfd.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -971,14 +973,35 @@ void VulkanRenderer::onImageAvailable() {
             }
         }
 
-        // Waits for the decoder to finish writing the image
+        // The image comes with a fence for the decoder finishing writing it, which we wait on
+        // here. AImageReader_acquireNextImage() waits on it itself, but holding the reader's
+        // lock, which AImage_delete() needs too: releasing a frame we'd shown (renderFrame())
+        // then waited for the next one to decode. On an iPlay 70 mini Ultra that blocked
+        // renders for 1-5 ms, and with a present delay of one vsync, 6-9% of frames reached
+        // the screen a vsync late, in bursts of seconds.
         AImage* image = nullptr;
-        media_status_t status = ndk_->AImageReader_acquireNextImage(reader_, &image);
+        int fenceFd = -1;
+        media_status_t status = ndk_->AImageReader_acquireNextImageAsync
+                ? ndk_->AImageReader_acquireNextImageAsync(reader_, &image, &fenceFd)
+                : ndk_->AImageReader_acquireNextImage(reader_, &image);
         if (status != AMEDIA_OK) {
             if (status == AMEDIA_IMGREADER_MAX_IMAGES_ACQUIRED) {
                 ALOGW("All reader images are held");
             }
             return;
+        }
+        if (fenceFd >= 0) {
+            pollfd fence {fenceFd, POLLIN, 0};
+            int ready;
+            do {
+                ready = poll(&fence, 1, static_cast<int>(kFenceTimeoutNs / 1'000'000));
+            } while (ready < 0 && errno == EINTR);
+            close(fenceFd);
+            if (ready <= 0) {
+                ALOGE("Timed out waiting for the decoder to write a frame");
+                ndk_->AImage_delete(image);
+                continue;
+            }
         }
 
         auto frame = std::make_shared<VideoFrame>(ndk_, image);
