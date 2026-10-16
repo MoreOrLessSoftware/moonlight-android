@@ -109,7 +109,7 @@ public:
 
     // Network timing of a frame, for pacer traces
     bool tracing();
-    void noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
+    void noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t hostProcessingNs);
 
     // Stops presenting and lets go of the output surface. Safe to call more than once.
     void stop();

@@ -1771,9 +1771,16 @@ bool VulkanRenderer::tracing() {
     return trace_.recording();
 }
 
-void VulkanRenderer::noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs) {
+void VulkanRenderer::noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t hostProcessingNs) {
+    // Called as the frame goes to the decoder, so the time on our clock is when decoding starts
+    const int64_t queuedNs = nowNs();
+    const int64_t commonToLocalNs = queuedNs - static_cast<int64_t>(LiGetMicroseconds()) * 1000;
+    uint32_t rttMs = 0, rttVarianceMs = 0;
+    if (!LiGetEstimatedRttInfo(&rttMs, &rttVarianceMs)) {
+        rttMs = 0;
+    }
     std::lock_guard<std::mutex> lock(mutex_);
-    trace_.received(hostPtsNs, receiveNs, enqueueNs);
+    trace_.received(hostPtsNs, receiveNs, enqueueNs, queuedNs, commonToLocalNs, hostProcessingNs, rttMs);
 }
 
 bool VulkanRenderer::ensureSwapchain() {

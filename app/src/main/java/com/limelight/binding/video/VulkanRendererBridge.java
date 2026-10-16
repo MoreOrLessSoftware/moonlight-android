@@ -126,12 +126,14 @@ public class VulkanRendererBridge {
     }
 
     /**
-     * Records a frame's network timing in the frame pacing trace, if one is being recorded.
-     * All times in microseconds; receive and enqueue times are moonlight-common-c's.
+     * Records a frame's network timing in the frame pacing trace, if one is being recorded, as
+     * it's handed to the decoder. All times in microseconds; receive and enqueue times are
+     * moonlight-common-c's. hostProcessingLatency is the host's, in tenths of a millisecond
+     * (0 if the host doesn't report it).
      */
-    public void noteFrameReceived(long hostPtsUs, long receiveTimeUs, long enqueueTimeUs) {
+    public void noteFrameReceived(long hostPtsUs, long receiveTimeUs, long enqueueTimeUs, char hostProcessingLatency) {
         if (tracing && handle != 0) {
-            nativeNoteReceived(handle, hostPtsUs, receiveTimeUs, enqueueTimeUs);
+            nativeNoteReceived(handle, hostPtsUs, receiveTimeUs, enqueueTimeUs, hostProcessingLatency);
         }
     }
 
@@ -193,7 +195,8 @@ public class VulkanRendererBridge {
                                                             int[] recordStarts, int partialKind);
     private static native Surface nativeGetDecoderSurface(long handle);
     private static native boolean nativeIsTracing(long handle);
-    private static native void nativeNoteReceived(long handle, long hostPtsUs, long receiveTimeUs, long enqueueTimeUs);
+    private static native void nativeNoteReceived(long handle, long hostPtsUs, long receiveTimeUs, long enqueueTimeUs,
+                                                  char hostProcessingLatency);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] hdrMetadata);
     private static native int nativeTakePresentedFrames(long handle);
     private static native String nativeGetRendererText(long handle);

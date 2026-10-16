@@ -57,9 +57,16 @@ namespace vkr {
 //                                    the decoder (its layout change) and after drawing, so the
 //                                    run splits into taking the buffer, drawing, and handing it
 //                                    back. For PyroWave, which has neither, all three are close.
-//   N,hostPtsNs,receiveNs,enqueueNs  a frame's network timing from moonlight-common-c: when its
-//                                    first packet arrived and when it was fully assembled
-//                                    (CLOCK_MONOTONIC_RAW, so only compare within the column)
+//   N,hostPtsNs,receiveNs,enqueueNs,queuedNs,commonToLocalNs,hostProcessingNs,rttMs
+//                                    a frame's network timing from moonlight-common-c: when its
+//                                    first packet arrived and when it was fully assembled, on
+//                                    its clock (which starts with the process); then when it
+//                                    went to the decoder on ours (so its decode is the F line's
+//                                    arrivalNs less this), our clock less moonlight-common-c's
+//                                    then (add to receiveNs/enqueueNs for ours), the host's own
+//                                    capture-to-send time for it (0 if not reported), and the
+//                                    estimated network round trip (0 if not known yet). Traces
+//                                    from before these were added have only the first three.
 //   D,hostPtsNs,startNs,queuedNs,doneNs
 //                                    a PyroWave frame's decode: handed to the renderer, queued on
 //                                    the GPU, and finished there (then it arrives, as F)
@@ -96,7 +103,8 @@ public:
                   uint32_t imageIndex, bool fenceWaited, int64_t releasedNs);
     // When a present's rendering ran on the GPU, on the GPU's clock
     void gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEndNs, int64_t acquiredNs, int64_t drawnNs);
-    void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs);
+    void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t queuedNs, int64_t commonToLocalNs,
+                  int64_t hostProcessingNs, uint32_t rttMs);
     void decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs);
     void partial(int64_t hostPtsNs, int kind);
     void partialDeadline(int64_t hostPtsNs, int64_t readyByNs, int64_t readyCostNs, int64_t commonToLocalNs,

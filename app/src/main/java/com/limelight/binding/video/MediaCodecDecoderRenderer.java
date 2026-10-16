@@ -1938,7 +1938,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         VulkanRendererBridge vulkan = vulkanRenderer;
         if (vulkan != null) {
-            vulkan.noteFrameReceived(timestampUs, receiveTimeUs, enqueueTimeUs);
+            vulkan.noteFrameReceived(timestampUs, receiveTimeUs, enqueueTimeUs, frameHostProcessingLatency);
         }
 
         if (!queueNextInputBuffer(timestampUs, codecFlags)) {
@@ -1987,7 +1987,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (vulkan == null) {
             return MoonBridge.DR_OK;
         }
-        vulkan.noteFrameReceived(presentationTimeUs, receiveTimeUs, enqueueTimeUs);
+        vulkan.noteFrameReceived(presentationTimeUs, receiveTimeUs, enqueueTimeUs, frameHostProcessingLatency);
 
         // Decoding is queued on the GPU, so this is the CPU's share of it: parsing the frame
         // and recording the decode. Kept in nanoseconds, since frames take well under 1 ms.

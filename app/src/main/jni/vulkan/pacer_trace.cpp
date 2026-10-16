@@ -154,9 +154,11 @@ void PacerTrace::partialDeadline(int64_t hostPtsNs, int64_t readyByNs, int64_t r
           static_cast<long long>(offsetUs));
 }
 
-void PacerTrace::received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs) {
-    write("N,%lld,%lld,%lld\n", static_cast<long long>(hostPtsNs), static_cast<long long>(receiveNs),
-          static_cast<long long>(enqueueNs));
+void PacerTrace::received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t queuedNs,
+                          int64_t commonToLocalNs, int64_t hostProcessingNs, uint32_t rttMs) {
+    write("N,%lld,%lld,%lld,%lld,%lld,%lld,%u\n", static_cast<long long>(hostPtsNs),
+          static_cast<long long>(receiveNs), static_cast<long long>(enqueueNs), static_cast<long long>(queuedNs),
+          static_cast<long long>(commonToLocalNs), static_cast<long long>(hostProcessingNs), rttMs);
 }
 
 void PacerTrace::vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shownPtsNs, const FramePacer& pacer,
