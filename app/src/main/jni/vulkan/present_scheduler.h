@@ -108,18 +108,31 @@ public:
     static constexpr double kLowerMaxGuardCost = 0.75;
     // The guard for a shorter delay covers this percentile of what frames needed, plus a bucket
     static constexpr double kLowerNeedPercentile = 99.0;
-    // and leaves this much of a vsync: frames are committed for the next vsync at the vsync
-    // callback, a fraction of a millisecond after a vsync, and a guard past what's left of it
-    // would put nearly every frame a vsync later
+    // and leaves this much of the time frames can be committed ahead (setAheadWindowNs()):
+    // frames are committed at the latest at a vsync callback, a fraction of a millisecond after
+    // a vsync, and a guard past what's left would put nearly every frame a vsync later
     static constexpr int64_t kLowerGuardHeadroomNs = 500'000;
+
+    // How far ahead of its vsync a frame can be committed (FramePacer::presentAheadVsyncs()
+    // vsyncs). A shorter delay is only taken with a guard that fits, and one whose guard no
+    // longer fits (the game's frame rate went up) is given up at once.
+    void setAheadWindowNs(int64_t windowNs);
     static constexpr int kNeedBuckets = 100;  // Needed slack up to 25 ms, in kGuardBucketNs
+    // What frames needed is learned over this long (times the backoff), and at least this many
+    // reports, before taking a shorter delay. Many sessions are short, and the time frames need
+    // varies little (0.2 ms either way on the iPlay 70 mini Ultra), so seconds of it are enough;
+    // the extra bucket on the guard covers the percentile's error with this few.
+    static constexpr int64_t kLowerLearnNs = 5'000'000'000;
+    static constexpr uint32_t kLowerMinNeedSamples = 256;
 
 private:
     void resetWindows();
     void resetGuardHistory();
+    // Back to the delay and guard from before the last lowering
+    void undoLowering();
     // With frames presented ahead: once there are enough outcomes, takes a shorter delay if
     // frames could have made it with a guard that costs less than the vsync saved
-    void considerLowering(int64_t periodNs);
+    void considerLowering(int64_t vsyncNs, int64_t periodNs);
 
     int delay_ = 2;
     bool delayFixed_ = false;
@@ -146,12 +159,14 @@ private:
     // sooner than the delay, for the guard that delay would need (reports with a presentMargin)
     double needSamples_[kNeedBuckets] = {};
     double needTotal_ = 0;
-    uint32_t needCount_ = 0;  // Since the delay last changed
+    uint32_t needCount_ = 0;     // Since the delay last changed
+    int64_t needStartNs_ = 0;    // The vsync of the first of those
 
     // The guard before the delay was last lowered, put back if it's raised again, and the most
     // the guard may be raised to while lowered
     int64_t guardBeforeLower_ = 0;
     int64_t loweredGuardCapNs_ = 0;
+    int64_t aheadWindowNs_ = 0;  // 0 until set: one vsync
 };
 
 }  // namespace vkr

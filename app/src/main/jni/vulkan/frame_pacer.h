@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -153,11 +154,18 @@ public:
     // right away and ask for that vsync, rather than waiting for the vsync to come around.
     // Returns 0 if the frame can't be committed yet: frames are shown in the order they're
     // presented, so the vsync must be later than the last one a frame was committed to, and it
-    // must be within kMaxPresentAheadVsyncs of the next vsync. Every frame presented ahead holds
+    // must be within presentAheadVsyncs() of the last vsync. Every frame presented ahead holds
     // a swapchain image until it's on screen; with too many, the render thread blocks waiting
     // for a free one, which makes it late for vsyncs and for frames arriving.
     int64_t plannedVsyncNs(const FrameTiming& frame) const { return frameVsyncNs(frame, true); }
-    static constexpr int64_t kMaxPresentAheadVsyncs = 1;
+
+    // How many vsyncs ahead frames may be committed: one, or with several vsyncs a frame, that
+    // many, which still holds about one frame waiting at a time. A frame then has up to that
+    // many vsyncs before its own to be presented in, which a longer present guard may need (on
+    // an iPlay 70 mini Ultra, 6.3 ms of its 6.9 ms vsyncs at a delay of one vsync, streaming
+    // 72 fps on 144 Hz).
+    int64_t presentAheadVsyncs() const { return std::clamp<int64_t>(slotVsyncs_, 1, kMaxPresentAheadVsyncs); }
+    static constexpr int64_t kMaxPresentAheadVsyncs = 4;
 
     // A frame was presented ahead of time for vsyncNs (from plannedVsyncNs())
     void onPresentedAhead(int64_t vsyncNs);

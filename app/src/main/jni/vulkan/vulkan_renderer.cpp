@@ -1755,6 +1755,7 @@ void VulkanRenderer::collectPresentTimings() {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
+    presentScheduler_.setAheadWindowNs(pacer_.presentAheadVsyncs() * pacer_.vsyncPeriodNs());
     pacer_.setPresentGuardNs(presentScheduler_.guardNs());
     for (uint32_t i = 0; i < count; i++) {
         const VkPastPresentationTimingGOOGLE& t = timings[i];

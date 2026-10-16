@@ -36,6 +36,9 @@ struct Scenario {
     int frames = 40000;
     double needMsAfter = -1;    // From halfway, if set: the compositor gets slower
     bool reportsMargin = true;  // Some devices may leave presentMargin at 0
+    int slotVsyncs = 1;         // Vsyncs per frame (2 for 72 fps on 144 Hz)
+    int slotVsyncsAfter = 0;    // From halfway, if set: the game's frame rate changes
+    unsigned seed = 12345;
 };
 
 struct Result {
@@ -43,33 +46,42 @@ struct Result {
     double finalGuardMs;
     int changes;
     double missedShare;  // Of frames presented with at least the guard
+    double firstChangeS; // Into the session, or -1 if the delay never changed
 };
 
-Result run(const Scenario& s) {
+Result run(const Scenario& s, bool verbose = true) {
     PresentScheduler scheduler;
-    std::mt19937 rng(12345);
+    std::mt19937 rng(s.seed);
     std::normal_distribution<double> jitter(0.0, s.needJitterMs * 1e6);
     std::normal_distribution<double> commit(0.0, 0.08e6);
     std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
     const int64_t period = static_cast<int64_t>(std::llround(1e9 / s.refreshHz));
-    int64_t vsync = 1'000'000'000;
+    const int64_t startNs = 1'000'000'000;
+    int64_t vsync = startNs;
     int lastDelay = scheduler.delayVsyncs();
-    Result r {0, 0, 0, 0};
+    Result r {0, 0, 0, 0, -1};
     int counted = 0, missed = 0;
 
     for (int i = 0; i < s.frames; i++) {
-        vsync += period;
-        const double needMs = (s.needMsAfter >= 0 && i >= s.frames / 2) ? s.needMsAfter : s.needMs;
+        const bool secondHalf = i >= s.frames / 2;
+        const int slotVsyncs = (s.slotVsyncsAfter > 0 && secondHalf) ? s.slotVsyncsAfter : s.slotVsyncs;
+        vsync += period * slotVsyncs;
+        const double needMs = (s.needMsAfter >= 0 && secondHalf) ? s.needMsAfter : s.needMs;
+
+        // Frames can be committed up to a slot ahead (FramePacer::presentAheadVsyncs())
+        const int64_t window = period * slotVsyncs;
+        scheduler.setAheadWindowNs(window);
         const int delay = scheduler.delayVsyncs();
         const int64_t guard = scheduler.guardNs();
 
-        // Most frames are committed at the vsync callback before their vsync, which runs about
-        // 0.3 ms late. The pacer only commits a frame for a vsync with at least the guard to spare;
-        // frames that arrive late get whatever slack is left.
-        int64_t slack = period - 300'000 + static_cast<int64_t>(commit(rng));
+        // A frame is committed when it arrives, or at the vsync callback (about 0.3 ms after a
+        // vsync) that brings its vsync within the window: from the guard to the window before
+        // its vsync. Frames that arrive late get whatever slack is left.
+        const int64_t latest = window - 300'000 + static_cast<int64_t>(commit(rng));
+        int64_t slack = guard + static_cast<int64_t>(uniform(rng) * static_cast<double>(std::max<int64_t>(latest - guard, 0)));
         if (uniform(rng) < s.lateShare) {
-            slack = static_cast<int64_t>(uniform(rng) * static_cast<double>(period));
+            slack = static_cast<int64_t>(uniform(rng) * static_cast<double>(window));
         }
         const bool late = slack < guard;
 
@@ -96,8 +108,14 @@ Result run(const Scenario& s) {
             }
         }
         if (scheduler.delayVsyncs() != lastDelay) {
-            printf("    frame %6d: delay %d -> %d, guard %.2f ms\n", i, lastDelay, scheduler.delayVsyncs(),
-                   scheduler.guardNs() / 1e6);
+            const double atS = (vsync - startNs) / 1e9;
+            if (verbose) {
+                printf("    %6.1f s: delay %d -> %d, guard %.2f ms\n", atS, lastDelay, scheduler.delayVsyncs(),
+                       scheduler.guardNs() / 1e6);
+            }
+            if (r.firstChangeS < 0) {
+                r.firstChangeS = atS;
+            }
             lastDelay = scheduler.delayVsyncs();
             r.changes++;
         }
@@ -120,13 +138,56 @@ Result runAndReport(const Scenario& s) {
 
 int main() {
     {
-        // iPlay 70 mini Ultra: frames needed 5.1-5.9 ms for one vsync (1st-99th percentile)
-        Scenario s {"144 Hz, compositor needs 5.4 ms for one vsync", 144.0, 5.4};
+        // iPlay 70 mini Ultra: frames needed 5.1-5.9 ms for one vsync (1st-99th percentile),
+        // streaming 72 fps on 144 Hz
+        Scenario s {"144 Hz at 72 fps, compositor needs 5.4 ms for one vsync", 144.0, 5.4};
         s.needJitterMs = 0.2;
+        s.slotVsyncs = 2;
         Result r = runAndReport(s);
         check(r.finalDelay == 1, s.name, "should lower to a delay of one vsync");
+        check(r.firstChangeS > 0 && r.firstChangeS <= 10, s.name, "should lower within 10 s");
         check(r.finalGuardMs >= 5.5 && r.finalGuardMs <= 6.44, s.name, "guard should cover what the compositor needs");
         check(r.missedShare < 0.004, s.name, "frames with the guard to spare should all but never miss");
+    }
+    {
+        // The iPlay on a slower evening (6.2-6.3 ms at the 99th percentile): more than one of
+        // its vsyncs leaves, but 72 fps gives frames two
+        Scenario s {"144 Hz at 72 fps, compositor needs 5.75 ms", 144.0, 5.75};
+        s.needJitterMs = 0.2;
+        s.slotVsyncs = 2;
+        Result r = runAndReport(s);
+        check(r.finalDelay == 1, s.name, "with two vsyncs a frame, should lower to one vsync");
+        check(r.missedShare < 0.004, s.name, "frames with the guard to spare should all but never miss");
+    }
+    {
+        // The same at 144 fps, just over the edge of one vsync. Learned over only seconds, how
+        // often does it lower anyway and have to come back?
+        int lowered = 0, wrongAtEnd = 0;
+        const int runs = 20;
+        for (int i = 0; i < runs; i++) {
+            Scenario s {"144 Hz at 144 fps, compositor needs 5.75 ms", 144.0, 5.75};
+            s.needJitterMs = 0.2;
+            s.seed = 1000 + i;
+            Result r = run(s, false);
+            lowered += r.firstChangeS >= 0 ? 1 : 0;
+            wrongAtEnd += r.finalDelay != 2 ? 1 : 0;
+        }
+        printf("144 Hz at 144 fps, compositor needs 5.75 ms (p99 about 6.2 ms), %d runs\n", runs);
+        printf("  lowered in %d, still lowered at the end in %d\n", lowered, wrongAtEnd);
+        check(lowered <= runs / 4, "just over the edge", "seconds of learning shouldn't often lower wrongly");
+        check(wrongAtEnd == 0, "just over the edge", "a wrong lowering should be undone");
+    }
+    {
+        // Lowered at 72 fps, then the game runs at 144 fps: the guard no longer fits a frame's
+        // window, so straight back to two vsyncs
+        Scenario s {"144 Hz, 72 then 144 fps, compositor needs 5.75 ms", 144.0, 5.75};
+        s.needJitterMs = 0.2;
+        s.slotVsyncs = 2;
+        s.slotVsyncsAfter = 1;
+        Result r = runAndReport(s);
+        check(r.changes >= 2, s.name, "should lower at 72 fps and come back up at 144 fps");
+        check(r.finalDelay == 2, s.name, "should end at two vsyncs");
+        check(r.finalGuardMs <= 3.5, s.name, "should go back to the guard from before lowering");
     }
     {
         // Without margins, what frames needed is unknown: stay put

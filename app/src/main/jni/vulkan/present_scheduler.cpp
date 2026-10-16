@@ -25,6 +25,7 @@ void PresentScheduler::resetGuardHistory() {
     guardSinceCheck_ = 0;
     guardRaiseHold_ = 0;
     needCount_ = 0;
+    needStartNs_ = 0;
 }
 
 void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int delayUsed, bool reached,
@@ -46,7 +47,9 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
                 std::clamp<int64_t>(needNs / kGuardBucketNs, 0, kNeedBuckets - 1));
         needSamples_[bucket] += 1;
         needTotal_ += 1;
-        needCount_++;
+        if (needCount_++ == 0) {
+            needStartNs_ = vsyncNs;
+        }
         if (needTotal_ > kGuardHistory) {
             for (double& n : needSamples_) {
                 n /= 2;
@@ -76,7 +79,7 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
     guardSinceCheck_ = 0;
 
     const int delayBefore = delay_;
-    considerLowering(periodNs);
+    considerLowering(vsyncNs, periodNs);
     if (guardFixed_ || delay_ != delayBefore) {
         // Fixed, or just set for a shorter delay along with a fresh history
         return;
@@ -151,13 +154,18 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
             guardRaiseHold_ = kGuardRaiseHoldSamples;
         }
     }
-    else if (target < guardNs_) {
+    else if (target < guardNs_ && !loweredLast_) {
+        // Held where it was set for a shorter delay: that was from what nearly all frames needed
+        // (considerLowering()), and lowered from there a step at a time, frames presented just
+        // over it missed until the delay went back up (in present_scheduler_test, at 72 fps on
+        // 144 Hz, within 20-30 s). A compositor that gets slower is caught by the misses.
         guardNs_ = std::max(target, guardNs_ - kGuardBucketNs);
     }
 }
 
-void PresentScheduler::considerLowering(int64_t periodNs) {
-    if (delayFixed_ || guardFixed_ || delay_ <= kMinDelay || needCount_ < kLowerWindow * lowerBackoff_) {
+void PresentScheduler::considerLowering(int64_t vsyncNs, int64_t periodNs) {
+    if (delayFixed_ || guardFixed_ || delay_ <= kMinDelay || needCount_ < kLowerMinNeedSamples ||
+            vsyncNs - needStartNs_ < kLowerLearnNs * lowerBackoff_) {
         return;
     }
 
@@ -172,7 +180,8 @@ void PresentScheduler::considerLowering(int64_t periodNs) {
         }
     }
     const int64_t guard = std::max(static_cast<int64_t>(bucket + 2) * kGuardBucketNs, kMinGuardNs);
-    if (guard > periodNs - kLowerGuardHeadroomNs ||
+    const int64_t windowNs = aheadWindowNs_ > 0 ? aheadWindowNs_ : periodNs;
+    if (guard > windowNs - kLowerGuardHeadroomNs ||
             static_cast<double>(guard - guardNs_) >= kLowerMaxGuardCost * static_cast<double>(periodNs)) {
         return;
     }
@@ -182,6 +191,26 @@ void PresentScheduler::considerLowering(int64_t periodNs) {
     guardNs_ = guard;
     delay_--;
     loweredLast_ = true;
+    resetWindows();
+    resetGuardHistory();
+}
+
+void PresentScheduler::setAheadWindowNs(int64_t windowNs) {
+    aheadWindowNs_ = windowNs;
+    if (loweredLast_ && loweredGuardCapNs_ > 0 && windowNs > 0 && guardNs_ > windowNs - kLowerGuardHeadroomNs) {
+        // Not a failure of the shorter delay, so no backoff: it's tried again once frames can
+        // be committed early enough
+        undoLowering();
+    }
+}
+
+void PresentScheduler::undoLowering() {
+    delay_++;
+    if (guardBeforeLower_ > 0 && !guardFixed_) {
+        guardNs_ = guardBeforeLower_;
+    }
+    loweredGuardCapNs_ = 0;
+    loweredLast_ = false;
     resetWindows();
     resetGuardHistory();
 }
@@ -215,17 +244,14 @@ void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t perio
     raiseMisses_ += missed ? 1 : 0;
     if (raiseCount_ >= kRaiseWindow || raiseMisses_ >= kRaiseMisses) {
         if (raiseMisses_ >= kRaiseMisses && delay_ < kMaxDelay) {
-            delay_++;
             // A shorter delay that didn't hold: wait longer before trying it again, and go back
             // to the guard from before it
             if (loweredLast_) {
                 lowerBackoff_ = std::min<uint32_t>(lowerBackoff_ * 2, 16);
-                if (guardBeforeLower_ > 0 && !guardFixed_) {
-                    guardNs_ = guardBeforeLower_;
-                }
-                loweredGuardCapNs_ = 0;
+                undoLowering();
+                return;
             }
-            loweredLast_ = false;
+            delay_++;
             resetWindows();
             resetGuardHistory();
             return;

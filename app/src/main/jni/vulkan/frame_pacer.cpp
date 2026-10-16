@@ -794,9 +794,9 @@ int64_t FramePacer::frameVsyncNs(const FrameTiming& frame, bool committable) con
         }
     }
 
-    // Not further ahead than the next vsync. A frame due later is presented at the vsync
-    // before its own, still a vsync early.
-    if (committable && index - vsyncIndex_ > kMaxPresentAheadVsyncs) {
+    // Not further ahead than presentAheadVsyncs(). A frame due later is presented at the vsync
+    // that brings its own within that, still that far early.
+    if (committable && index - vsyncIndex_ > presentAheadVsyncs()) {
         return 0;
     }
 
