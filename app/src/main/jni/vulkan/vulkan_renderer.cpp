@@ -1716,17 +1716,19 @@ void VulkanRenderer::collectPresentTimings() {
         // the screen: the compositor dropped them
         for (auto it = pendingPresents_.begin(); it != pendingPresents_.end() && it->first < t.presentID;) {
             if (it->second.ahead && !it->second.replaced) {
-                presentScheduler_.onAheadOutcome(it->second.slackNs, true, currentPeriodNs_);
+                presentScheduler_.onAheadOutcome(it->second.slackNs, it->second.vsyncNs, it->second.delayVsyncs,
+                                                 false, 0, 0, 0, currentPeriodNs_);
             }
             it = pendingPresents_.erase(it);
         }
 
         auto pending = pendingPresents_.find(t.presentID);
         if (pending != pendingPresents_.end() && pending->second.ahead && !pending->second.replaced) {
-            const int64_t target = pending->second.vsyncNs + pending->second.delayVsyncs * currentPeriodNs_;
-            presentScheduler_.onAheadOutcome(pending->second.slackNs,
-                                             static_cast<int64_t>(t.actualPresentTime) > target + currentPeriodNs_ / 2,
-                                             currentPeriodNs_);
+            presentScheduler_.onAheadOutcome(pending->second.slackNs, pending->second.vsyncNs,
+                                             pending->second.delayVsyncs, true,
+                                             static_cast<int64_t>(t.actualPresentTime),
+                                             static_cast<int64_t>(t.earliestPresentTime),
+                                             static_cast<int64_t>(t.presentMargin), currentPeriodNs_);
         }
 
         // With frames presented ahead, the delay is tuned for those. A frame that arrived late,

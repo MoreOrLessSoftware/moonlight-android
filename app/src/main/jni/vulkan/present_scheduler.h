@@ -18,6 +18,14 @@ namespace vkr {
 // what the device usually manages, rises a vsync when presents miss their vsync, and comes back
 // down when the device's reports show every present could have made the shorter delay.
 //
+// With frames presented ahead (onAheadOutcome()), the delay comes down with the guard it needs:
+// frames presented further ahead of their vsync make a shorter delay where others don't. Each
+// present's report says how long before its vsync it needed to be presented for the vsync it
+// could have made at the earliest (its slack less presentMargin), whatever delay it asked for.
+// On an iPlay 70 mini Ultra at 144 Hz, that was 5.1-5.9 ms for one vsync (1st-99th percentile)
+// at a delay of either one or two; a 6 ms guard at a delay of one took 3-8 ms off the time from
+// decode to screen against a 2 ms guard at two.
+//
 // No Android dependencies, so it can be tested on its own.
 class PresentScheduler {
 public:
@@ -41,6 +49,13 @@ public:
     void onPresented(int64_t vsyncNs, int delayUsed, int64_t periodNs, int64_t actualNs, int64_t earliestNs,
                      int64_t marginNs);
 
+    // Whether a present that reached the screen at or after targetNs could have made the vsync
+    // before it: the image was ready in time for it (earliest), or it was ready over a vsync
+    // before the compositor needed it (margin)
+    static bool couldBeSooner(int64_t targetNs, int64_t earliestNs, int64_t marginNs, int64_t periodNs) {
+        return earliestNs <= targetNs - periodNs + periodNs / 4 || marginNs >= periodNs + periodNs / 8;
+    }
+
     uint64_t missedTotal() const { return missedTotal_; }
 
     // A new swapchain: its first presents miss for reasons of their own, so they're not counted
@@ -56,12 +71,14 @@ public:
     // Learned per device from how often frames fail at each slack: the lowest slack from which
     // frames all but never fail (kGuardMaxFailPercent), found by working down from the frames
     // presented with the most time to spare. It rises as soon as frames fail above it, and falls
-    // a step at a time.
+    // a step at a time. At most half a vsync, unless a shorter delay needed more.
     int64_t guardNs() const { return guardNs_; }
 
-    // How a frame presented ahead did: slackNs before its vsync, and whether it missed that vsync
-    // or never reached the screen
-    void onAheadOutcome(int64_t slackNs, bool failed, int64_t periodNs);
+    // How a frame presented ahead did: slackNs before vsyncNs, the vsync it was presented for,
+    // the delay it asked for, and if it reached the screen, the device's report of when, when it
+    // could have at the earliest, and its presentMargin
+    void onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int delayUsed, bool reached, int64_t actualNs,
+                        int64_t earliestNs, int64_t marginNs, int64_t periodNs);
 
     static constexpr int64_t kInitialGuardNs = 2'000'000;
     static constexpr int64_t kMinGuardNs = 500'000;
@@ -86,12 +103,28 @@ public:
     static constexpr uint32_t kLowerMaxMisses = 1;
     static constexpr uint32_t kSettlingPresents = 60;
 
+    // A shorter delay is taken with a longer guard only if the guard grows by less than this
+    // share of the vsync saved, since the pacer can't always place frames to absorb all of it
+    static constexpr double kLowerMaxGuardCost = 0.75;
+    // The guard for a shorter delay covers this percentile of what frames needed, plus a bucket
+    static constexpr double kLowerNeedPercentile = 99.0;
+    // and leaves this much of a vsync: frames are committed for the next vsync at the vsync
+    // callback, a fraction of a millisecond after a vsync, and a guard past what's left of it
+    // would put nearly every frame a vsync later
+    static constexpr int64_t kLowerGuardHeadroomNs = 500'000;
+    static constexpr int kNeedBuckets = 100;  // Needed slack up to 25 ms, in kGuardBucketNs
+
 private:
     void resetWindows();
+    void resetGuardHistory();
+    // With frames presented ahead: once there are enough outcomes, takes a shorter delay if
+    // frames could have made it with a guard that costs less than the vsync saved
+    void considerLowering(int64_t periodNs);
 
     int delay_ = 2;
     bool delayFixed_ = false;
     bool guardFixed_ = false;
+    bool aheadSeen_ = false;  // Frames are presented ahead, so considerLowering() decides
     uint32_t raiseCount_ = 0;
     uint32_t raiseMisses_ = 0;
     uint32_t lowerCount_ = 0;
@@ -108,6 +141,17 @@ private:
     uint32_t guardSinceCheck_ = 0;
     uint32_t guardRaiseHold_ = 0;
     uint64_t missedTotal_ = 0;
+
+    // How long before their vsync frames needed to be presented to reach the screen a vsync
+    // sooner than the delay, for the guard that delay would need (reports with a presentMargin)
+    double needSamples_[kNeedBuckets] = {};
+    double needTotal_ = 0;
+    uint32_t needCount_ = 0;  // Since the delay last changed
+
+    // The guard before the delay was last lowered, put back if it's raised again, and the most
+    // the guard may be raised to while lowered
+    int64_t guardBeforeLower_ = 0;
+    int64_t loweredGuardCapNs_ = 0;
 };
 
 }  // namespace vkr
