@@ -19,6 +19,7 @@ import android.util.DisplayMetrics;
 import android.util.Range;
 import android.view.Display;
 import android.view.DisplayCutout;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -82,6 +83,24 @@ public class StreamSettings extends Activity {
             currentPage = page;
             reloadSettings();
         }
+    }
+
+    // A controller's shoulder buttons move between the tabs, wrapping around at the ends
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_BUTTON_R1) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                int step = keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1;
+                int page = (currentPage + step + PAGE_TAB_IDS.length) % PAGE_TAB_IDS.length;
+                showPage(page);
+
+                // On the new tab, so down goes into its settings
+                findViewById(PAGE_TAB_IDS[page]).requestFocus();
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     @Override
