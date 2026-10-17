@@ -62,37 +62,50 @@ namespace {
 constexpr double kLowLatencySlowSlotCoverage = 0.95;
 
 HostTimeline::HostTimeline(JitterBuffer jitterBuffer) : jitterBuffer_(jitterBuffer) {
-    switch (jitterBuffer) {
+    applyPreset();
+}
+
+void HostTimeline::setJitterBuffer(JitterBuffer jitterBuffer) {
+    jitterBuffer_ = jitterBuffer;
+    applyPreset();
+}
+
+void HostTimeline::applyPreset() {
+    switch (jitterBuffer_) {
         case JitterBuffer::LowLatency:
-            windowNs_ = 2'000'000'000;
-            coverage_ = 0.98;
-            decayDivisor_ = 32;
+            baseWindowNs_ = 2'000'000'000;
+            baseCoverage_ = 0.98;
+            baseDecayDivisor_ = 32;
             break;
         case JitterBuffer::LowestLatency:
-            windowNs_ = 2'000'000'000;
-            coverage_ = 0.90;
-            decayDivisor_ = 32;
+            baseWindowNs_ = 2'000'000'000;
+            baseCoverage_ = 0.90;
+            baseDecayDivisor_ = 32;
             break;
         case JitterBuffer::Smooth:
-            windowNs_ = 30'000'000'000;
-            coverage_ = 0.999;
-            decayDivisor_ = 4096;
+            baseWindowNs_ = 30'000'000'000;
+            baseCoverage_ = 0.999;
+            baseDecayDivisor_ = 4096;
             break;
         case JitterBuffer::Balanced:
         default:
-            windowNs_ = 3'000'000'000;
-            coverage_ = 0.99;
-            decayDivisor_ = 64;
+            baseWindowNs_ = 3'000'000'000;
+            baseCoverage_ = 0.99;
+            baseDecayDivisor_ = 64;
             break;
     }
-    baseCoverage_ = coverage_;
-    baseWindowNs_ = windowNs_;
-    baseDecayDivisor_ = decayDivisor_;
+    windowNs_ = std::max(baseWindowNs_, minWindowNs_);
+    decayDivisor_ = std::max(baseDecayDivisor_, minDecayDivisor_);
+    setSlotVsyncs(slotVsyncs_);
 }
 
 void HostTimeline::setSlotVsyncs(int64_t slotVsyncs) {
-    if (jitterBuffer_ == JitterBuffer::LowLatency) {
-        coverage_ = slotVsyncs >= 2 ? std::min(baseCoverage_, kLowLatencySlowSlotCoverage) : baseCoverage_;
+    slotVsyncs_ = slotVsyncs;
+    if (jitterBuffer_ == JitterBuffer::LowLatency && slotVsyncs >= 2) {
+        coverage_ = std::min(baseCoverage_, kLowLatencySlowSlotCoverage);
+    }
+    else {
+        coverage_ = baseCoverage_;
     }
 }
 
@@ -107,6 +120,8 @@ void HostTimeline::reset() {
 void HostTimeline::restartWindow(int64_t minWindowNs, int64_t minDecayDivisor) {
     window_.clear();
     minQueue_.clear();
+    minWindowNs_ = minWindowNs;
+    minDecayDivisor_ = minDecayDivisor;
     windowNs_ = std::max(baseWindowNs_, minWindowNs);
     decayDivisor_ = std::max(baseDecayDivisor_, minDecayDivisor);
 }
@@ -269,6 +284,14 @@ size_t FramePacer::maxQueued() const {
         default:
             return 4;
     }
+}
+
+void FramePacer::setJitterBuffer(JitterBuffer jitterBuffer) {
+    if (jitterBuffer == timeline_.jitterBuffer()) {
+        return;
+    }
+    timeline_.setJitterBuffer(jitterBuffer);
+    resetPhase();
 }
 
 void FramePacer::resetPhase() {

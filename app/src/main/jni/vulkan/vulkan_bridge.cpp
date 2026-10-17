@@ -90,6 +90,14 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetHdrMode(
     }
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetJitterBuffer(JNIEnv*, jclass, jlong handle, jint jitterBuffer) {
+    VulkanRenderer* renderer = fromHandle(handle);
+    if (renderer) {
+        renderer->setJitterBuffer(static_cast<vkr::JitterBuffer>(jitterBuffer));
+    }
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
         JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs, jlong lastPacketUs,

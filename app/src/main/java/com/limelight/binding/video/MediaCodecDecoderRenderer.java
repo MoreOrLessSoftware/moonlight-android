@@ -147,8 +147,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private boolean pyrowaveCenterChroma;
     private long pyrowaveDecodeNs;
 
-    // Direct renderer in the host frame timing pacing mode
-    private HostFrameTimeline hostFrameTimeline;
+    // Direct renderer in the host frame timing pacing mode. Volatile since setJitterBuffer()
+    // reads it from the UI thread.
+    private volatile HostFrameTimeline hostFrameTimeline;
 
     private MediaCodecInfo findAvcDecoder() {
         MediaCodecInfo decoder = MediaCodecHelper.findProbableSafeDecoder("video/avc", MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
@@ -1430,6 +1431,23 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (vulkanRenderer != null) {
             vulkanRenderer.destroy();
             vulkanRenderer = null;
+        }
+    }
+
+    /**
+     * Switches the jitter buffer of the "sync to host frame timing" pacing for the rest of this
+     * stream, in whichever renderer is pacing it. A renderer made again later in the stream (as
+     * on a new surface) takes it from the shared preferences, so callers update those too.
+     * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
+     */
+    public void setJitterBuffer(int jitterBuffer) {
+        VulkanRendererBridge vulkan = vulkanRenderer;
+        if (vulkan != null) {
+            vulkan.setJitterBuffer(jitterBuffer);
+        }
+        HostFrameTimeline timeline = hostFrameTimeline;
+        if (timeline != null) {
+            timeline.setJitterBuffer(jitterBuffer);
         }
     }
 

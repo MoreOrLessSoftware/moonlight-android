@@ -137,6 +137,16 @@ public class VulkanRendererBridge {
         }
     }
 
+    /**
+     * Switches the jitter buffer for the rest of the stream.
+     * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
+     */
+    public void setJitterBuffer(int jitterBuffer) {
+        if (handle != 0) {
+            nativeSetJitterBuffer(handle, jitterBuffer);
+        }
+    }
+
     public void setHdrMode(boolean enabled, byte[] hdrMetadata) {
         if (handle != 0) {
             nativeSetHdrMode(handle, enabled, hdrMetadata);
@@ -207,6 +217,7 @@ public class VulkanRendererBridge {
     private static native void nativeNoteReceived(long handle, long hostPtsUs, long receiveTimeUs, long enqueueTimeUs,
                                                   char hostProcessingLatency);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] hdrMetadata);
+    private static native void nativeSetJitterBuffer(long handle, int jitterBuffer);
     private static native int nativeTakePresentedFrames(long handle);
     private static native long nativeTakeDecodedNs(long handle);
     private static native String nativeGetRendererText(long handle);

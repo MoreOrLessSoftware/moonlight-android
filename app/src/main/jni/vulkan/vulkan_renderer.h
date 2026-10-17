@@ -108,6 +108,9 @@ public:
 
     void setHdrMode(bool enabled, const uint8_t* metadata, size_t metadataLength);
 
+    // Switches the jitter buffer preset for the rest of the stream
+    void setJitterBuffer(JitterBuffer jitterBuffer);
+
     // Network timing of a frame, for pacer traces
     bool tracing();
     void noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t hostProcessingNs);

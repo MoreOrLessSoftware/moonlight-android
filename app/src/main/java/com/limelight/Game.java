@@ -46,11 +46,13 @@ import com.limelight.utils.UiHelper;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
 import android.app.Service;
 import android.app.UiModeManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -360,6 +362,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Initialize overlay menu view (setup will be done after controllerHandler is initialized)
         overlayMenuView = findViewById(R.id.overlayMenuView);
         overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
+        overlayMenuView.setShowJitterBuffer(prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_HOST_TIMED);
 
         inputCaptureProvider = InputCaptureManager.getInputCaptureProvider(this, this);
 
@@ -3109,6 +3112,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             @Override
+            public void onChangeJitterBuffer() {
+                showJitterBufferDialog();
+            }
+
+            @Override
             public void onCustomCommand(CustomCommand command) {
                 if (command.getPostAction() == CustomCommand.POST_ACTION_CLOSE_MENU) {
                     overlayMenuView.closeMenu();
@@ -3123,6 +3131,37 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 // Menu closed, no additional action needed
             }
         });
+    }
+
+    // Picks the jitter buffer for the rest of this session only; the settings are left alone
+    private void showJitterBufferDialog() {
+        final String[] names = getResources().getStringArray(R.array.jitter_buffer_names);
+        final String[] values = getResources().getStringArray(R.array.jitter_buffer_values);
+
+        int checked = -1;
+        for (int i = 0; i < values.length; i++) {
+            if (PreferenceConfiguration.parseJitterBuffer(values[i]) == prefConfig.jitterBuffer) {
+                checked = i;
+                break;
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.overlay_menu_jitter_buffer_title)
+                .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        int jitterBuffer = PreferenceConfiguration.parseJitterBuffer(values[which]);
+
+                        // Kept in prefConfig too, which a renderer made again later in this
+                        // session (as on a new surface) is set up from
+                        prefConfig.jitterBuffer = jitterBuffer;
+                        decoderRenderer.setJitterBuffer(jitterBuffer);
+                        dialog.dismiss();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     /**

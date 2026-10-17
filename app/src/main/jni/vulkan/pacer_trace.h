@@ -19,6 +19,8 @@ namespace vkr {
 // The file is CSV, one event per line, in the order the pacer saw them:
 //   C,key=value,...                  session configuration
 //   R,periodNs                       vsync period handed to FramePacer::setVsyncPeriod()
+//   J,jitterBuffer                   the jitter buffer preset changed mid-stream
+//                                    (FramePacer::setJitterBuffer()), from the one in C
 //   F,arrivalNs,hostPtsNs,targetNs,queued,queueDrops
 //                                    frame arrived (FramePacer::onFrameArrived())
 //   V,vsyncNs,queued,choice,shownPtsNs,locked,slotVsyncs,slotParity,scheduleDelayNs,
@@ -106,6 +108,7 @@ public:
     bool recording() const { return file_ != nullptr; }
 
     void period(int64_t periodNs);
+    void jitterBuffer(JitterBuffer jitterBuffer);
     void frame(const FrameTiming& timing, size_t queued, uint64_t queueDrops);
     void vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shownPtsNs, const FramePacer& pacer,
                int64_t callbackLateNs, uint64_t presentId, int presentDelayVsyncs);

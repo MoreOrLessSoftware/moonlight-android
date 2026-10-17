@@ -27,6 +27,7 @@ public class OverlayMenuView extends LinearLayout {
         void onToggleMouseEmulation();
         void onShowKeyboard();
         void onSendGuideButton();
+        void onChangeJitterBuffer();
         void onCustomCommand(CustomCommand command);
         void onMenuClosed();
     }
@@ -55,10 +56,13 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_SHOW_KEYBOARD = 4;
     private static final int ACTION_TOGGLE_MOUSE_EMULATION = 5;
     private static final int ACTION_SEND_GUIDE = 6;
+    private static final int ACTION_JITTER_BUFFER = 7;
     private static final int ACTION_CUSTOM_BASE = 100;
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
+    // Only with "sync to host frame timing" pacing, the one mode with a jitter buffer
+    private boolean showJitterBuffer = false;
 
     public OverlayMenuView(Context context) {
         super(context);
@@ -151,6 +155,10 @@ public class OverlayMenuView extends LinearLayout {
             getContext().getString(R.string.overlay_menu_keyboard), ACTION_SHOW_KEYBOARD, spacing);
         addVerticalButton(R.drawable.ic_overlay_perf,
                 getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_TOGGLE_STATS, spacing);
+        if (showJitterBuffer) {
+            addVerticalButton(R.drawable.ic_overlay_jitter_buffer,
+                    getContext().getString(R.string.overlay_menu_jitter_buffer), ACTION_JITTER_BUFFER, spacing);
+        }
         addVerticalButton(R.drawable.ic_overlay_power,
             getContext().getString(R.string.overlay_menu_quit_session), ACTION_QUIT, spacing);
         addVerticalButton(R.drawable.ic_overlay_monitor,
@@ -232,6 +240,10 @@ public class OverlayMenuView extends LinearLayout {
 
     public void setFlipFaceButtons(boolean flip) {
         this.flipFaceButtons = flip;
+    }
+
+    public void setShowJitterBuffer(boolean show) {
+        this.showJitterBuffer = show;
     }
 
     @Override
@@ -533,6 +545,11 @@ public class OverlayMenuView extends LinearLayout {
             } else if (action == ACTION_SEND_GUIDE) {
                 actionListener.onSendGuideButton();
                 shouldCloseMenu = true;
+            } else if (action == ACTION_JITTER_BUFFER) {
+                // Closed first, so the dialog gets the controller and keyboard input
+                closeMenu();
+                actionListener.onChangeJitterBuffer();
+                return;
             } else if (action == ACTION_CLOSE) {
                 closeMenu();
                 return;

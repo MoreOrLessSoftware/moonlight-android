@@ -950,6 +950,16 @@ void VulkanRenderer::setHdrMode(bool enabled, const uint8_t* metadata, size_t me
     wake(kWakeHdr);
 }
 
+void VulkanRenderer::setJitterBuffer(JitterBuffer jitterBuffer) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (jitterBuffer == pacer_.timeline().jitterBuffer()) {
+        return;
+    }
+    ALOGI("Jitter buffer changed to %d", static_cast<int>(jitterBuffer));
+    pacer_.setJitterBuffer(jitterBuffer);
+    trace_.jitterBuffer(jitterBuffer);
+}
+
 std::string VulkanRenderer::rendererText() {
     std::lock_guard<std::mutex> lock(mutex_);
 

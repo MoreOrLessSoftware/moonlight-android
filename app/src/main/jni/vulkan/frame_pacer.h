@@ -79,6 +79,10 @@ public:
 
     JitterBuffer jitterBuffer() const { return jitterBuffer_; }
 
+    // Switches to another preset mid-stream. The transit times seen so far and the current
+    // offset are kept, so the buffer moves to the new preset's as it normally adapts.
+    void setJitterBuffer(JitterBuffer jitterBuffer);
+
     // How many vsyncs each frame stays on screen (FramePacer::updateSlot()). With more than one,
     // LowLatency covers less of the transit times (see the presets in frame_pacer.cpp).
     void setSlotVsyncs(int64_t slotVsyncs);
@@ -92,12 +96,20 @@ public:
     static constexpr int64_t kWarmupNs = 1'000'000'000;
 
 private:
+    // Sets the preset's window, coverage and decay, keeping what restartWindow() and
+    // setSlotVsyncs() asked for
+    void applyPreset();
+
     JitterBuffer jitterBuffer_;
 
     // Window of transit samples the offset is taken from
     int64_t windowNs_;
     int64_t baseWindowNs_ = 0;
     int64_t baseDecayDivisor_ = 0;
+    // The least window and decay divisor restartWindow() last asked for
+    int64_t minWindowNs_ = 0;
+    int64_t minDecayDivisor_ = 0;
+    int64_t slotVsyncs_ = 1;
 
     // The offset covers this fraction of transit times. The rest arrive after their
     // scheduled time and are shown at the first vsync after they arrive.
@@ -175,6 +187,10 @@ public:
     // for easing frames into place would take frames that are about to be presented ahead
     // with time to spare and present them with none.
     void setPresentAhead(bool presentAhead) { presentAhead_ = presentAhead; }
+
+    // Switches the jitter buffer preset mid-stream. The presets lock to the host's cadence
+    // differently (updatePhase()), so locking starts over, as when the cadence changes.
+    void setJitterBuffer(JitterBuffer jitterBuffer);
 
     // With frames presented ahead, how long before its vsync a frame must be due for that vsync
     // (PresentScheduler::guardNs()). Frames due later go to the next vsync.

@@ -458,6 +458,15 @@ int main(int argc, char** argv) {
         if (f[0] == "R" && f.size() >= 2) {
             pacer.setVsyncPeriod(toInt(f[1]));
         }
+        else if (f[0] == "J" && f.size() >= 2) {
+            // The session changed its jitter buffer, unless the replay was asked for one
+            const int changed = static_cast<int>(toInt(f[1]));
+            printf("Jitter buffer changed to %s on the device%s\n", kJitterBufferNames[changed % 4],
+                   jitterBufferOverride >= 0 ? " (kept in the replay)" : "");
+            if (jitterBufferOverride < 0) {
+                pacer.setJitterBuffer(static_cast<JitterBuffer>(changed));
+            }
+        }
         else if (f[0] == "F" && f.size() >= 6) {
             FrameTiming timing;
             timing.arrivalNs = toInt(f[1]);

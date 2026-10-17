@@ -38,6 +38,11 @@ struct Scenario {
     double contentJitterMs = 0;    // Standard deviation of the game's present times around its cap
     // The checks here were written against what's now LowLatency
     JitterBuffer jitterBuffer = JitterBuffer::LowLatency;
+    // Switches to switchTo this far in (FramePacer::setJitterBuffer()), when above 0
+    double switchAtS = 0;
+    JitterBuffer switchTo = JitterBuffer::LowLatency;
+    // Where the counted part of the run starts, after the warm-up
+    double measureFromS = 3.0;
 };
 
 struct Result {
@@ -135,7 +140,8 @@ Result run(const Scenario& s, bool verbose = false) {
     int64_t lastShownVsync = 0;
     size_t lastShownIndex = 0;
     bool haveShown = false;
-    const int64_t warmup = clockOffset + 3'000'000'000LL;
+    const int64_t warmup = clockOffset + static_cast<int64_t>(s.measureFromS * 1e9);
+    bool switched = false;
     const int64_t end = clockOffset + static_cast<int64_t>(s.durationS * 1e9);
     const double contentFps = s.contentFps > 0 ? s.contentFps : s.streamFps;
     const int64_t slotVsyncs = std::max<int64_t>(1, std::llround((1e9 / contentFps) / period));
@@ -156,6 +162,11 @@ Result run(const Scenario& s, bool verbose = false) {
         if (estimatedPeriod != period) {
             estimatedPeriod += (period - estimatedPeriod) / 16;
             pacer.setVsyncPeriod(estimatedPeriod);
+        }
+
+        if (s.switchAtS > 0 && !switched && vsync >= clockOffset + static_cast<int64_t>(s.switchAtS * 1e9)) {
+            pacer.setJitterBuffer(s.switchTo);
+            switched = true;
         }
 
         std::vector<FrameTiming> timings;
@@ -419,6 +430,50 @@ int main() {
             const int events = r.heldShort + r.heldLong + 2 * r.skipped;
             printf("  minimum uneven frames for the rate difference: %.1f, got %d\n", driftVsyncs, events);
             check(events <= driftVsyncs * 1.3 + 4, c.name, "more uneven frames than the rate difference needs");
+        }
+    }
+    {
+        // Switching the jitter buffer mid-stream, as the overlay menu does: once it settles, the
+        // stream should run as if it had started with the new preset. Each switched run is
+        // compared with one that had the new preset all along, over the same frames, counted
+        // from well after the switch.
+        struct Switch { const char* name; const char* fixedName; JitterBuffer from; JitterBuffer to; };
+        const Switch switches[] = {
+            {"Smooth to Lowest latency at 20 s", "  Lowest latency all along", JitterBuffer::Smooth,
+             JitterBuffer::LowestLatency},
+            {"Lowest latency to Smooth at 20 s", "  Smooth all along", JitterBuffer::LowestLatency,
+             JitterBuffer::Smooth},
+            {"Low latency to Balanced at 20 s", "  Balanced all along", JitterBuffer::LowLatency,
+             JitterBuffer::Balanced},
+            {"Balanced to Low latency at 20 s", "  Low latency all along", JitterBuffer::Balanced,
+             JitterBuffer::LowLatency},
+        };
+        for (const Switch& sw : switches) {
+            // Network stalls now and then, so the presets buffer differently
+            Scenario base {"", 60.0, 60, 60.0};
+            base.spikeChance = 0.01;
+            base.spikeMs = 15.0;
+            base.durationS = 120.0;
+            base.measureFromS = 60.0;
+
+            Scenario fixed = base;
+            fixed.name = sw.fixedName;
+            fixed.jitterBuffer = sw.to;
+            Scenario changing = base;
+            changing.name = sw.name;
+            changing.jitterBuffer = sw.from;
+            changing.switchAtS = 20.0;
+            changing.switchTo = sw.to;
+
+            const Result rf = run(fixed);
+            const Result rc = run(changing);
+            report(changing, rc);
+            report(fixed, rf);
+            check(std::fabs(rc.meanLatencyMs - rf.meanLatencyMs) < 1.0, sw.name,
+                  "latency didn't settle at the new preset's");
+            const int unevenChanging = rc.skipped + rc.heldShort + rc.heldLong;
+            const int unevenFixed = rf.skipped + rf.heldShort + rf.heldLong;
+            check(unevenChanging <= unevenFixed + 4, sw.name, "more uneven frames than with the new preset all along");
         }
     }
     {

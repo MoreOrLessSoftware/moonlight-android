@@ -86,6 +86,10 @@ void PacerTrace::period(int64_t periodNs) {
     write("R,%lld\n", static_cast<long long>(periodNs));
 }
 
+void PacerTrace::jitterBuffer(JitterBuffer jitterBuffer) {
+    write("J,%d\n", static_cast<int>(jitterBuffer));
+}
+
 void PacerTrace::frame(const FrameTiming& timing, size_t queued, uint64_t queueDrops) {
     queueDrops_ = queueDrops;
     write("F,%lld,%lld,%lld,%zu,%llu\n", static_cast<long long>(timing.arrivalNs),

@@ -41,10 +41,13 @@ class HostFrameTimeline {
     private final long presentLatencyNs;
 
     // How much of the transit time variation to buffer for (see jni/vulkan/frame_pacer.cpp,
-    // which these presets match)
-    private final long windowNs;
-    private final double coverage;
-    private final long decayDivisor;
+    // which these presets match). Set on the decoder thread, from pendingJitterBuffer.
+    private long windowNs;
+    private double coverage;
+    private long decayDivisor;
+    private int jitterBuffer = -1;
+    // The preset to switch to, set from any thread (setJitterBuffer())
+    private volatile int pendingJitterBuffer;
 
     /**
      * @param displayRefreshHz current display refresh rate. SurfaceFlinger shows a buffer at
@@ -54,8 +57,27 @@ class HostFrameTimeline {
      */
     HostFrameTimeline(float displayRefreshHz, int jitterBuffer) {
         presentLatencyNs = displayRefreshHz > 1 ? (long) (1e9 / displayRefreshHz) : 16_666_667L;
+        pendingJitterBuffer = jitterBuffer;
+        applyPendingJitterBuffer();
+    }
 
-        switch (jitterBuffer) {
+    /**
+     * Switches to another preset mid-stream, from the next frame. The transit times seen so far
+     * and the current offset are kept, so the buffer moves to the new preset's as it adapts.
+     * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
+     */
+    void setJitterBuffer(int jitterBuffer) {
+        pendingJitterBuffer = jitterBuffer;
+    }
+
+    private void applyPendingJitterBuffer() {
+        int pending = pendingJitterBuffer;
+        if (pending == jitterBuffer) {
+            return;
+        }
+        jitterBuffer = pending;
+
+        switch (pending) {
             case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
                 windowNs = 2_000_000_000L;
                 coverage = 0.98;
@@ -85,6 +107,8 @@ class HostFrameTimeline {
      * for MediaCodec.releaseOutputBuffer(index, renderTimestampNs).
      */
     long onFrameDecoded(long hostPtsNs, long nowNs) {
+        applyPendingJitterBuffer();
+
         if (count > 0 && (hostPtsNs < lastPtsNs - MAX_PTS_BACKSTEP_NS || hostPtsNs > lastPtsNs + MAX_PTS_GAP_NS)) {
             // The stream restarted
             count = 0;

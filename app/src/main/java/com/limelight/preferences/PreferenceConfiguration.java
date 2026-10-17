@@ -486,7 +486,7 @@ public class PreferenceConfiguration {
         return parseJitterBuffer(prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER));
     }
 
-    static int parseJitterBuffer(String str) {
+    public static int parseJitterBuffer(String str) {
         if (str.equals("low-latency")) {
             return JITTER_BUFFER_LOW_LATENCY;
         }
