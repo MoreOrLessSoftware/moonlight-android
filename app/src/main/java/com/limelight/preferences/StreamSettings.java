@@ -343,6 +343,12 @@ public class StreamSettings extends Activity {
                     .putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
                             PreferenceConfiguration.getDefaultBitrate(res, fps))
                     .apply();
+
+            // Show the new bitrate as its summary
+            Preference bitratePref = findPreference(PreferenceConfiguration.BITRATE_PREF_STRING);
+            if (bitratePref instanceof SeekBarPreference) {
+                ((SeekBarPreference) bitratePref).refreshValue();
+            }
         }
 
         @Override

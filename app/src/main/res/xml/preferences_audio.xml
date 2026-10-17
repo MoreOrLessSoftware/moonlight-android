@@ -4,7 +4,7 @@
 
     <PreferenceCategory android:title="@string/category_audio_settings"
         android:key="category_audio_settings">
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="list_audio_config"
             android:title="@string/title_audio_config_list"
             android:summary="@string/summary_audio_config_list"

@@ -28,7 +28,7 @@
             android:title="@string/title_checkbox_usb_bind_all"
             android:summary="@string/summary_checkbox_usb_bind_all"
             android:defaultValue="false" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="analog_scrolling"
             android:title="@string/title_analog_scrolling"
             android:summary="@string/summary_analog_scrolling"
@@ -136,14 +136,14 @@
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_overlay_menu"
         android:key="category_overlay_menu">
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="overlay_trigger_button"
             android:title="@string/title_overlay_trigger_button"
             android:summary="@string/summary_overlay_trigger_button"
             android:entries="@array/overlay_trigger_button_names"
             android:entryValues="@array/overlay_trigger_button_values"
             android:defaultValue="select" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="overlay_hold_duration"
             android:title="@string/title_overlay_hold_duration"
             android:summary="@string/summary_overlay_hold_duration"

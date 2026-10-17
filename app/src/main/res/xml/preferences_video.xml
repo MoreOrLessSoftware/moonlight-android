@@ -5,14 +5,14 @@
 
     <PreferenceCategory android:title="@string/category_basic_settings"
         android:key="category_basic_settings">
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="list_resolution"
             android:title="@string/title_resolution_list"
             android:summary="@string/summary_resolution_list"
             android:entries="@array/resolution_names"
             android:entryValues="@array/resolution_values"
             android:defaultValue="1280x720" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="list_fps"
             android:title="@string/title_fps_list"
             android:summary="@string/summary_fps_list"
@@ -31,14 +31,14 @@
             android:summary="@string/summary_seekbar_bitrate"
             android:text="@string/suffix_seekbar_bitrate_mbps"
             android:title="@string/title_seekbar_bitrate" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="frame_pacing"
             android:title="@string/title_frame_pacing"
             android:entries="@array/video_frame_pacing_names"
             android:entryValues="@array/video_frame_pacing_values"
             android:summary="@string/summary_frame_pacing"
             android:defaultValue="balanced" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="jitter_buffer"
             android:title="@string/title_jitter_buffer"
             android:entries="@array/jitter_buffer_names"
@@ -77,34 +77,34 @@
             android:title="@string/title_checkbox_reduce_refresh_rate"
             android:summary="@string/summary_checkbox_reduce_refresh_rate"
             android:defaultValue="false" />
-        <EditTextPreference
+        <com.limelight.preferences.RefreshRatePreference
             android:key="text_actual_display_refresh_rate"
             android:title="@string/title_actual_display_refresh_rate"
             android:summary="@string/summary_actual_display_refresh_rate"
             android:inputType="numberDecimal"
             android:defaultValue="0" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="video_format"
             android:title="@string/title_video_format"
             android:entries="@array/video_format_names"
             android:entryValues="@array/video_format_values"
             android:summary="@string/summary_video_format"
             android:defaultValue="auto" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="pyrowave_late_frames"
             android:title="@string/title_pyrowave_late_frames"
             android:entries="@array/pyrowave_late_frames_names"
             android:entryValues="@array/pyrowave_late_frames_values"
             android:summary="@string/summary_pyrowave_late_frames"
             android:defaultValue="balanced" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="video_renderer"
             android:title="@string/title_video_renderer"
             android:entries="@array/video_renderer_names"
             android:entryValues="@array/video_renderer_values"
             android:summary="@string/summary_video_renderer"
             android:defaultValue="auto" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="spatial_dithering"
             android:title="@string/title_spatial_dithering"
             android:entries="@array/spatial_dithering_names"

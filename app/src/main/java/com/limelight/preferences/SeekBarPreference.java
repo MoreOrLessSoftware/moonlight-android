@@ -47,13 +47,18 @@ public class SeekBarPreference extends DialogPreference
         super(context, attrs);
         this.context = context;
 
-        // Read the message from XML
+        // Read the message from XML. The summary shows the current value instead of
+        // help text, so without a message the dialog shows the summary from XML.
         int dialogMessageId = attrs.getAttributeResourceValue(ANDROID_SCHEMA_URL, "dialogMessage", 0);
-        if (dialogMessageId == 0) {
+        if (dialogMessageId != 0) {
+            dialogMessage = context.getString(dialogMessageId);
+        }
+        else if (attrs.getAttributeValue(ANDROID_SCHEMA_URL, "dialogMessage") != null) {
             dialogMessage = attrs.getAttributeValue(ANDROID_SCHEMA_URL, "dialogMessage");
         }
         else {
-            dialogMessage = context.getString(dialogMessageId);
+            CharSequence xmlSummary = super.getSummary();
+            dialogMessage = xmlSummary != null ? xmlSummary.toString() : null;
         }
 
         // Get the suffix for the number displayed in the dialog
@@ -126,15 +131,7 @@ public class SeekBarPreference extends DialogPreference
                     value = currentValue;
                 }
 
-                String t;
-                if (divisor != 1) {
-                    float floatValue = roundedValue / (float)divisor;
-                    t = String.format((Locale)null, "%.1f", floatValue);
-                }
-                else {
-                    t = String.valueOf(value);
-                }
-                valueText.setText(suffix == null ? t : t.concat(suffix.length() > 1 ? " "+suffix : suffix));
+                valueText.setText(formatValue(roundedValue));
             }
 
             @Override
@@ -178,6 +175,30 @@ public class SeekBarPreference extends DialogPreference
         }
         else {
             currentValue = (Integer) defaultValue;
+        }
+    }
+
+    private String formatValue(int value) {
+        String t;
+        if (divisor != 1) {
+            t = String.format((Locale)null, "%.1f", value / (float)divisor);
+        }
+        else {
+            t = String.valueOf(value);
+        }
+        return suffix == null ? t : t.concat(suffix.length() > 1 ? " "+suffix : suffix);
+    }
+
+    @Override
+    public CharSequence getSummary() {
+        return formatValue(currentValue);
+    }
+
+    // Shows the saved value after something other than this preference changes it
+    public void refreshValue() {
+        if (shouldPersist()) {
+            currentValue = getPersistedInt(defaultValue);
+            notifyChanged();
         }
     }
 
@@ -238,6 +259,7 @@ public class SeekBarPreference extends DialogPreference
                     persistInt(value);
                     callChangeListener(value);
                 }
+                notifyChanged();
                 dialog.dismiss();
                 if (getDialog() != null) {
                     getDialog().dismiss();
@@ -269,6 +291,7 @@ public class SeekBarPreference extends DialogPreference
                     currentValue = seekBar.getProgress();
                     persistInt(currentValue);
                     callChangeListener(currentValue);
+                    notifyChanged();
                 }
 
                 getDialog().dismiss();
