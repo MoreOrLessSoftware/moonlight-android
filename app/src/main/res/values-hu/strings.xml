@@ -20,8 +20,6 @@
     <string name="summary_checkbox_enable_sops">Engedélyezi, hogy a GFE módosítsa a játékbeállításokat az optimális streameléshez</string>
     <string name="title_checkbox_enable_sops">Optimalizálja a játék beállításait</string>
     <string name="category_host_settings">Gazdagép beállítások</string>
-    <string name="summary_checkbox_small_icon_mode">Az alkalmazásrács kisebbik rajza lehetővé teszi, hogy több alkalmazás is látható legyen a képernyőn</string>
-    <string name="title_checkbox_small_icon_mode">Kis dobozos rajzok használata</string>
     <string name="summary_language_list">A Moonlight-hoz használt nyelv</string>
     <string name="title_language_list">Nyelv</string>
     <string name="summary_checkbox_enable_pip">Lehetővé teszi a stream megtekintését (de nem vezérlését) miközben mást csinálsz</string>

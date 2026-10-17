@@ -103,8 +103,6 @@
     <string name="category_ui_settings">UI 설정</string>
     <string name="title_language_list">언어</string>
     <string name="summary_language_list">Moonlight에서 사용할 언어를 선택합니다</string>
-    <string name="title_checkbox_small_icon_mode">작은 아이콘 사용</string>
-    <string name="summary_checkbox_small_icon_mode">한 화면에서 더 많은 게임을 볼 수 있게 게임을 더 작게 표시합니다</string>
     <string name="category_host_settings">호스트 설정</string>
     <string name="title_checkbox_enable_sops">게임 설정 최적화</string>
     <string name="summary_checkbox_enable_sops">최적의 스트리밍을 위해 Geforce Experience가 게임 설정을 수정하도록 허용합니다</string>

@@ -92,8 +92,6 @@
     <string name="category_ui_settings">Налаштування інтерфейсу</string>
     <string name="title_language_list">Мова</string>
     <string name="summary_language_list">Мова, яка буде використовуватися в Moonlight</string>
-    <string name="title_checkbox_small_icon_mode">Використовувати маленькі іконки</string>
-    <string name="summary_checkbox_small_icon_mode">Використовувати маленькі іконки в сітці застосунків, для відображення більшої кількості елементів на екрані</string>
     <string name="category_host_settings">Налаштування хоста</string>
     <string name="title_checkbox_enable_sops">Оптимізувати ігрові налаштування</string>
     <string name="summary_checkbox_enable_sops">Дозволити GFE змінювати налаштування ігор для оптимальної трансляції</string>

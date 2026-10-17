@@ -117,7 +117,6 @@
     <string name="summary_checkbox_absolute_mouse_mode">Ini dapat membuat akselerasi mouse berperilaku lebih alami untuk penggunaan desktop jarak jauh, tetapi tidak kompatibel dengan banyak game.</string>
     <string name="category_on_screen_controls_settings">Pengaturan Kontrol di Layar</string>
     <string name="title_checkbox_show_onscreen_controls">Tampilkan kontrol di layar</string>
-    <string name="summary_checkbox_small_icon_mode">Seni kotak yang lebih kecil di kisi aplikasi memungkinkan lebih banyak aplikasi terlihat di layar</string>
     <string name="title_checkbox_host_audio">Putar audio di PC</string>
     <string name="title_checkbox_enable_sops">Optimalkan pengaturan game</string>
     <string name="title_checkbox_disable_warnings">Nonaktifkan pesan peringatan</string>
@@ -172,7 +171,6 @@
     <string name="category_ui_settings">Pengaturan UI</string>
     <string name="summary_checkbox_enable_pip">Mengizinkan streaming untuk dilihat (tetapi tidak dikontrol) saat melakukan banyak tugas</string>
     <string name="title_language_list">Bahasa</string>
-    <string name="title_checkbox_small_icon_mode">Gunakan seni kotak kecil</string>
     <string name="summary_checkbox_host_audio">Putar audio dari komputer dan perangkat ini</string>
     <string name="category_advanced_settings">Pengaturan lanjutan</string>
     <string name="title_unlock_fps">Buka kunci semua frekuensi gambar yang memungkinkan</string>

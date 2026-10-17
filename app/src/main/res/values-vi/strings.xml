@@ -17,8 +17,6 @@
     <string name="category_advanced_settings">Cài đặt nâng cao</string>
     <string name="summary_checkbox_host_audio">Phát âm thanh từ máy tính và thiết bị này</string>
     <string name="title_checkbox_host_audio">Phát âm thanh trên PC</string>
-    <string name="summary_checkbox_small_icon_mode">Bìa nhỏ trong lưới ứng dụng cho phép hiển thị nhiều ứng dụng hơn trên màn hình</string>
-    <string name="title_checkbox_small_icon_mode">Sử dụng bìa nhỏ</string>
     <string name="summary_language_list">Ngôn ngữ để sử dụng cho Moonlight</string>
     <string name="title_language_list">Ngôn ngữ</string>
     <string name="summary_checkbox_enable_pip">Cho phép stream được xem (nhưng không được điều khiển) trong khi đa nhiệm</string>

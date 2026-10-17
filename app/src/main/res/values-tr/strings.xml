@@ -208,8 +208,6 @@
     <string name="summary_checkbox_enable_sops">En iyi akış için GFE oyun ayarlarını değiştirmesine izin ver</string>
     <string name="category_advanced_settings">Gelişmiş Ayarlar</string>
     <string name="title_unlock_fps">Mümkün olan tüm kare hızlarının kilidini aç</string>
-    <string name="title_checkbox_small_icon_mode">Küçük kutu resmi kullan</string>
-    <string name="summary_checkbox_small_icon_mode">Uygulama kılavuzunda küçük kutu resimleri, ekranda daha fazla uygulamanın görünmesini sağlar</string>
     <string name="summary_unlock_fps">90 veya 120 FPS yayın yapmak ileri teknoloji cihazlarda gecikmeyi azaltabilir ancak bunu desteklemeyen cihazlarda gecikmeye veya kararsızlığa neden olabilir</string>
     <string name="title_checkbox_reduce_refresh_rate">Yenileme hızının azaltılmasına izin ver</string>
     <string name="summary_checkbox_reduce_refresh_rate">Daha düşük ekran yenileme hızları, bazı ek video gecikmeleri pahasına güç tasarrufu sağlayabilir</string>

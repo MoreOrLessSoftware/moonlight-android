@@ -145,8 +145,6 @@
     <string name="title_checkbox_enable_pip">Sätt på bild-i-bild-observatörsläge</string>
     <string name="title_language_list">Språk</string>
     <string name="summary_language_list">Språk att använda för Moonlight</string>
-    <string name="title_checkbox_small_icon_mode">Använd liten omslagskonst</string>
-    <string name="summary_checkbox_small_icon_mode">Mindre lådor i appgallret gör att fler appar syns på skärmen</string>
     <string name="category_host_settings">Värdinställningar</string>
     <string name="title_checkbox_enable_sops">Optimera spelinställningarna</string>
     <string name="summary_checkbox_enable_sops">Tillåt GFE att ändra spelinställningar för optimal strömning</string>

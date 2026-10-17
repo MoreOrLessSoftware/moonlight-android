@@ -203,6 +203,15 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             }
         });
 
+        ImageButton appGridSizeToggleButton = findViewById(R.id.appGridSizeToggleButton);
+        appGridSizeToggleButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleAppGridSize();
+            }
+        });
+        updateTopBarForAppList();
+
         // Amazon review didn't like the help button because the wiki was not entirely
         // navigable via the Fire TV remote (though the relevant parts were). Let's hide
         // it on Fire TV.
@@ -260,6 +269,41 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
     }
 
+    // While an app list is shown, the add PC button becomes the box art size toggle
+    private void updateTopBarForAppList() {
+        ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
+        ImageButton appGridSizeToggleButton = findViewById(R.id.appGridSizeToggleButton);
+
+        if (appView != null) {
+            addComputerButton.setVisibility(View.GONE);
+            appGridSizeToggleButton.setVisibility(View.VISIBLE);
+
+            // The icon shows the size the button switches to
+            boolean compact = PreferenceConfiguration.readPreferences(this).compactAppGrid;
+            appGridSizeToggleButton.setImageResource(compact ?
+                    R.drawable.ic_app_grid_large : R.drawable.ic_app_grid_compact);
+        }
+        else {
+            addComputerButton.setVisibility(View.VISIBLE);
+            appGridSizeToggleButton.setVisibility(View.GONE);
+        }
+    }
+
+    private void toggleAppGridSize() {
+        if (appView == null) {
+            return;
+        }
+
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean compact = prefs.getBoolean(PreferenceConfiguration.COMPACT_APP_GRID_PREF_STRING, false);
+        prefs.edit().putBoolean(PreferenceConfiguration.COMPACT_APP_GRID_PREF_STRING, !compact).apply();
+
+        // Re-create the grid to pick up the new item and column sizes
+        appView.updateLayoutWithPreferences();
+        replaceGridFragment();
+        updateTopBarForAppList();
+    }
+
     private void replaceGridFragment() {
         // The fragment asks us which grid to show, so this swaps
         // between the PC grid and the app grid.
@@ -283,6 +327,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         if (quickLaunchView != null) {
             quickLaunchView.setComputerFilter(computer.uuid);
         }
+        updateTopBarForAppList();
         updateNoPcFoundLayout();
         replaceGridFragment();
 
@@ -319,6 +364,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         if (quickLaunchView != null) {
             quickLaunchView.setComputerFilter(null);
         }
+        updateTopBarForAppList();
         updateNoPcFoundLayout();
         replaceGridFragment();
     }

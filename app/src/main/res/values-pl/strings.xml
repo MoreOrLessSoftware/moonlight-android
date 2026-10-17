@@ -97,7 +97,6 @@
     <string name="title_language_list">Język</string>
     <string name="summary_language_list">Język używany w Moonlight</string>
     <string name="category_host_settings">Ustawienia hosta</string>
-    <string name="summary_checkbox_small_icon_mode">Mniejsze ramki w siatce aplikacji pozwalają na wyświetlanie większej liczby aplikacji na ekranie</string>
     <string name="title_checkbox_enable_sops">Optymalizacja ustawień gry</string>
     <string name="summary_checkbox_enable_sops">Zezwalanie GFE na modyfikowanie ustawień gry w celu optymalnego streamowania</string>
     <string name="title_checkbox_host_audio">Odtwarzanie dźwięku na komputerze</string>
@@ -200,7 +199,6 @@
     <string name="dialog_title_reset_osc">Reset układu</string>
     <string name="dialog_text_reset_osc">Czy na pewno chcesz usunąć zapisany układ kontrolek ekranowych?</string>
     <string name="summary_checkbox_enable_pip">Umożliwia wyświetlanie strumienia (ale nie sterowanie nim) podczas pracy wielozadaniowej</string>
-    <string name="title_checkbox_small_icon_mode">Używaj małe ramki</string>
     <string name="title_enable_perf_overlay">Wyświetlanie statystyk wydajności podczas przesyłania strumieniowego</string>
     <string name="summary_troubleshooting">Zobacz wskazówki dotyczące diagnozowania i naprawiania typowych problemów z transmisją strumieniową</string>
     <string name="audioconf_51surround">5.1 Surround Sound</string>

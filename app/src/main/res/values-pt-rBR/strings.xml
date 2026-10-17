@@ -13,7 +13,6 @@
     <string name="summary_frame_pacing">Especifique o equilíbrio entre latência e suavidade do vídeo</string>
     <string name="title_checkbox_disable_warnings">Desabilitar mensagens de alerta</string>
     <string name="title_checkbox_enable_pip">Habilitar modo Picture-in-Picture</string>
-    <string name="summary_checkbox_small_icon_mode">Diminui o tamanho dos ícones permitindo que mais aplicativos sejam visíveis na tela</string>
     <string name="dialog_text_reset_osc">Tem certeza de que deseja excluir o layout salvo dos controles de tela\?</string>
     <string name="summary_checkbox_touchscreen_trackpad">Se habilitado, a tela sensível ao toque funciona como um trackpad. Se desativado, a tela controla diretamente o cursor do mouse.</string>
     <string name="summary_checkbox_xb1_driver">Habilita um driver USB integrado para dispositivos sem suporte nativo aos controles Xbox</string>
@@ -204,7 +203,6 @@
     <string name="suffix_osc_opacity">%</string>
     <string name="category_host_settings">Configurações de Host</string>
     <string name="dialog_title_osc_opacity">Mudar opacidade</string>
-    <string name="title_checkbox_small_icon_mode">Mostrar ícones menores</string>
     <string name="summary_reset_osc">Redefine todos os controles na tela para seu tamanho e posição padrão</string>
     <string name="dialog_title_reset_osc">Resetar Layout</string>
     <string name="toast_reset_osc_success">Controles de tela redefinidos para o padrão</string>

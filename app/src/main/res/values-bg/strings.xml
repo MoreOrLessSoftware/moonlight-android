@@ -184,8 +184,6 @@
     <string name="summary_checkbox_enable_pip">Позволява поточното предаване да бъде наблюдавано (но не и управлявано) докато извършвате други задачи на устройството</string>
     <string name="title_language_list">Език</string>
     <string name="summary_language_list">Езикът, който да ползва Moonlight</string>
-    <string name="title_checkbox_small_icon_mode">Използване на малки обложки</string>
-    <string name="summary_checkbox_small_icon_mode">По-малките обложки в списъка с приложения позволяват да се виждат повече приложения едновременно на екрана</string>
     <string name="category_host_settings">Настройки на отдалечения компютър</string>
     <string name="title_checkbox_enable_sops">Оптимизиране на игралните настройки</string>
     <string name="summary_checkbox_enable_sops">Позволява на GFE да променя игралните настройки за по-добро поточно предаване</string>

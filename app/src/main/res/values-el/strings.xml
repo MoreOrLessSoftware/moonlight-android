@@ -108,7 +108,6 @@
     <string name="summary_checkbox_enable_pip">Επιτρέπει την προβολή της ροής (αλλά όχι τον έλεγχο) κατά την εκτέλεση πολλαπλών εργασιών</string>
     <string name="title_language_list">Γλώσσα</string>
     <string name="summary_language_list">Γλώσσα που χρησιμοποιείται για το Moonlight</string>
-    <string name="title_checkbox_small_icon_mode">Χρησιμοποιήστε μικρά κουτιά</string>
     <string name="scut_not_paired">Ο υπολογιστής δεν έχει συζευχθεί</string>
     <string name="pcview_menu_header_offline">Εκτός σύνδεσης</string>
     <string name="pcview_menu_test_network">Δοκιμή σύνδεσης δικτύου</string>
@@ -122,7 +121,6 @@
     <string name="unpairing">Κατάργηση σύζευξης…</string>
     <string name="unpair_success">Καταργήθηκε η σύζευξη με επιτυχία</string>
     <string name="unpair_fail">Αποτυχία κατάργησης σύζευξης</string>
-    <string name="summary_checkbox_small_icon_mode">Το μικρότερο box art στο πλέγμα εφαρμογών επιτρέπει σε περισσότερες εφαρμογές να είναι ορατές στην οθόνη</string>
     <string name="category_host_settings">Ρυθμίσεις κεντρικού υπολογιστή</string>
     <string name="title_checkbox_host_audio">Αναπαραγωγή ήχου στον υπολογιστή</string>
     <string name="summary_checkbox_host_audio">Αναπαραγωγή ήχου από τον υπολογιστή και αυτή τη συσκευή</string>

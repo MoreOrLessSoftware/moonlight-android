@@ -193,8 +193,6 @@
     <string name="summary_checkbox_enable_pip">பல்பணி செய்யும் போது ச்ட்ரீமை பார்க்க அனுமதிக்கிறது (ஆனால் கட்டுப்படுத்தப்படவில்லை)</string>
     <string name="title_language_list">மொழி</string>
     <string name="summary_language_list">நிலவொளிக்கு பயன்படுத்த மொழி</string>
-    <string name="title_checkbox_small_icon_mode">சிறிய பெட்டி கலையைப் பயன்படுத்தவும்</string>
-    <string name="summary_checkbox_small_icon_mode">பயன்பாட்டு கட்டத்தில் உள்ள சிறிய பெட்டி கலை மேலும் பயன்பாடுகள் திரையில் காண அனுமதிக்கிறது</string>
     <string name="category_host_settings">புரவலன் அமைப்புகள்</string>
     <string name="title_checkbox_enable_sops">விளையாட்டு அமைப்புகளை மேம்படுத்தவும்</string>
     <string name="summary_checkbox_enable_sops">உகந்த ச்ட்ரீமிங்கிற்கான விளையாட்டு அமைப்புகளை மாற்ற GFE ஐ அனுமதிக்கவும்</string>

@@ -136,4 +136,20 @@
         android:preferKeepClear="true"
         style="?android:attr/borderlessButtonStyle"/>
 
+    <!-- Takes the add PC button's place while an app list is shown -->
+    <ImageButton
+        android:id="@+id/appGridSizeToggleButton"
+        android:layout_width="70dp"
+        android:layout_height="65dp"
+        android:cropToPadding="false"
+        android:scaleType="fitXY"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:src="@drawable/ic_app_grid_compact"
+        android:preferKeepClear="true"
+        android:contentDescription="Toggle Box Art Size"
+        android:visibility="gone"
+        style="?android:attr/borderlessButtonStyle"/>
+
 </RelativeLayout>

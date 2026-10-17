@@ -176,8 +176,6 @@
     <string name="summary_checkbox_enable_pip">Ermöglicht die Anzeige (aber nicht die Steuerung) des Streams während des Multitasking</string>
     <string name="title_language_list">Sprache</string>
     <string name="summary_language_list">Sprache die Moonlight verwenden soll</string>
-    <string name="title_checkbox_small_icon_mode">Verwende kleine Cover</string>
-    <string name="summary_checkbox_small_icon_mode">Verwende kleine Cover in der Rasteransicht, um mehr gleichzeitig anzeigen zu können</string>
     <string name="category_host_settings">Host Einstellungen</string>
     <string name="title_checkbox_enable_sops">Spieleinstellungen optimieren</string>
     <string name="summary_checkbox_enable_sops">GFE erlauben, die Spieleinstellungen für ein optimales Streaming zu ändern</string>

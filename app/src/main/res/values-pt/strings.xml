@@ -103,7 +103,6 @@
     <string name="category_ui_settings">Configurações de Interface</string>
     <string name="title_checkbox_enable_pip">Ativar modo Picture-in-Picture</string>
     <string name="summary_checkbox_enable_pip">Permite que a transmissão seja visualizada (mas não controlada) enquanto usa outros apps</string>
-    <string name="summary_checkbox_small_icon_mode">Diminui o tamanho dos ícones permitindo que mais apps sejam visíveis no ecrã</string>
     <string name="summary_checkbox_host_audio">Reproduz o áudio do computador e deste aparelho</string>
     <string name="category_advanced_settings">Configurações Avançadas</string>
     <string name="title_unlock_fps">Liberar todas as taxas de quadros possíveis</string>
@@ -201,7 +200,6 @@
     <string name="summary_osc_opacity">Deixe os controles de ecrã mais/menos transparentes</string>
     <string name="title_language_list">Idioma</string>
     <string name="summary_language_list">Idioma para ser usado no Moonlight</string>
-    <string name="title_checkbox_small_icon_mode">Mostrar ícones menores</string>
     <string name="summary_checkbox_enable_sops">Permitir que o GFE modifique as configurações do jogo para otimizar a transmissão</string>
     <string name="title_checkbox_host_audio">Reproduzir áudio no PC</string>
     <string name="title_checkbox_disable_warnings">Desativar mensagens de alerta</string>

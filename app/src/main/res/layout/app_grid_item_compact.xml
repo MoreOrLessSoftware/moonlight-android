@@ -1,30 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- app_grid_item.xml at 75% size -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="100dp"
-    android:layout_height="133dp"
-    android:padding="5dp">
+    android:layout_width="135dp"
+    android:layout_height="173dp"
+    android:padding="8dp">
     <ImageView
         android:id="@+id/grid_image"
         android:cropToPadding="false"
         android:scaleType="fitXY"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="@drawable/rounded_image_mask"
+        android:clipToOutline="true">
     </ImageView>
     <ImageView
         android:id="@+id/grid_overlay"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="10dp"
-        android:layout_width="33dp"
-        android:layout_height="33dp">
+        android:layout_marginTop="8dp"
+        android:layout_width="38dp"
+        android:layout_height="38dp">
     </ImageView>
     <TextView
         android:id="@+id/grid_text"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/grid_overlay"
-        android:layout_margin="5dp"
+        android:layout_margin="4dp"
         android:gravity="center"
-        android:textSize="14sp">
+        android:textSize="15sp">
     </TextView>
     <ImageView
         android:id="@+id/settings_indicator"

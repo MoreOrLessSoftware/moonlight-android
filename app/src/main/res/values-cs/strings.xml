@@ -233,8 +233,6 @@
     <string name="summary_checkbox_enable_pip">Umožní, aby byl stream sledován (ale ne ovládá) během multitaskingu</string>
     <string name="title_language_list">Jazyk</string>
     <string name="summary_language_list">Jazyk, který bude Moonlight používat</string>
-    <string name="title_checkbox_small_icon_mode">Použít malý box art</string>
-    <string name="summary_checkbox_small_icon_mode">Díky menšímu box artu v seznamu aplikací uvidíte na obrazovce více aplikací naráz</string>
     <string name="category_host_settings">Nastavení hostitele</string>
     <string name="title_checkbox_enable_sops">Optimalizovat herní nastavení</string>
     <string name="summary_disable_frame_drop">Může na některých zařízeních snížit mikrozádrhy, ale může zvýšit zpoždění</string>

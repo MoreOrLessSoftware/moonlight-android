@@ -523,8 +523,8 @@ public class AppView {
     }
 
     public int getAdapterFragmentLayoutId() {
-        return PreferenceConfiguration.readPreferences(activity).smallIconMode ?
-                    R.layout.app_grid_view_small : R.layout.app_grid_view;
+        return PreferenceConfiguration.readPreferences(activity).compactAppGrid ?
+                    R.layout.app_grid_view_compact : R.layout.app_grid_view;
     }
 
     public void receiveAbsListView(AbsListView listView) {

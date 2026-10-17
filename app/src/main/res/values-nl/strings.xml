@@ -94,8 +94,6 @@
     <string name="category_ui_settings">Interface­instellingen</string>
     <string name="title_language_list">Taal</string>
     <string name="summary_language_list">Taal te gebruiken in Moonlight</string>
-    <string name="title_checkbox_small_icon_mode">Gebruik kleine iconen</string>
-    <string name="summary_checkbox_small_icon_mode">Gebruik kleine iconen in kolom onderdelen zodat meer items tegelijk zichtbaar worden</string>
     <string name="category_host_settings">Host-instellingen</string>
     <string name="title_checkbox_enable_sops">Optimaliseer spel instellingen</string>
     <string name="summary_checkbox_enable_sops">Sta GFE toe om spel instellingen te veranderen voor een optimale stream</string>
