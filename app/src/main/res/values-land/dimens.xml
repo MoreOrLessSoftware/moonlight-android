@@ -1,0 +1,7 @@
+<resources>
+
+    <!-- Shorter in landscape, where each tab's icon is to the left of its name -->
+    <dimen name="settings_tab_bar_height">48dp</dimen>
+    <dimen name="settings_tab_underline_top">45dp</dimen>
+
+</resources>

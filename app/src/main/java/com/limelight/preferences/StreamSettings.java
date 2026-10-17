@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.drawable.Drawable;
 import android.media.MediaCodecInfo;
 import android.os.Build;
 import android.os.Bundle;
@@ -24,6 +25,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.widget.TextView;
 
 import com.limelight.LimeLog;
 import com.limelight.PcView;
@@ -85,6 +87,53 @@ public class StreamSettings extends Activity {
         }
     }
 
+    // Puts each tab's icon over its name, or to the left of it in landscape where the bar is
+    // shorter. The activity handles rotation itself, so this runs again on each one.
+    private void updateTabLayout(Configuration config) {
+        boolean landscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE;
+        float density = getResources().getDisplayMetrics().density;
+
+        View bar = findViewById(R.id.settings_tabs);
+        ViewGroup.LayoutParams params = bar.getLayoutParams();
+        params.height = getResources().getDimensionPixelSize(R.dimen.settings_tab_bar_height);
+        bar.setLayoutParams(params);
+
+        for (int id : PAGE_TAB_IDS) {
+            TextView tab = findViewById(id);
+            Drawable[] drawables = tab.getCompoundDrawablesRelative();
+            Drawable icon = drawables[0] != null ? drawables[0] : drawables[1];
+            if (landscape) {
+                tab.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null);
+                tab.setCompoundDrawablePadding((int) (8 * density));
+                tab.setPadding(tab.getPaddingLeft(), 0, tab.getPaddingRight(), 0);
+            }
+            else {
+                tab.setCompoundDrawablesRelativeWithIntrinsicBounds(null, icon, null, null);
+                tab.setCompoundDrawablePadding((int) (2 * density));
+                tab.setPadding(0, (int) (8 * density), 0, 0);
+            }
+
+            // Again, for the selected tab's underline at the bar's new height
+            tab.setBackground(getDrawable(R.drawable.settings_tab_background));
+            tab.requestLayout();
+        }
+    }
+
+    // A TextView draws a left icon at its edge rather than next to its centered name,
+    // so the tab is padded on both sides to bring the two together in its middle
+    private static void centerTabContent(TextView tab) {
+        Drawable icon = tab.getCompoundDrawablesRelative()[0];
+        int side = 0;
+        if (icon != null) {
+            int content = icon.getIntrinsicWidth() + tab.getCompoundDrawablePadding() +
+                    (int) Math.ceil(tab.getPaint().measureText(tab.getText().toString()));
+            side = Math.max(0, (tab.getWidth() - content) / 2);
+        }
+        if (tab.getPaddingLeft() != side || tab.getPaddingRight() != side) {
+            tab.setPadding(side, tab.getPaddingTop(), side, tab.getPaddingBottom());
+        }
+    }
+
     // A controller's shoulder buttons move between the tabs, wrapping around at the ends
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -125,7 +174,15 @@ public class StreamSettings extends Activity {
                     showPage(page);
                 }
             });
+            findViewById(PAGE_TAB_IDS[i]).addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    centerTabContent((TextView) v);
+                }
+            });
         }
+        updateTabLayout(getResources().getConfiguration());
 
         UiHelper.notifyNewRootView(this);
     }
@@ -157,6 +214,8 @@ public class StreamSettings extends Activity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+
+        updateTabLayout(newConfig);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Display.Mode mode = getWindowManager().getDefaultDisplay().getMode();

@@ -6,4 +6,9 @@
     <dimen name="tv_channel_logo_width">80dp</dimen>
     <dimen name="tv_channel_logo_height">80dp</dimen>
 
+    <!-- The settings tab bar, with each tab's icon over its name. The underline on the
+         selected tab is drawn from the top, 3dp short of the bar's height. -->
+    <dimen name="settings_tab_bar_height">64dp</dimen>
+    <dimen name="settings_tab_underline_top">61dp</dimen>
+
 </resources>
