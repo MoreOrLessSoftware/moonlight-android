@@ -16,7 +16,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.limelight.R;
-import com.limelight.preferences.PreferenceConfiguration;
 
 public class OverridesView {
     public static final String PREF_BITRATE_OVERRIDE = "bitrate_override";
@@ -27,9 +26,6 @@ public class OverridesView {
     private static final String PREF_BITRATE_OVERRIDE_PREFIX = "bitrate_override_codec_";
     // Indexed by the codec override value: 0 = default, 1 = HEVC, 2 = AV1, 3 = PyroWave
     private static final String[] CODEC_LABELS = {"Default", "HEVC", "AV1", "PyroWave"};
-    public static final String PREF_JITTER_BUFFER_OVERRIDE = "jitter_buffer_override";
-    // Indexed by the jitter buffer override value: 0 = default, then from least to most delay
-    private static final String[] JITTER_BUFFER_LABELS = {"Default", "Lowest latency", "Low latency", "Balanced", "Smooth"};
     private static final int BITRATE_STEP = 10000; // 10 Mbps steps in kbps
     private static final int SEEKBAR_MAX = 50; // 50 steps * 10 Mbps = 500 Mbps max
     private static final int MAX_BITRATE_MBPS = 2500; // Typed in the dialog, beyond the slider's range
@@ -43,10 +39,6 @@ public class OverridesView {
     private final TextView perfOverlayLabel;
     private final View codecButton;
     private final TextView codecLabel;
-    private final View jitterBufferButton;
-    private final TextView jitterBufferLabel;
-    // The jitter buffer's own row in portrait, hidden with it so it leaves no gap
-    private final View jitterBufferRow;
     private ImageView overridesToggleButton;
     private final SharedPreferences preferences;
     private boolean isSliderAdjustmentMode = false;
@@ -64,14 +56,10 @@ public class OverridesView {
         this.perfOverlayLabel = activity.findViewById(R.id.perfOverlayLabel);
         this.codecButton = activity.findViewById(R.id.codecButton);
         this.codecLabel = activity.findViewById(R.id.codecLabel);
-        this.jitterBufferButton = activity.findViewById(R.id.jitterBufferButton);
-        this.jitterBufferLabel = activity.findViewById(R.id.jitterBufferLabel);
-        this.jitterBufferRow = activity.findViewById(R.id.jitterBufferRow);
 
         initializeBitrateOverride();
         initializePerfOverlayButton();
         initializeCodecButton();
-        initializeJitterBufferButton();
 
         // Set initial visibility based on preference (default to disabled/hidden)
         updateOverridesSectionVisibility();
@@ -439,47 +427,6 @@ public class OverridesView {
         codecLabel.setText("Codec: " + CODEC_LABELS[override]);
     }
 
-    private void initializeJitterBufferButton() {
-        if (jitterBufferButton == null || jitterBufferLabel == null) {
-            return;
-        }
-
-        jitterBufferButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                toggleJitterBuffer();
-            }
-        });
-
-        updateJitterBufferButton();
-    }
-
-    private void toggleJitterBuffer() {
-        int current = preferences.getInt(PREF_JITTER_BUFFER_OVERRIDE, 0);
-        int next = (current + 1) % JITTER_BUFFER_LABELS.length;
-        preferences.edit().putInt(PREF_JITTER_BUFFER_OVERRIDE, next).apply();
-
-        updateJitterBufferButton();
-    }
-
-    private void updateJitterBufferButton() {
-        if (jitterBufferButton == null || jitterBufferLabel == null) {
-            return;
-        }
-
-        // The jitter buffer only applies to host frame timing pacing
-        boolean hostTimed = PreferenceConfiguration.readPreferences(activity).framePacing ==
-                PreferenceConfiguration.FRAME_PACING_HOST_TIMED;
-        View toHide = jitterBufferRow != null ? jitterBufferRow : jitterBufferButton;
-        toHide.setVisibility(hostTimed ? View.VISIBLE : View.GONE);
-
-        int override = preferences.getInt(PREF_JITTER_BUFFER_OVERRIDE, 0);
-        if (override < 0 || override >= JITTER_BUFFER_LABELS.length) {
-            override = 0;
-        }
-        jitterBufferLabel.setText("Jitter buffer: " + JITTER_BUFFER_LABELS[override]);
-    }
-
     private void reloadBitrateSlider() {
         if (bitrateOverrideSeekBar != null) {
             showBitrate(preferences.getInt(PREF_BITRATE_OVERRIDE, 0));
@@ -509,7 +456,6 @@ public class OverridesView {
         // Update performance overlay button state
         updatePerfOverlayButton();
         updateCodecButton();
-        updateJitterBufferButton();
 
         // Update overrides section visibility and toggle button icon
         updateOverridesSectionVisibility();

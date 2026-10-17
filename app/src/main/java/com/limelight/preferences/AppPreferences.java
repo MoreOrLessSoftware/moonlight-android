@@ -12,7 +12,6 @@ public class AppPreferences {
     private static final String PREF_BITRATE_OVERRIDE = "bitrate_override"; // Global bitrate override
     private static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override"; // Global performance overlay override
     private static final String PREF_CODEC_OVERRIDE = "codec_override"; // Global codec override
-    private static final String PREF_JITTER_BUFFER_OVERRIDE = "jitter_buffer_override"; // Global jitter buffer override
     private static final String PREF_OVERRIDES_ENABLED = "overrides_enabled"; // Whether overrides section is enabled
 
     public static class AppSettings {
@@ -291,19 +290,6 @@ public class AppPreferences {
                 config.videoFormat = PreferenceConfiguration.FormatOption.FORCE_AV1;
             } else if (codecOverride == 3) {
                 config.videoFormat = PreferenceConfiguration.FormatOption.FORCE_PYROWAVE;
-            }
-
-            // Apply global jitter buffer override: 0 = default, 1 = lowest latency,
-            // 2 = low latency, 3 = balanced, 4 = smooth
-            int jitterBufferOverride = defaultPrefs.getInt(PREF_JITTER_BUFFER_OVERRIDE, 0);
-            if (jitterBufferOverride == 1) {
-                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY;
-            } else if (jitterBufferOverride == 2) {
-                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY;
-            } else if (jitterBufferOverride == 3) {
-                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_BALANCED;
-            } else if (jitterBufferOverride == 4) {
-                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_SMOOTH;
             }
         }
 
