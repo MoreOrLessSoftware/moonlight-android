@@ -13,12 +13,12 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.limelight.R;
+import com.limelight.utils.InputDialogs;
 
 import java.util.Locale;
 
@@ -358,15 +358,10 @@ public class SeekBarPreference extends DialogPreference
         input.setText(String.valueOf(Math.round(shownValue / (float)divisor)));
         input.setSelectAllOnFocus(true);
 
-        // Pad it in from the dialog's edges like the other custom value inputs
-        int padding = PreferenceHelp.getInputPadding(context);
-        FrameLayout inputLayout = new FrameLayout(context);
-        inputLayout.setPadding(padding, 0, padding, 0);
-        inputLayout.addView(input);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(context)
                 .setMessage(suffix == null ? null : context.getString(R.string.seekbar_custom_message, suffix))
-                .setView(inputLayout)
+                .setView(InputDialogs.padInput(context, input))
                 .setPositiveButton(android.R.string.ok, null)
                 .setNegativeButton(android.R.string.cancel, null);
 
@@ -394,7 +389,7 @@ public class SeekBarPreference extends DialogPreference
         }
 
         final AlertDialog dialog = builder.create();
-        PreferenceHelp.showWithKeyboard(dialog, input);
+        InputDialogs.showWithKeyboard(dialog, input);
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new OnClickListener() {
             @Override

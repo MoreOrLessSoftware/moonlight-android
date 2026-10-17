@@ -8,6 +8,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 
 import com.limelight.R;
+import com.limelight.utils.InputDialogs;
 
 // The resolution setting: common resolutions, plus any size entered with the Custom button
 public class ResolutionListPreference extends CustomValueListPreference {
@@ -54,7 +55,7 @@ public class ResolutionListPreference extends CustomValueListPreference {
     @Override
     protected View createCustomInput(String currentValue) {
         Context context = getContext();
-        int padding = PreferenceHelp.getInputPadding(context);
+        int padding = InputDialogs.getInputPadding(context);
 
         LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);

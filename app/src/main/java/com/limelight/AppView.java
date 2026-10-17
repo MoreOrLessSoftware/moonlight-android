@@ -15,6 +15,7 @@ import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.utils.QuickLaunchManager;
 import com.limelight.utils.CacheHelper;
 import com.limelight.utils.Dialog;
+import com.limelight.utils.InputDialogs;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.SpinnerDialog;
@@ -554,9 +555,20 @@ public class AppView {
         listView.requestFocus();
     }
 
-    private void addToQuickLaunch(ComputerDetails computer, NvApp app) {
-        quickLaunchManager.addQuickLaunchItem(computer, app);
-        Toast.makeText(activity, activity.getResources().getString(R.string.quick_launch_added), Toast.LENGTH_SHORT).show();
+    // Asks for the Quick Launch button's name first; cancelling adds nothing
+    private void addToQuickLaunch(final ComputerDetails computer, final NvApp app) {
+        InputDialogs.showTextInput(activity,
+                activity.getString(R.string.quick_launch_add_title),
+                activity.getString(R.string.quick_launch_add_message),
+                app.getAppName(),
+                activity.getString(R.string.quick_launch_name_empty),
+                new InputDialogs.TextListener() {
+                    @Override
+                    public void onText(String name) {
+                        quickLaunchManager.addQuickLaunchItem(computer, app, name);
+                        Toast.makeText(activity, activity.getResources().getString(R.string.quick_launch_added), Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     public static class AppObject {

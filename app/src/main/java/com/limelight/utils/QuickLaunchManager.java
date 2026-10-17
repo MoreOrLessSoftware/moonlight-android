@@ -271,8 +271,12 @@ public class QuickLaunchManager {
      * Add an app to Quick Launch
      */
     public void addQuickLaunchItem(ComputerDetails computer, NvApp app) {
+        addQuickLaunchItem(computer, app, app.getAppName());
+    }
+
+    public void addQuickLaunchItem(ComputerDetails computer, NvApp app, String customName) {
         String key = createUniqueKey(computer.uuid, app.getAppId());
-        String value = createValue(computer.name, app.getAppName(), app.getAppName());
+        String value = createValue(computer.name, app.getAppName(), customName);
 
         // Add to the end of the sort order
         List<String> sortOrder = getSortOrder();
@@ -472,7 +476,8 @@ public class QuickLaunchManager {
     }
     
     private String createValue(String computerName, String originalAppName, String customName) {
-        return computerName + "|" + originalAppName + "|" + customName;
+        // The parts are separated by "|", so a typed name can't contain one
+        return computerName + "|" + originalAppName + "|" + customName.replace("|", "");
     }
     
     private QuickLaunchItem parseQuickLaunchItem(String key, String value) {

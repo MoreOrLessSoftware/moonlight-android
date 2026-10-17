@@ -7,6 +7,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 import com.limelight.R;
+import com.limelight.utils.InputDialogs;
 
 import java.util.Arrays;
 
@@ -200,7 +201,7 @@ public abstract class CustomValueListPreference extends HelpListPreference {
         }
 
         final AlertDialog dialog = builder.create();
-        PreferenceHelp.showWithKeyboard(dialog, input);
+        InputDialogs.showWithKeyboard(dialog, input);
 
         // Replace the OK button's listener so an invalid value doesn't close the dialog
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {

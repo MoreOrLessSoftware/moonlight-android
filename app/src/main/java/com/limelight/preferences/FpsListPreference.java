@@ -4,10 +4,11 @@ import android.content.Context;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 
 import com.limelight.R;
+import com.limelight.utils.InputDialogs;
 
 // The frame rate setting: common rates, plus any rate entered with the Custom button
 public class FpsListPreference extends CustomValueListPreference {
@@ -56,17 +57,12 @@ public class FpsListPreference extends CustomValueListPreference {
         }
         input.setSelectAllOnFocus(true);
 
-        // Pad it in from the dialog's edges like the resolution inputs
-        int padding = PreferenceHelp.getInputPadding(getContext());
-        FrameLayout layout = new FrameLayout(getContext());
-        layout.setPadding(padding, 0, padding, 0);
-        layout.addView(input);
-        return layout;
+        return InputDialogs.padInput(getContext(), input);
     }
 
     @Override
     protected String readCustomInput(View view) {
-        EditText input = (EditText) ((FrameLayout) view).getChildAt(0);
+        EditText input = (EditText) ((ViewGroup) view).getChildAt(0);
         int fps = PreferenceHelp.parsePositiveInt(input.getText().toString());
         if (fps <= 0) {
             input.setError(getContext().getString(R.string.seekbar_custom_invalid));

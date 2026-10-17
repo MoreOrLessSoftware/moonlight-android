@@ -386,6 +386,9 @@
     <string name="quick_launch_rename_title">Rename Quick Launch</string>
     <string name="quick_launch_rename_message">Enter a new name for this Quick Launch item:</string>
     <string name="quick_launch_renamed">Quick Launch renamed</string>
+    <string name="quick_launch_add_title">Add Quick Launch</string>
+    <string name="quick_launch_add_message">Name for the Quick Launch button:</string>
+    <string name="quick_launch_name_empty">Enter a name</string>
 
     <!-- Overrides Section strings -->
     <string name="overrides_section_title">Overrides</string>

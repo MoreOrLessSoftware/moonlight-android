@@ -8,13 +8,11 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
 import android.graphics.Color;
-import android.text.InputType;
 import android.view.ContextMenu;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
@@ -23,6 +21,7 @@ import com.limelight.computers.ComputerManagerService;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.nvstream.http.NvApp;
 import com.limelight.preferences.AppStreamSettings;
+import com.limelight.utils.InputDialogs;
 import com.limelight.utils.QuickLaunchManager;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.UiHelper;
@@ -320,41 +319,20 @@ public class QuickLaunchView {
     }
     
     private void showRenameQuickLaunchDialog(final String key) {
-        // Get current custom name from the key
-        String currentCustomName = quickLaunchManager.getCustomName(key);
-        String originalName = quickLaunchManager.getOriginalName(key);
-        
-        // Create the input dialog
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-        builder.setTitle(activity.getString(R.string.quick_launch_rename_title));
-        builder.setMessage("Display name for " + originalName + ":");
-        
-        final EditText input = new EditText(activity);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setText(currentCustomName);
-        input.selectAll();
-        builder.setView(input);
-        
-        builder.setPositiveButton("OK", new android.content.DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(android.content.DialogInterface dialog, int which) {
-                String newCustomName = input.getText().toString().trim();
-                if (!newCustomName.isEmpty()) {
-                    quickLaunchManager.updateCustomName(key, newCustomName);
-                    Toast.makeText(activity, activity.getString(R.string.quick_launch_renamed), Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
-        builder.setNegativeButton("Cancel", new android.content.DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(android.content.DialogInterface dialog, int which) {
-                dialog.cancel();
-            }
-        });
-        
-        builder.show();
+        InputDialogs.showTextInput(activity,
+                activity.getString(R.string.quick_launch_rename_title),
+                "Display name for " + quickLaunchManager.getOriginalName(key) + ":",
+                quickLaunchManager.getCustomName(key),
+                activity.getString(R.string.quick_launch_name_empty),
+                new InputDialogs.TextListener() {
+                    @Override
+                    public void onText(String newCustomName) {
+                        quickLaunchManager.updateCustomName(key, newCustomName);
+                        Toast.makeText(activity, activity.getString(R.string.quick_launch_renamed), Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
-    
+
     private void removeFromQuickLaunch(final String key) {
         QuickLaunchManager.QuickLaunchItem item = getQuickLaunchItemByKey(key);
         if (item == null) {
