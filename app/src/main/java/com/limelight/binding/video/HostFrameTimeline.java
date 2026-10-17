@@ -40,8 +40,10 @@ class HostFrameTimeline {
     private boolean warmedUp;
     private final long presentLatencyNs;
 
-    // How much of the transit time variation to buffer for (see jni/vulkan/frame_pacer.cpp,
-    // which these presets match). Set on the decoder thread, from pendingJitterBuffer.
+    // How much of the transit time variation to buffer for, from the presets in
+    // jni/vulkan/frame_pacer.cpp. Balanced is still that pacer's original 10 s window and 1/512
+    // decay: the native one has since moved to 3 s and 1/64, which wasn't carried over here.
+    // Set on the decoder thread, from pendingJitterBuffer.
     private long windowNs;
     private double coverage;
     private long decayDivisor;
