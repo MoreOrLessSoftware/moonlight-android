@@ -157,6 +157,7 @@
     <string name="summary_seekbar_bitrate">Increase for better image quality. Decrease to improve performance on slower connections.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="seekbar_custom">Custom</string>
+    <string name="custom_value_clear">Clear</string>
     <string name="seekbar_recommended">Recommended (%1$s)</string>
     <string name="seekbar_title_recommended">%1$s (%2$s recommended)</string>
     <string name="seekbar_custom_message">Enter a value in %1$s</string>

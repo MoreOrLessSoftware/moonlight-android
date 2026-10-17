@@ -84,6 +84,41 @@
 
         </LinearLayout>
 
+        <!-- Jitter buffer gets its own row, since a phone is too narrow for a third button above -->
+        <LinearLayout
+            android:id="@+id/jitterBufferRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+        <!-- Jitter Buffer Button -->
+        <LinearLayout
+            android:id="@+id/jitterBufferButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="44dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/button_border_rounded">
+
+            <TextView
+                android:id="@+id/jitterBufferLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Jitter buffer: Default"
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:layout_marginStart="4dp" />
+
+        </LinearLayout>
+
+        </LinearLayout>
+
         <!-- Bitrate Override -->
         <LinearLayout
             android:layout_width="wrap_content"

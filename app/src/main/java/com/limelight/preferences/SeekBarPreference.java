@@ -2,6 +2,7 @@ package com.limelight.preferences;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.os.Bundle;
 import android.preference.DialogPreference;
 import android.util.AttributeSet;
@@ -24,6 +25,12 @@ import java.util.Locale;
 // Based on a Stack Overflow example: http://stackoverflow.com/questions/1974193/slider-on-my-preferencescreen
 public class SeekBarPreference extends DialogPreference
 {
+    // Works out the recommended bitrate, for a setting whose resolution and frame rate
+    // aren't the global ones
+    public interface RecommendedBitrateProvider {
+        int getRecommendedBitrate();
+    }
+
     private static final String ANDROID_SCHEMA_URL = "http://schemas.android.com/apk/res/android";
     private static final String SEEKBAR_SCHEMA_URL = "http://schemas.moonlight-stream.com/apk/res/seekbar";
 
@@ -41,7 +48,14 @@ public class SeekBarPreference extends DialogPreference
     private final int divisor;
     private final boolean allowCustom;
     private final boolean showRecommendedBitrate;
+    private RecommendedBitrateProvider recommendedBitrateProvider;
+    // When set, a value of 0 means this isn't set, and shows as this
+    private CharSequence unsetName;
+    // Whether tapping this goes straight to entering a value, without the slider
+    private boolean customOnly;
     private int currentValue;
+    // The value the dialog's slider started at, which may be past its end
+    private int dialogStartValue;
     private boolean sliderTouched;
 
     public SeekBarPreference(Context context, AttributeSet attrs) {
@@ -128,9 +142,9 @@ public class SeekBarPreference extends DialogPreference
                 }
 
                 // A custom value above the slider's max is clamped by the SeekBar; show the real value
-                if (!sliderTouched && currentValue > maxValue) {
-                    roundedValue = currentValue;
-                    value = currentValue;
+                if (!sliderTouched && dialogStartValue > maxValue) {
+                    roundedValue = dialogStartValue;
+                    value = dialogStartValue;
                 }
 
                 valueText.setText(formatValue(roundedValue));
@@ -145,11 +159,12 @@ public class SeekBarPreference extends DialogPreference
 
         layout.addView(seekBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        // The recommended bitrate goes under the slider, since the dialog's
-        // buttons are taken by OK, Cancel and Custom. It may be past the slider's end.
+        // The recommended bitrate and unsetting go under the slider, since the dialog's
+        // buttons are taken by OK, Cancel and Custom. The recommendation may be past
+        // the slider's end.
         if (showRecommendedBitrate) {
             // For the current resolution, frame rate and codec
-            final int recommended = PreferenceConfiguration.getDefaultBitrate(context);
+            final int recommended = getRecommendedBitrate();
             Button recommendedButton = new Button(context, null, android.R.attr.borderlessButtonStyle);
             recommendedButton.setText(context.getString(R.string.seekbar_recommended, formatValue(recommended)));
             recommendedButton.setOnClickListener(new OnClickListener() {
@@ -158,25 +173,77 @@ public class SeekBarPreference extends DialogPreference
                     saveValueAndClose(recommended);
                 }
             });
+            addCenteredButton(layout, recommendedButton);
+        }
 
-            LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            buttonParams.gravity = Gravity.CENTER_HORIZONTAL;
-            layout.addView(recommendedButton, buttonParams);
+        if (unsetName != null) {
+            Button unsetButton = new Button(context, null, android.R.attr.borderlessButtonStyle);
+            unsetButton.setText(unsetName);
+            unsetButton.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    saveValueAndClose(0);
+                }
+            });
+            addCenteredButton(layout, unsetButton);
         }
 
         if (shouldPersist()) {
             currentValue = getPersistedInt(defaultValue);
         }
 
+        // An unset value starts the slider at the recommendation
+        dialogStartValue = currentValue == 0 && unsetName != null && showRecommendedBitrate ?
+                getRecommendedBitrate() : currentValue;
+
         seekBar.setMax(maxValue);
         if (keyStepSize != 0) {
             seekBar.setKeyProgressIncrement(keyStepSize);
         }
-        seekBar.setProgress(currentValue);
+        seekBar.setProgress(dialogStartValue);
 
         return layout;
+    }
+
+    private static void addCenteredButton(LinearLayout layout, Button button) {
+        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        buttonParams.gravity = Gravity.CENTER_HORIZONTAL;
+        layout.addView(button, buttonParams);
+    }
+
+    public void setRecommendedBitrateProvider(RecommendedBitrateProvider provider) {
+        recommendedBitrateProvider = provider;
+        notifyChanged();
+    }
+
+    // Lets this be unset, with a value of 0, shown as the given name
+    public void setUnsetName(CharSequence name) {
+        unsetName = name;
+        notifyChanged();
+    }
+
+    // Skips the slider, so tapping this goes straight to entering a value. If this can be
+    // unset, the dialog's Clear button unsets it.
+    public void setCustomOnly(boolean customOnly) {
+        this.customOnly = customOnly;
+    }
+
+    @Override
+    protected void onClick() {
+        if (customOnly) {
+            showCustomValueDialog();
+        }
+        else {
+            super.onClick();
+        }
+    }
+
+    private int getRecommendedBitrate() {
+        return recommendedBitrateProvider != null ?
+                recommendedBitrateProvider.getRecommendedBitrate() :
+                PreferenceConfiguration.getDefaultBitrate(context);
     }
 
     @Override
@@ -186,7 +253,7 @@ public class SeekBarPreference extends DialogPreference
         if (keyStepSize != 0) {
             seekBar.setKeyProgressIncrement(keyStepSize);
         }
-        seekBar.setProgress(currentValue);
+        seekBar.setProgress(dialogStartValue);
     }
 
     @Override
@@ -215,6 +282,9 @@ public class SeekBarPreference extends DialogPreference
 
     @Override
     public CharSequence getSummary() {
+        if (currentValue == 0 && unsetName != null) {
+            return unsetName;
+        }
         return formatValue(currentValue);
     }
 
@@ -225,9 +295,10 @@ public class SeekBarPreference extends DialogPreference
     public CharSequence getTitle() {
         CharSequence title = super.getTitle();
 
-        // The superclass constructor asks for the title before this class is set up
-        if (showRecommendedBitrate && title != null) {
-            int recommended = PreferenceConfiguration.getDefaultBitrate(context);
+        // The superclass constructor asks for the title before this class is set up.
+        // An unset value isn't compared, since it's whatever the default is.
+        if (showRecommendedBitrate && title != null && currentValue > 0) {
+            int recommended = getRecommendedBitrate();
             if (currentValue < recommended) {
                 return context.getString(R.string.seekbar_title_recommended, title, formatValue(recommended));
             }
@@ -254,13 +325,14 @@ public class SeekBarPreference extends DialogPreference
         }
     }
 
-    // Saves a value from outside the slider, which may be past its end, and closes the dialog
+    // Saves a value, which may be past the slider's end, and closes the dialog. Settings
+    // that aren't persisted are saved elsewhere by their change listener.
     private void saveValueAndClose(int value) {
         currentValue = value;
         if (shouldPersist()) {
             persistInt(value);
-            callChangeListener(value);
         }
+        callChangeListener(value);
         notifyChanged();
         if (getDialog() != null) {
             getDialog().dismiss();
@@ -270,7 +342,19 @@ public class SeekBarPreference extends DialogPreference
     private void showCustomValueDialog() {
         final EditText input = new EditText(context);
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
-        int shownValue = (!sliderTouched && currentValue > maxValue) ? currentValue : seekBar.getProgress();
+
+        // Start from the slider's value when it's open, otherwise the saved value,
+        // or the recommendation if this is unset
+        int shownValue;
+        if (getDialog() != null && getDialog().isShowing()) {
+            shownValue = (!sliderTouched && dialogStartValue > maxValue) ? dialogStartValue : seekBar.getProgress();
+        }
+        else if (currentValue == 0 && showRecommendedBitrate) {
+            shownValue = getRecommendedBitrate();
+        }
+        else {
+            shownValue = currentValue;
+        }
         input.setText(String.valueOf(Math.round(shownValue / (float)divisor)));
         input.setSelectAllOnFocus(true);
 
@@ -280,13 +364,36 @@ public class SeekBarPreference extends DialogPreference
         inputLayout.setPadding(padding, 0, padding, 0);
         inputLayout.addView(input);
 
-        final AlertDialog dialog = new AlertDialog.Builder(context)
-                .setTitle(getDialogTitle())
+        AlertDialog.Builder builder = new AlertDialog.Builder(context)
                 .setMessage(suffix == null ? null : context.getString(R.string.seekbar_custom_message, suffix))
                 .setView(inputLayout)
                 .setPositiveButton(android.R.string.ok, null)
-                .setNegativeButton(android.R.string.cancel, null)
-                .create();
+                .setNegativeButton(android.R.string.cancel, null);
+
+        if (customOnly) {
+            // Without the slider's dialog, its help goes here
+            if (dialogMessage != null) {
+                builder.setCustomTitle(PreferenceHelp.createDialogTitle(context, getDialogTitle(), dialogMessage));
+            }
+            else {
+                builder.setTitle(getDialogTitle());
+            }
+
+            // Without the slider's dialog, this is the way back to unset
+            if (unsetName != null) {
+                builder.setNeutralButton(R.string.custom_value_clear, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        saveValueAndClose(0);
+                    }
+                });
+            }
+        }
+        else {
+            builder.setTitle(getDialogTitle());
+        }
+
+        final AlertDialog dialog = builder.create();
         PreferenceHelp.showWithKeyboard(dialog, input);
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new OnClickListener() {
@@ -321,16 +428,9 @@ public class SeekBarPreference extends DialogPreference
         positiveButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                // Keep an out-of-range custom value unless the slider was actually moved
-                boolean keepCustom = !sliderTouched && currentValue > maxValue;
-                if (shouldPersist() && !keepCustom) {
-                    currentValue = seekBar.getProgress();
-                    persistInt(currentValue);
-                    callChangeListener(currentValue);
-                    notifyChanged();
-                }
-
-                getDialog().dismiss();
+                // Keep an out-of-range starting value unless the slider was actually moved
+                boolean keepStart = !sliderTouched && dialogStartValue > maxValue;
+                saveValueAndClose(keepStart ? dialogStartValue : seekBar.getProgress());
             }
         });
     }

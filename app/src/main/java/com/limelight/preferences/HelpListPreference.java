@@ -34,6 +34,10 @@ public class HelpListPreference extends ListPreference {
         help = super.getSummary();
     }
 
+    protected CharSequence getHelp() {
+        return help;
+    }
+
     @Override
     public CharSequence getSummary() {
         // Not getEntry(), since while code changes the entries and their values

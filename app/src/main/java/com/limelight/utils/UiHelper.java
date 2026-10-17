@@ -14,6 +14,7 @@ import android.graphics.Insets;
 import android.os.Build;
 import android.os.LocaleList;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 
@@ -141,6 +142,19 @@ public class UiHelper {
                     }
                 });
             }
+        }
+    }
+
+    // Pads a settings fragment's list so it scrolls behind the navigation bar
+    // but its last setting can still scroll clear of it
+    public static void applyPreferenceListPadding(View fragmentView) {
+        View list = fragmentView.findViewById(android.R.id.list);
+        if (list instanceof ViewGroup) {
+            ((ViewGroup) list).setClipToPadding(false);
+            applyStatusBarPadding(list);
+        }
+        else {
+            applyStatusBarPadding(fragmentView);
         }
     }
 

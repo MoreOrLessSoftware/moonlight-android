@@ -12,6 +12,7 @@ public class AppPreferences {
     private static final String PREF_BITRATE_OVERRIDE = "bitrate_override"; // Global bitrate override
     private static final String PREF_PERF_OVERLAY_OVERRIDE = "perf_overlay_override"; // Global performance overlay override
     private static final String PREF_CODEC_OVERRIDE = "codec_override"; // Global codec override
+    private static final String PREF_JITTER_BUFFER_OVERRIDE = "jitter_buffer_override"; // Global jitter buffer override
     private static final String PREF_OVERRIDES_ENABLED = "overrides_enabled"; // Whether overrides section is enabled
 
     public static class AppSettings {
@@ -22,13 +23,16 @@ public class AppPreferences {
         public double actualDisplayRefreshRate;
         public String enableHdr;
         public String enablePerfOverlay;
+        // The saved values of the codec and jitter buffer settings, or null to use the default
+        public String videoFormat;
+        public String jitterBuffer;
         public boolean useGlobalSettings;
 
         public AppSettings() {
             this.useGlobalSettings = true;
         }
 
-        public AppSettings(String resolution, int fps, String framePacing, int bitrate, double actualDisplayRefreshRate, String enableHdr, String enablePerfOverlay, boolean useGlobalSettings) {
+        public AppSettings(String resolution, int fps, String framePacing, int bitrate, double actualDisplayRefreshRate, String enableHdr, String enablePerfOverlay, String videoFormat, String jitterBuffer, boolean useGlobalSettings) {
             this.resolution = resolution;
             this.fps = fps;
             this.framePacing = framePacing;
@@ -36,6 +40,8 @@ public class AppPreferences {
             this.actualDisplayRefreshRate = actualDisplayRefreshRate;
             this.enableHdr = enableHdr;
             this.enablePerfOverlay = enablePerfOverlay;
+            this.videoFormat = videoFormat;
+            this.jitterBuffer = jitterBuffer;
             this.useGlobalSettings = useGlobalSettings;
         }
 
@@ -48,6 +54,8 @@ public class AppPreferences {
             json.put("actualDisplayRefreshRate", actualDisplayRefreshRate);
             json.put("enableHdr", enableHdr);
             json.put("enablePerfOverlay", enablePerfOverlay);
+            json.put("videoFormat", videoFormat);
+            json.put("jitterBuffer", jitterBuffer);
             json.put("useGlobalSettings", useGlobalSettings);
             return json;
         }
@@ -61,6 +69,8 @@ public class AppPreferences {
                 json.optDouble("actualDisplayRefreshRate", 0),
                 json.optString("enableHdr", null),
                 json.optString("enablePerfOverlay", null),
+                json.optString("videoFormat", null),
+                json.optString("jitterBuffer", null),
                 json.optBoolean("useGlobalSettings", true)
             );
         }
@@ -225,6 +235,28 @@ public class AppPreferences {
             config.enablePerfOverlay = Boolean.parseBoolean(enablePerfOverlayValue);
         }
 
+        // Video codec
+        String videoFormatValue = null;
+        if (quickLaunchSettings != null && quickLaunchSettings.videoFormat != null) {
+            videoFormatValue = quickLaunchSettings.videoFormat;
+        } else if (!appSettings.useGlobalSettings && appSettings.videoFormat != null) {
+            videoFormatValue = appSettings.videoFormat;
+        }
+        if (videoFormatValue != null) {
+            config.videoFormat = PreferenceConfiguration.parseVideoFormat(videoFormatValue);
+        }
+
+        // Jitter buffer
+        String jitterBufferValue = null;
+        if (quickLaunchSettings != null && quickLaunchSettings.jitterBuffer != null) {
+            jitterBufferValue = quickLaunchSettings.jitterBuffer;
+        } else if (!appSettings.useGlobalSettings && appSettings.jitterBuffer != null) {
+            jitterBufferValue = appSettings.jitterBuffer;
+        }
+        if (jitterBufferValue != null) {
+            config.jitterBuffer = PreferenceConfiguration.parseJitterBuffer(jitterBufferValue);
+        }
+
         return applyOverrides ? applyPreferenceOverrides(context, config) : config;
     }
 
@@ -259,6 +291,19 @@ public class AppPreferences {
                 config.videoFormat = PreferenceConfiguration.FormatOption.FORCE_AV1;
             } else if (codecOverride == 3) {
                 config.videoFormat = PreferenceConfiguration.FormatOption.FORCE_PYROWAVE;
+            }
+
+            // Apply global jitter buffer override: 0 = default, 1 = lowest latency,
+            // 2 = low latency, 3 = balanced, 4 = smooth
+            int jitterBufferOverride = defaultPrefs.getInt(PREF_JITTER_BUFFER_OVERRIDE, 0);
+            if (jitterBufferOverride == 1) {
+                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY;
+            } else if (jitterBufferOverride == 2) {
+                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY;
+            } else if (jitterBufferOverride == 3) {
+                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_BALANCED;
+            } else if (jitterBufferOverride == 4) {
+                config.jitterBuffer = PreferenceConfiguration.JITTER_BUFFER_SMOOTH;
             }
         }
 

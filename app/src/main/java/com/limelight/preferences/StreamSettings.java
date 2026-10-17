@@ -315,17 +315,7 @@ public class StreamSettings extends Activity {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
-
-            // Pad the list itself so it scrolls behind the navigation bar
-            // but its last setting can still scroll clear of it
-            View list = view.findViewById(android.R.id.list);
-            if (list instanceof ViewGroup) {
-                ((ViewGroup) list).setClipToPadding(false);
-                UiHelper.applyStatusBarPadding(list);
-            }
-            else {
-                UiHelper.applyStatusBarPadding(view);
-            }
+            UiHelper.applyPreferenceListPadding(view);
             return view;
         }
 

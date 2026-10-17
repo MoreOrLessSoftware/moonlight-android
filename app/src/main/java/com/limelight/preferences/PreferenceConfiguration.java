@@ -290,11 +290,11 @@ public class PreferenceConfiguration {
         }
     }
 
-    private static int getWidthFromResolutionString(String resString) {
+    static int getWidthFromResolutionString(String resString) {
         return Integer.parseInt(resString.split("x")[0]);
     }
 
-    private static int getHeightFromResolutionString(String resString) {
+    static int getHeightFromResolutionString(String resString) {
         return Integer.parseInt(resString.split("x")[1]);
     }
 
@@ -321,11 +321,14 @@ public class PreferenceConfiguration {
     }
 
     public static int getDefaultBitrate(String resString, String fpsString, String videoFormatString) {
-        int width = getWidthFromResolutionString(resString);
-        int height = getHeightFromResolutionString(resString);
-        int fps = Integer.parseInt(fpsString);
+        return getDefaultBitrate(getWidthFromResolutionString(resString),
+                getHeightFromResolutionString(resString),
+                Integer.parseInt(fpsString),
+                isPyrowaveVideoFormat(videoFormatString));
+    }
 
-        if (isPyrowaveVideoFormat(videoFormatString)) {
+    public static int getDefaultBitrate(int width, int height, int fps, boolean pyrowave) {
+        if (pyrowave) {
             // PyroWave compresses every frame on its own, so unlike the other codecs its
             // bitrate grows in step with both the pixel count and the frame rate. This is
             // 400 Mbps at 1440p120 (112 Mbps at 1080p60), which looks good on phone and
@@ -402,8 +405,10 @@ public class PreferenceConfiguration {
 
     private static FormatOption getVideoFormatValue(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        return parseVideoFormat(prefs.getString(VIDEO_FORMAT_PREF_STRING, DEFAULT_VIDEO_FORMAT));
+    }
 
-        String str = prefs.getString(VIDEO_FORMAT_PREF_STRING, DEFAULT_VIDEO_FORMAT);
+    static FormatOption parseVideoFormat(String str) {
         if (str.equals("auto")) {
             return FormatOption.AUTO;
         }
@@ -478,8 +483,10 @@ public class PreferenceConfiguration {
 
     private static int getJitterBufferValue(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        return parseJitterBuffer(prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER));
+    }
 
-        String str = prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER);
+    static int parseJitterBuffer(String str) {
         if (str.equals("low-latency")) {
             return JITTER_BUFFER_LOW_LATENCY;
         }

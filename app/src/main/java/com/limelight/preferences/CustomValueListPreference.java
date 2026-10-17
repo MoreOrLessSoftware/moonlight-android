@@ -16,6 +16,12 @@ public abstract class CustomValueListPreference extends HelpListPreference {
     // The value of the entry added for a custom value, if there is one
     private String customEntryValue;
 
+    // The name of a first entry, with an empty value, for not setting this at all
+    private CharSequence defaultEntryName;
+
+    // Whether tapping this goes straight to entering a value, without the list
+    private boolean customOnly;
+
     public CustomValueListPreference(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
     }
@@ -53,11 +59,51 @@ public abstract class CustomValueListPreference extends HelpListPreference {
         addEntryForCustomValue();
     }
 
+    // Adds a first entry with an empty value, for a setting that can be left unset
+    // to use a default from elsewhere, like an app's setting using the global one
+    public void setDefaultEntry(CharSequence name) {
+        defaultEntryName = name;
+        resetEntries();
+        addEntryForCustomValue();
+    }
+
+    // Skips the list, so tapping this goes straight to entering a value. With a default
+    // entry, the dialog's Clear button goes back to it.
+    public void setCustomOnly(boolean customOnly) {
+        this.customOnly = customOnly;
+    }
+
+    @Override
+    protected void onClick() {
+        if (customOnly) {
+            showCustomDialog();
+        }
+        else {
+            super.onClick();
+        }
+    }
+
     // Goes back to the standard entries, before entries for this device are added
     public void resetEntries() {
         customEntryValue = null;
-        setEntryValues(getEntryValuesId());
-        setEntries(getEntriesId());
+
+        CharSequence[] entries = getContext().getResources().getTextArray(getEntriesId());
+        CharSequence[] values = getContext().getResources().getTextArray(getEntryValuesId());
+        if (defaultEntryName != null) {
+            entries = prepend(defaultEntryName, entries);
+            values = prepend("", values);
+        }
+
+        // Values first, so the summary never looks up an entry past the end
+        setEntryValues(values);
+        setEntries(entries);
+    }
+
+    private static CharSequence[] prepend(CharSequence first, CharSequence[] array) {
+        CharSequence[] result = new CharSequence[array.length + 1];
+        result[0] = first;
+        System.arraycopy(array, 0, result, 1, array.length);
+        return result;
     }
 
     // Adds an entry for the current value if none of the entries has it, replacing
@@ -122,13 +168,38 @@ public abstract class CustomValueListPreference extends HelpListPreference {
     private void showCustomDialog() {
         final View input = createCustomInput(getValue());
 
-        final AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setTitle(getTitle())
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext())
                 .setMessage(getCustomMessage())
                 .setView(input)
                 .setPositiveButton(android.R.string.ok, null)
-                .setNegativeButton(android.R.string.cancel, null)
-                .create();
+                .setNegativeButton(android.R.string.cancel, null);
+
+        if (customOnly) {
+            // Without the list, its help goes here
+            if (PreferenceHelp.hasText(getHelp())) {
+                builder.setCustomTitle(PreferenceHelp.createDialogTitle(getContext(), getDialogTitle(), getHelp()));
+            }
+            else {
+                builder.setTitle(getDialogTitle());
+            }
+
+            // Without the list, this is the way back to the default
+            if (defaultEntryName != null) {
+                builder.setNeutralButton(R.string.custom_value_clear, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (callChangeListener("")) {
+                            setValue("");
+                        }
+                    }
+                });
+            }
+        }
+        else {
+            builder.setTitle(getTitle());
+        }
+
+        final AlertDialog dialog = builder.create();
         PreferenceHelp.showWithKeyboard(dialog, input);
 
         // Replace the OK button's listener so an invalid value doesn't close the dialog

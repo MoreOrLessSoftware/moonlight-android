@@ -217,6 +217,22 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         }
     }
 
+    // The codec's short name, since the setting's names are too long for a card
+    private static String describeVideoFormat(String videoFormat) {
+        switch (videoFormat) {
+            case "forceav1":
+                return "AV1";
+            case "forceh265":
+                return "HEVC";
+            case "neverh265":
+                return "H.264";
+            case "forcepyrowave":
+                return "PyroWave";
+            default:
+                return "Auto codec";
+        }
+    }
+
     // A short summary of the settings this app overrides, e.g. "2560×1440 · 120 FPS · 50 Mbps"
     private String describeOverrides(AppPreferences.AppSettings settings) {
         List<String> parts = new ArrayList<>();
@@ -226,6 +242,9 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         }
         if (settings.fps > 0) {
             parts.add(settings.fps + " FPS");
+        }
+        if (settings.videoFormat != null) {
+            parts.add(describeVideoFormat(settings.videoFormat));
         }
         if (settings.bitrate > 0) {
             // Bitrates are saved in Kbps
@@ -237,6 +256,17 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
             for (int i = 0; i < values.length; i++) {
                 if (values[i].equals(settings.framePacing)) {
                     parts.add(names[i]);
+                    break;
+                }
+            }
+        }
+        if (settings.jitterBuffer != null) {
+            String[] names = context.getResources().getStringArray(R.array.jitter_buffer_names);
+            String[] values = context.getResources().getStringArray(R.array.jitter_buffer_values);
+            for (int i = 0; i < values.length; i++) {
+                if (values[i].equals(settings.jitterBuffer)) {
+                    // Without a "(Recommended)" tag, which doesn't fit on a card
+                    parts.add("Jitter: " + names[i].replaceAll(" \\(.*\\)$", ""));
                     break;
                 }
             }

@@ -1,50 +1,82 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- An app's or Quick Launch item's own settings. These are saved with the app by
+     AppStreamSettings, so none of them are persisted to the global preferences. -->
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:seekbar="http://schemas.moonlight-stream.com/apk/res/seekbar">
 
     <CheckBoxPreference
         android:key="checkbox_use_global_settings"
+        android:persistent="false"
         android:title="Use Global Settings"
         android:summary="Do not use custom settings, instead use the global settings"
         android:defaultValue="true" />
 
-    <PreferenceCategory 
+    <PreferenceCategory
         android:key="category_app_specific"
         android:title="App-Specific Settings">
-        <Preference
-            android:key="pref_app_resolution"
+        <com.limelight.preferences.ResolutionListPreference
+            android:key="list_app_resolution"
+            android:persistent="false"
             android:title="@string/title_resolution_list"
-            android:summary="@string/summary_resolution_list" />
-        <EditTextPreference
-            android:key="text_app_fps"
+            android:summary="@string/summary_resolution_list"
+            android:entries="@array/resolution_names"
+            android:entryValues="@array/resolution_values" />
+        <com.limelight.preferences.FpsListPreference
+            android:key="list_app_fps"
+            android:persistent="false"
             android:title="@string/title_fps_list"
             android:summary="@string/summary_fps_list"
-            android:inputType="number"
-            android:dialogMessage="Enter FPS value" />
-        <EditTextPreference
-            android:key="text_app_bitrate_kbps"
-            android:title="@string/title_seekbar_bitrate"
-            android:summary="@string/summary_seekbar_bitrate"
-            android:inputType="number"
-            android:dialogMessage="Enter bitrate in Mbps (e.g. 50)" />
-        <ListPreference
+            android:entries="@array/fps_names"
+            android:entryValues="@array/fps_values" />
+        <com.limelight.preferences.HelpListPreference
+            android:key="list_app_video_format"
+            android:persistent="false"
+            android:title="@string/title_video_format"
+            android:entries="@array/video_format_names"
+            android:entryValues="@array/video_format_values"
+            android:summary="@string/summary_video_format" />
+        <com.limelight.preferences.SeekBarPreference
+            android:key="seekbar_app_bitrate_kbps"
+            android:persistent="false"
+            android:dialogMessage="@string/summary_seekbar_bitrate"
+            seekbar:min="1000"
+            android:max="150000"
+            seekbar:step="1000"
+            seekbar:keyStep="1000"
+            seekbar:divisor="1000"
+            seekbar:custom="true"
+            seekbar:recommendedBitrate="true"
+            android:text="@string/suffix_seekbar_bitrate_mbps"
+            android:title="@string/title_seekbar_bitrate" />
+        <com.limelight.preferences.HelpListPreference
             android:key="list_app_frame_pacing"
+            android:persistent="false"
             android:title="@string/title_frame_pacing"
             android:entries="@array/video_frame_pacing_names"
             android:entryValues="@array/video_frame_pacing_values"
             android:summary="@string/summary_frame_pacing" />
+        <com.limelight.preferences.HelpListPreference
+            android:key="list_app_jitter_buffer"
+            android:persistent="false"
+            android:title="@string/title_jitter_buffer"
+            android:entries="@array/jitter_buffer_names"
+            android:entryValues="@array/jitter_buffer_values"
+            android:summary="@string/summary_jitter_buffer" />
         <EditTextPreference
             android:key="text_app_actual_display_refresh_rate"
+            android:persistent="false"
             android:title="@string/title_actual_display_refresh_rate"
             android:summary="@string/summary_actual_display_refresh_rate"
             android:inputType="numberDecimal" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="list_app_enable_hdr"
+            android:persistent="false"
             android:title="@string/title_enable_hdr"
             android:entries="@array/hdr_setting_names"
             android:entryValues="@array/hdr_setting_values" />
-        <ListPreference
+        <com.limelight.preferences.HelpListPreference
             android:key="list_app_enable_perf_overlay"
+            android:persistent="false"
             android:title="@string/title_enable_perf_overlay"
             android:entries="@array/perf_overlay_setting_names"
             android:entryValues="@array/perf_overlay_setting_values" />
