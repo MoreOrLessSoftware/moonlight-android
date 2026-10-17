@@ -193,6 +193,28 @@ public class StreamSettings extends Activity {
             removePreference(getPreferenceScreen(), key);
         }
 
+        // Prefixes each checkbox's help text with whether it's on, like the
+        // other settings that show their value in the same place
+        private void showCheckBoxStates(PreferenceGroup group) {
+            for (int i = 0; i < group.getPreferenceCount(); i++) {
+                Preference pref = group.getPreference(i);
+                if (pref instanceof CheckBoxPreference) {
+                    CheckBoxPreference checkBox = (CheckBoxPreference) pref;
+                    CharSequence help = checkBox.getSummary();
+                    checkBox.setSummaryOn(withState(R.string.checkbox_state_on, help));
+                    checkBox.setSummaryOff(withState(R.string.checkbox_state_off, help));
+                }
+                else if (pref instanceof PreferenceGroup) {
+                    showCheckBoxStates((PreferenceGroup) pref);
+                }
+            }
+        }
+
+        private String withState(int stateId, CharSequence help) {
+            String state = getString(stateId);
+            return PreferenceHelp.hasText(help) ? state + " \u2014 " + help : state;
+        }
+
         private static boolean removePreference(PreferenceGroup group, String key) {
             for (int i = 0; i < group.getPreferenceCount(); i++) {
                 Preference pref = group.getPreference(i);
@@ -373,6 +395,7 @@ public class StreamSettings extends Activity {
             super.onCreate(savedInstanceState);
 
             addPreferencesFromResource(getArguments().getInt(ARG_PAGE_XML_ID));
+            showCheckBoxStates(getPreferenceScreen());
 
             // Each page only has some of these preferences, so removing one that's
             // on another page does nothing.
@@ -706,7 +729,7 @@ public class StreamSettings extends Activity {
                     CheckBoxPreference hdrPref = (CheckBoxPreference) findPreference("checkbox_enable_hdr");
                     hdrPref.setEnabled(false);
                     hdrPref.setChecked(false);
-                    hdrPref.setSummary("Update the firmware on your NVIDIA SHIELD Android TV to enable HDR");
+                    hdrPref.setSummaryOff("Update the firmware on your NVIDIA SHIELD Android TV to enable HDR");
                 }
             }
 

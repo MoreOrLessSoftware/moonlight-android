@@ -329,7 +329,7 @@
     <string name="dithering_low">Low</string>
     <string name="dithering_high">High</string>
 
-    <string name="title_spatial_dithering">Spatial Dithering</string>
+    <string name="title_spatial_dithering">Spatial Dithering (Vulkan)</string>
     <string name="summary_spatial_dithering">Adds fine moving noise that hides color banding, most visible in HDR gradients (Vulkan renderer only)</string>
 
     <string name="title_frame_pacing">Video frame pacing</string>
@@ -368,6 +368,8 @@
     <string name="title_actual_display_refresh_rate">Actual display refresh rate</string>
     <string name="summary_actual_display_refresh_rate">Leave at 0 to measure the display\'s exact refresh rate when the stream starts and ask the host for a frame rate that lines up with it. Enter a rate to send that instead. (Experimental)</string>
     <string name="summary_refresh_rate_measured">Measured when the stream starts</string>
+    <string name="checkbox_state_on">ON</string>
+    <string name="checkbox_state_off">OFF</string>
     <string name="title_checkbox_ultra_low_latency">Vendor low-latency decoder flags</string>
     <string name="summary_checkbox_ultra_low_latency">Also apply chip-specific low latency flags for Snapdragon 8 Gen 2/8 (s) Gen 3/8 Elite, Exynos and MediaTek decoders on top of Android\'s standard low latency mode. May reduce latency on those devices.</string>
     
