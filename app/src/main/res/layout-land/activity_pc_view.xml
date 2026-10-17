@@ -96,7 +96,7 @@
         android:layout_height="65dp"
         android:cropToPadding="false"
         android:scaleType="fitXY"
-        android:nextFocusForward="@id/helpButton"
+        android:nextFocusForward="@id/manuallyAddPc"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
         android:layout_below="@id/overridesToggleButton"
@@ -104,18 +104,6 @@
         android:contentDescription="Toggle Auto Resume"
         style="?android:attr/borderlessButtonStyle"/>
 
-    <ImageButton
-        android:id="@+id/helpButton"
-        android:layout_width="70dp"
-        android:layout_height="65dp"
-        android:cropToPadding="false"
-        android:scaleType="fitXY"
-        android:nextFocusForward="@id/manuallyAddPc"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentLeft="true"
-        android:layout_below="@id/autoResumeToggleButton"
-        android:src="@drawable/ic_help"
-        style="?android:attr/borderlessButtonStyle"/>
 
     <ImageButton
         android:id="@+id/manuallyAddPc"
@@ -125,7 +113,7 @@
         android:scaleType="fitXY"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
-        android:layout_below="@id/helpButton"
+        android:layout_below="@id/autoResumeToggleButton"
         android:src="@drawable/ic_add"
         style="?android:attr/borderlessButtonStyle"/>
 
@@ -138,7 +126,7 @@
         android:scaleType="fitXY"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
-        android:layout_below="@id/helpButton"
+        android:layout_below="@id/autoResumeToggleButton"
         android:src="@drawable/ic_app_grid_compact"
         android:contentDescription="Change App View"
         android:visibility="gone"

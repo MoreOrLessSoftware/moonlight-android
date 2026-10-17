@@ -170,7 +170,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
 
         // Set default preferences if we've never been run
-        PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
+        StreamSettings.setDefaultValues(this);
 
         // Set the correct layout for the PC grid
         pcGridAdapter.updateLayoutWithPreferences(this, PreferenceConfiguration.readPreferences(this));
@@ -181,7 +181,6 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         // Setup the list view
         ImageButton settingsButton = findViewById(R.id.settingsButton);
         ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
-        ImageButton helpButton = findViewById(R.id.helpButton);
 
         settingsButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -196,13 +195,6 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
                 startActivity(i);
             }
         });
-        helpButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                HelpLauncher.launchSetupGuide(PcView.this);
-            }
-        });
-
         ImageButton appGridSizeToggleButton = findViewById(R.id.appGridSizeToggleButton);
         appGridSizeToggleButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -211,13 +203,6 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             }
         });
         updateTopBarForAppList();
-
-        // Amazon review didn't like the help button because the wiki was not entirely
-        // navigable via the Fire TV remote (though the relevant parts were). Let's hide
-        // it on Fire TV.
-        if (getPackageManager().hasSystemFeature("amazon.hardware.fire_tv")) {
-            helpButton.setVisibility(View.GONE);
-        }
 
         getFragmentManager().beginTransaction()
             .replace(R.id.pcFragmentContainer, new AdapterFragment())

@@ -249,6 +249,12 @@
     <string name="summary_checkbox_host_audio">Play audio from the computer and this device</string>
 
     <string name="category_advanced_settings">Advanced Settings</string>
+    <string name="category_mouse_touch_settings">Mouse and Touch Settings</string>
+    <string name="category_streaming_settings">Streaming Settings</string>
+    <string name="settings_tab_video">Video</string>
+    <string name="settings_tab_audio">Audio</string>
+    <string name="settings_tab_input">Input</string>
+    <string name="settings_tab_other">Other</string>
     <string name="title_unlock_fps">Unlock all possible frame rates</string>
     <string name="summary_unlock_fps">Streaming at 90 or 120 FPS may reduce latency on high-end devices but can cause lag or instability on devices that can\'t support it</string>
     <string name="title_checkbox_reduce_refresh_rate">Allow refresh rate reduction</string>

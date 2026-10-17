@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Other page of the settings; StreamSettings shows each page as a tab -->
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="@string/category_streaming_settings"
+        android:key="category_streaming_settings">
+        <CheckBoxPreference
+            android:key="checkbox_auto_resume_stream"
+            android:title="@string/title_checkbox_auto_resume_stream"
+            android:summary="@string/summary_checkbox_auto_resume_stream"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_enable_sops"
+            android:title="@string/title_checkbox_enable_sops"
+            android:summary="@string/summary_checkbox_enable_sops"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_enable_post_stream_toast"
+            android:title="@string/title_enable_post_stream_toast"
+            android:summary="@string/summary_enable_post_stream_toast"
+            android:defaultValue="false"/>
+        <CheckBoxPreference
+            android:key="checkbox_disable_warnings"
+            android:title="@string/title_checkbox_disable_warnings"
+            android:summary="@string/summary_checkbox_disable_warnings"
+            android:defaultValue="false" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_ui_settings"
+        android:key="category_ui_settings">
+        <CheckBoxPreference
+            android:key="checkbox_enable_pip"
+            android:title="@string/title_checkbox_enable_pip"
+            android:summary="@string/summary_checkbox_enable_pip"
+            android:defaultValue="false" />
+        <com.limelight.preferences.LanguagePreference
+            android:key="list_languages"
+            android:title="@string/title_language_list"
+            android:entries="@array/language_names"
+            android:entryValues="@array/language_values"
+            android:summary="@string/summary_language_list"
+            android:defaultValue="default" />
+    </PreferenceCategory>
+</PreferenceScreen>
