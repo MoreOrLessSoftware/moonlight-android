@@ -148,6 +148,15 @@ public class VulkanRendererBridge {
         return handle != 0 ? nativeTakePresentedFrames(handle) : 0;
     }
 
+    /**
+     * Total PyroWave decode time since the last call, in nanoseconds, leaving out waits: each
+     * frame's CPU work, then its run on the GPU. Where the GPU can't time it, from handing the
+     * frame to the renderer until the GPU was done with it.
+     */
+    public long takeDecodedNs() {
+        return handle != 0 ? nativeTakeDecodedNs(handle) : 0;
+    }
+
     /** One line for the performance overlay */
     public String getRendererText() {
         return handle != 0 ? nativeGetRendererText(handle) : null;
@@ -199,6 +208,7 @@ public class VulkanRendererBridge {
                                                   char hostProcessingLatency);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] hdrMetadata);
     private static native int nativeTakePresentedFrames(long handle);
+    private static native long nativeTakeDecodedNs(long handle);
     private static native String nativeGetRendererText(long handle);
     private static native String nativeGetPacingText(long handle);
     private static native void nativeStop(long handle);

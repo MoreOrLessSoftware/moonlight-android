@@ -507,6 +507,7 @@ bool VulkanRenderer::init(ANativeWindow* output) {
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
              config_.ditherMode);
     trace_.start(config_.traceDirectory, configuration);
+    traceRecording_ = trace_.recording();
 
     if (trace_.recording() && timestampValidBits_ > 0 && timestampPeriodNs_ > 0 && vk_.vkCreateQueryPool &&
             vk_.vkDestroyQueryPool && vk_.vkGetQueryPoolResults && vk_.vkCmdResetQueryPool && vk_.vkCmdWriteTimestamp) {
@@ -691,6 +692,8 @@ bool VulkanRenderer::createPyrowaveDecoder() {
     info.queue = decodeQueue_ ? decodeQueue_ : queue_;
     info.queueFamily = queueFamily_;
     info.queueMutex = &queueMutex_;
+    info.timestampValidBits = timestampValidBits_;
+    info.timestampPeriodNs = timestampPeriodNs_;
     if (decodeQueue_) {
         ALOGI("PyroWave decodes on its own queue, %s rendering",
               deviceSetup_.priorities[0] < deviceSetup_.priorities[1] ? "below" : "level with");
@@ -749,10 +752,30 @@ void VulkanRenderer::pyrowaveWaiterMain() {
         }
 
         frame->timing.arrivalNs = nowNs();
-        {
+
+        // What decoding took, without the waits: the CPU's share of it, then its run on the GPU.
+        // A decode can start on the GPU before the one before ends, so its run is counted from
+        // then. Untimed on the GPU, it's until the decode was done, waits and all.
+        int64_t gpuStartNs = 0;
+        int64_t gpuEndNs = 0;
+        if (!pyrowave_->gpuTimes(frame->readyValue, &gpuStartNs, &gpuEndNs) || gpuEndNs < gpuStartNs) {
+            gpuStartNs = 0;
+            gpuEndNs = 0;
+        }
+        const int64_t cpuNs = frame->decodeQueuedNs - frame->decodeStartNs - frame->decodeTimes.waitedNs;
+        if (gpuEndNs != 0) {
+            const int64_t runStartNs = std::max(gpuStartNs, lastDecodeGpuEndNs_);
+            decodedNs_ += cpuNs + std::max<int64_t>(gpuEndNs - runStartNs, 0);
+            lastDecodeGpuEndNs_ = std::max(gpuEndNs, lastDecodeGpuEndNs_);
+        }
+        else {
+            decodedNs_ += frame->timing.arrivalNs - frame->decodeStartNs;
+        }
+        // Without a trace, this needn't hold up the render thread
+        if (traceRecording_.load(std::memory_order_relaxed)) {
             std::lock_guard<std::mutex> lock(mutex_);
             trace_.decoded(frame->timing.hostPtsNs, frame->decodeStartNs, frame->decodeQueuedNs,
-                           frame->timing.arrivalNs);
+                           frame->timing.arrivalNs, frame->decodeTimes, gpuStartNs, gpuEndNs);
         }
         enqueueFrame(std::move(frame));
     }
@@ -806,6 +829,7 @@ VulkanRenderer::~VulkanRenderer() {
         closing_ = true;
         pending.swap(pending_);
         trace_.close();
+        traceRecording_ = false;
     }
     pending.clear();
 
@@ -1085,8 +1109,9 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const
     }
 
     uint64_t readyValue = 0;
+    PyrowaveDecoder::DecodeTimes times;
     PyrowavePlanes* planes = pyrowave_->decode(data, size, gaps, gapCount, recordStarts, partial,
-                                               &readyValue);
+                                               &readyValue, &times);
     if (!planes) {
         return false;
     }
@@ -1096,6 +1121,7 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const
     frame->timing.hostPtsNs = hostPtsNs;
     frame->decodeStartNs = startNs;
     frame->decodeQueuedNs = nowNs();
+    frame->decodeTimes = times;
     frame->lastPacketUs = lastPacketUs;
     {
         std::lock_guard<std::mutex> lock(decodingMutex_);

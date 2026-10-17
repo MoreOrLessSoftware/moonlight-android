@@ -30,6 +30,7 @@ namespace {
         decltype(&::pyrowave_create_device) createDevice;
         decltype(&::pyrowave_device_destroy) deviceDestroy;
         decltype(&::pyrowave_device_report_performance_stats) reportPerformanceStats;
+        decltype(&::pyrowave_device_set_command_buffer) deviceSetCommandBuffer;
         decltype(&::pyrowave_decoder_device_prefers_fragment_path) prefersFragmentPath;
         decltype(&::pyrowave_decoder_create) decoderCreate;
         decltype(&::pyrowave_decoder_clear) decoderClear;
@@ -58,14 +59,21 @@ namespace {
     void logStat(void*, const char* message) {
         ALOGI("%s", message);
     }
+}
 
-    void lockQueue(void* userdata) {
-        static_cast<std::mutex*>(userdata)->lock();
-    }
+void PyrowaveDecoder::lockQueue(void* userdata) {
+    auto* decoder = static_cast<PyrowaveDecoder*>(userdata);
+    const int64_t startNs = nowNs();
+    decoder->info_.queueMutex->lock();
+    decoder->queueLockedNs_ = nowNs();
+    decoder->waitedNs_ += decoder->queueLockedNs_ - startNs;
+}
 
-    void unlockQueue(void* userdata) {
-        static_cast<std::mutex*>(userdata)->unlock();
-    }
+void PyrowaveDecoder::unlockQueue(void* userdata) {
+    auto* decoder = static_cast<PyrowaveDecoder*>(userdata);
+    decoder->queueHeldNs_ += nowNs() - decoder->queueLockedNs_;
+    decoder->queueHolds_++;
+    decoder->info_.queueMutex->unlock();
 }
 
 bool PyrowaveDeviceFeatures::query(const VkApi& vk, VkPhysicalDevice device) {
@@ -110,6 +118,7 @@ bool PyrowaveDecoder::loadLibrary() {
         resolve(api.createDevice, "pyrowave_create_device");
         resolve(api.deviceDestroy, "pyrowave_device_destroy");
         resolve(api.reportPerformanceStats, "pyrowave_device_report_performance_stats");
+        resolve(api.deviceSetCommandBuffer, "pyrowave_device_set_command_buffer");
         resolve(api.prefersFragmentPath, "pyrowave_decoder_device_prefers_fragment_path");
         resolve(api.decoderCreate, "pyrowave_decoder_create");
         resolve(api.decoderClear, "pyrowave_decoder_clear");
@@ -174,9 +183,9 @@ bool PyrowaveDecoder::init(int width, int height, bool tenBit) {
     deviceInfo.device_create_info = info_.deviceInfo;
     deviceInfo.queue_info = &queueInfo;
     deviceInfo.queue_info_count = 1;
-    deviceInfo.queue_lock_callback = &lockQueue;
-    deviceInfo.queue_unlock_callback = &unlockQueue;
-    deviceInfo.userdata = info_.queueMutex;
+    deviceInfo.queue_lock_callback = &PyrowaveDecoder::lockQueue;
+    deviceInfo.queue_unlock_callback = &PyrowaveDecoder::unlockQueue;
+    deviceInfo.userdata = this;
     pyrowave_result result = api.createDevice(&deviceInfo, &device_);
     if (result != PYROWAVE_SUCCESS) {
         ALOGE("pyrowave_create_device failed: %d", result);
@@ -279,6 +288,21 @@ bool PyrowaveDecoder::init(int width, int height, bool tenBit) {
     if (vk_.vkAllocateCommandBuffers(info_.device, &allocInfo, &commandBuffer_) != VK_SUCCESS) {
         return false;
     }
+    for (auto& slot : decodeSlots_) {
+        if (vk_.vkAllocateCommandBuffers(info_.device, &allocInfo, &slot.commandBuffer) != VK_SUCCESS) {
+            return false;
+        }
+    }
+    if (info_.timestampValidBits > 0 && info_.timestampPeriodNs > 0 && vk_.vkCreateQueryPool &&
+            vk_.vkDestroyQueryPool && vk_.vkGetQueryPoolResults && vk_.vkCmdResetQueryPool && vk_.vkCmdWriteTimestamp) {
+        VkQueryPoolCreateInfo queryInfo {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+        queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        queryInfo.queryCount = 2 * kDecodeSlots;
+        if (vk_.vkCreateQueryPool(info_.device, &queryInfo, nullptr, &timestampPool_) != VK_SUCCESS) {
+            ALOGW("Decodes can't be timed on the GPU");
+            timestampPool_ = VK_NULL_HANDLE;
+        }
+    }
     VkFenceCreateInfo fenceInfo {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     if (vk_.vkCreateFence(info_.device, &fenceInfo, nullptr, &fence_) != VK_SUCCESS) {
@@ -314,6 +338,7 @@ PyrowaveDecoder::~PyrowaveDecoder() {
 
     VkDevice device = info_.device;
     if (fence_) vk_.vkDestroyFence(device, fence_, nullptr);
+    if (timestampPool_) vk_.vkDestroyQueryPool(device, timestampPool_, nullptr);
     if (commandPool_) vk_.vkDestroyCommandPool(device, commandPool_, nullptr);
     if (timeline_) vk_.vkDestroySemaphore(device, timeline_, nullptr);
     if (descriptorPool_) vk_.vkDestroyDescriptorPool(device, descriptorPool_, nullptr);
@@ -323,7 +348,13 @@ PyrowaveDecoder::~PyrowaveDecoder() {
 
 PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
                                         const std::vector<size_t>* recordStarts, Partial partial,
-                                        uint64_t* readyValue) {
+                                        uint64_t* readyValue, DecodeTimes* times) {
+    const int64_t startNs = nowNs();
+    waitedNs_ = 0;
+    queueHeldNs_ = 0;
+    queueHolds_ = 0;
+    *times = {};
+
     // Each frame arrives on its own, so anything left from an earlier one is stale
     api.decoderClear(decoder_);
 
@@ -394,8 +425,11 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
         }
     }
 
+    times->pushNs = nowNs() - startNs;
+
     PyrowavePlanes* planes = acquirePlanes();
     if (!planes) {
+        times->waitedNs = waitedNs_;
         return nullptr;
     }
 
@@ -412,19 +446,113 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
         view.layout = VK_IMAGE_LAYOUT_GENERAL;
     }
 
-    // After the decode before it, which may have been into these planes
-    pyrowave_gpu_sync_operation acquire {};
-    if (lastValue_ != 0) {
-        acquire.sync = {timeline_, lastValue_};
+    // Into our own commands, so the decode can be timed apart from any wait for the queue. The
+    // GPU must be done with the last decode in them.
+    const size_t slotIndex = nextSlot_;
+    DecodeSlot& slot = decodeSlots_[slotIndex];
+    nextSlot_ = (nextSlot_ + 1) % kDecodeSlots;
+    // PyroWave double buffers what it records with, so decoding waits for the decode two before
+    // to finish on the GPU, which it often hasn't when the GPU is busy. Waiting for it here first
+    // counts that as a wait rather than as decoding. It's later than the last decode in our
+    // commands, so it covers that too.
+    uint64_t doneValue = decodeSlots_[(slotIndex + kDecodeSlots - 2) % kDecodeSlots].value;
+    if (doneValue == 0) {
+        doneValue = slot.value;
     }
-    pyrowave_gpu_sync_operation release {};
-    release.sync = {timeline_, lastValue_ + 1};
+    if (doneValue != 0) {
+        VkSemaphoreWaitInfo waitInfo {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &timeline_;
+        waitInfo.pValues = &doneValue;
+        const int64_t waitStartNs = nowNs();
+        const VkResult waited = vk_.vkWaitSemaphores(info_.device, &waitInfo, UINT64_MAX);
+        waitedNs_ += nowNs() - waitStartNs;
+        if (waited != VK_SUCCESS) {
+            ALOGE("vkWaitSemaphores failed for a decode's commands: %d", waited);
+            release(planes);
+            times->waitedNs = waitedNs_;
+            return nullptr;
+        }
+    }
+    {
+        // Its timestamps are about to be reset
+        std::lock_guard<std::mutex> lock(timestampMutex_);
+        slot.value = 0;
+    }
 
-    const pyrowave_result result = api.decoderDecodeGpuBuffer(decoder_, &acquire, &release, &buffers);
+    VkCommandBuffer cmd = slot.commandBuffer;
+    vk_.vkResetCommandBuffer(cmd, 0);
+    VkCommandBufferBeginInfo beginInfo {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vk_.vkBeginCommandBuffer(cmd, &beginInfo);
+    const uint32_t firstQuery = static_cast<uint32_t>(2 * slotIndex);
+    if (timestampPool_) {
+        vk_.vkCmdResetQueryPool(cmd, timestampPool_, firstQuery, 2);
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timestampPool_, firstQuery);
+    }
+
+    // With our commands, PyroWave leaves synchronizing them to us: the submission below waits
+    // for the decode before at the stage that writes the planes, which makes the planes' writes
+    // visible to it, and the render waits for the timeline before reading them
+    const int64_t recordStartNs = nowNs();
+    const int64_t recordStartWaitedNs = waitedNs_;
+    api.deviceSetCommandBuffer(device_, cmd);
+    const pyrowave_result result = api.decoderDecodeGpuBuffer(decoder_, nullptr, nullptr, &buffers);
+    api.deviceSetCommandBuffer(device_, VK_NULL_HANDLE);
+    times->recordNs = nowNs() - recordStartNs - (waitedNs_ - recordStartWaitedNs);
+    times->pyrowaveSubmitNs = queueHeldNs_;
+    times->pyrowaveSubmits = queueHolds_;
+    if (timestampPool_) {
+        vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampPool_, firstQuery + 1);
+    }
+    vk_.vkEndCommandBuffer(cmd);
     if (result != PYROWAVE_SUCCESS) {
         ALOGE("Decoding failed (%d)", result);
-        this->release(planes);
+        release(planes);
+        times->waitedNs = waitedNs_;
         return nullptr;
+    }
+
+    // After the decode before it, which may have been into these planes. Only the stage that
+    // writes them waits, as PyroWave's own submissions did, so the start of a decode (the
+    // fragment path's dequantizing) can overlap the end of the one before. Its start timestamp
+    // can then be written before the one before ends.
+    const uint64_t waitValue = lastValue_;
+    const uint64_t signalValue = lastValue_ + 1;
+    const VkPipelineStageFlags waitStage = fragmentPath_ ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                                         : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    VkTimelineSemaphoreSubmitInfo timelineInfo {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
+    timelineInfo.waitSemaphoreValueCount = waitValue != 0 ? 1 : 0;
+    timelineInfo.pWaitSemaphoreValues = &waitValue;
+    timelineInfo.signalSemaphoreValueCount = 1;
+    timelineInfo.pSignalSemaphoreValues = &signalValue;
+    VkSubmitInfo submit {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submit.pNext = &timelineInfo;
+    submit.waitSemaphoreCount = waitValue != 0 ? 1 : 0;
+    submit.pWaitSemaphores = &timeline_;
+    submit.pWaitDstStageMask = &waitStage;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+    submit.signalSemaphoreCount = 1;
+    submit.pSignalSemaphores = &timeline_;
+    VkResult submitted;
+    {
+        const int64_t lockStartNs = nowNs();
+        std::lock_guard<std::mutex> lock(*info_.queueMutex);
+        const int64_t submitStartNs = nowNs();
+        waitedNs_ += submitStartNs - lockStartNs;
+        submitted = vk_.vkQueueSubmit(info_.queue, 1, &submit, VK_NULL_HANDLE);
+        times->submitNs = nowNs() - submitStartNs;
+    }
+    times->waitedNs = waitedNs_;
+    if (submitted != VK_SUCCESS) {
+        ALOGE("vkQueueSubmit failed for a decode: %d", submitted);
+        release(planes);
+        return nullptr;
+    }
+    {
+        std::lock_guard<std::mutex> lock(timestampMutex_);
+        slot.value = signalValue;
     }
 
     *readyValue = ++lastValue_;
@@ -445,6 +573,28 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
         }
     }
     return planes;
+}
+
+bool PyrowaveDecoder::gpuTimes(uint64_t readyValue, int64_t* startNs, int64_t* endNs) {
+    if (!timestampPool_ || readyValue == 0) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(timestampMutex_);
+    for (size_t i = 0; i < kDecodeSlots; i++) {
+        if (decodeSlots_[i].value != readyValue) {
+            continue;
+        }
+        uint64_t ticks[2] = {};
+        if (vk_.vkGetQueryPoolResults(info_.device, timestampPool_, static_cast<uint32_t>(2 * i), 2, sizeof(ticks),
+                                      ticks, sizeof(ticks[0]), VK_QUERY_RESULT_64_BIT) != VK_SUCCESS) {
+            return false;
+        }
+        const uint64_t mask = info_.timestampValidBits >= 64 ? ~0ULL : (1ULL << info_.timestampValidBits) - 1;
+        *startNs = static_cast<int64_t>(static_cast<double>(ticks[0] & mask) * info_.timestampPeriodNs);
+        *endNs = static_cast<int64_t>(static_cast<double>(ticks[1] & mask) * info_.timestampPeriodNs);
+        return true;
+    }
+    return false;
 }
 
 bool PyrowaveDecoder::pushPartialFrame(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount) {
@@ -571,7 +721,9 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
 
     // Into GENERAL, where the planes stay. The next decode waits for the value this signals.
     // The fence only guards the command buffer, which the last new planes may still be using.
+    const int64_t waitStartNs = nowNs();
     vk_.vkWaitForFences(device, 1, &fence_, VK_TRUE, UINT64_MAX);
+    waitedNs_ += nowNs() - waitStartNs;
     vk_.vkResetCommandBuffer(commandBuffer_, 0);
     VkCommandBufferBeginInfo beginInfo {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -613,7 +765,9 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
     vk_.vkResetFences(device, 1, &fence_);
     VkResult result;
     {
+        const int64_t lockStartNs = nowNs();
         std::lock_guard<std::mutex> lock(*info_.queueMutex);
+        waitedNs_ += nowNs() - lockStartNs;
         result = vk_.vkQueueSubmit(info_.queue, 1, &submit, fence_);
     }
     if (result != VK_SUCCESS) {

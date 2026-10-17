@@ -1571,6 +1571,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (SystemClock.uptimeMillis() >= activeWindowVideoStats.measurementStartTimestamp + 1000) {
             if (vulkanRenderer != null) {
                 activeWindowVideoStats.totalFramesRendered += vulkanRenderer.takePresentedFrames();
+                if (pyrowave) {
+                    addPyrowaveDecodeTime(vulkanRenderer.takeDecodedNs());
+                }
             }
 
             if (prefs.enablePerfOverlay) {
@@ -1989,22 +1992,26 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
         vulkan.noteFrameReceived(presentationTimeUs, receiveTimeUs, enqueueTimeUs, frameHostProcessingLatency);
 
-        // Decoding is queued on the GPU, so this is the CPU's share of it: parsing the frame
-        // and recording the decode. Kept in nanoseconds, since frames take well under 1 ms.
-        long startNs = System.nanoTime();
+        // Decoding finishes on the GPU later, so its time is taken from the renderer as the stats
+        // window flips
         vulkan.submitPyrowaveFrame(decodeUnitData, decodeUnitLength, presentationTimeUs, enqueueTimeUs,
                 missingRanges, recordStarts, partialKind);
-        pyrowaveDecodeNs += System.nanoTime() - startNs;
+
+        // Every frame decodes on its own, so a frame that couldn't be decoded needs no IDR
+        // frame to recover from
+        return MoonBridge.DR_OK;
+    }
+
+    // What decoding frames took, without waits (see VulkanRendererBridge.takeDecodedNs()). Kept in
+    // nanoseconds, so the remainder under 1 ms carries over to the next window.
+    private void addPyrowaveDecodeTime(long decodedNs) {
+        pyrowaveDecodeNs += decodedNs;
         long decodeMs = pyrowaveDecodeNs / 1_000_000L;
         pyrowaveDecodeNs -= decodeMs * 1_000_000L;
         activeWindowVideoStats.decoderTimeMs += decodeMs;
         if (!USE_FRAME_RENDER_TIME) {
             activeWindowVideoStats.totalTimeMs += decodeMs;
         }
-
-        // Every frame decodes on its own, so a frame that couldn't be decoded needs no IDR
-        // frame to recover from
-        return MoonBridge.DR_OK;
     }
 
     private boolean replaySps() {

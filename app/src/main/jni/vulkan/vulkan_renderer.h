@@ -62,6 +62,7 @@ struct VideoFrame {
     uint64_t readyValue = 0;  // Timeline value the decode into the planes signals
     int64_t decodeStartNs = 0;   // Handed to the renderer
     int64_t decodeQueuedNs = 0;  // Decode queued on the GPU
+    PyrowaveDecoder::DecodeTimes decodeTimes;  // Where the time until then went
     int64_t lastPacketUs = 0;    // When its last packet arrived, on moonlight-common-c's clock
 
     AImageCropRect crop {};
@@ -116,6 +117,11 @@ public:
 
     // Frames presented since the last call
     uint32_t takePresentedFrames() { return presentedFrames_.exchange(0); }
+
+    // Total PyroWave decode time since the last call, leaving out waits: each frame's CPU work,
+    // then its run on the GPU. Where the GPU can't time it, from handing the frame to the renderer
+    // until the GPU was done with it.
+    int64_t takeDecodedNs() { return decodedNs_.exchange(0); }
 
     // For the performance overlay: what the renderer outputs, which only changes with HDR, and
     // its pacing numbers as a headline (the buffer) and details (lock state, skipped frames),
@@ -403,6 +409,13 @@ private:
     bool hdrActive_ = false;
 
     std::atomic<uint32_t> presentedFrames_ {0};
+    std::atomic<int64_t> decodedNs_ {0};
+
+    // The PyroWave waiting thread's: when the last decode it timed ended on the GPU
+    int64_t lastDecodeGpuEndNs_ = 0;
+
+    // Whether trace_ is recording, read without mutex_. Writes are still made under it.
+    std::atomic<bool> traceRecording_ {false};
 };
 
 }  // namespace vkr

@@ -43,8 +43,9 @@ struct PyrowavePlanes {
 
 // Decodes PyroWave frames on the renderer's own VkDevice, into planes it samples.
 //
-// PyroWave (libpyrowave-shared.so, loaded at runtime) records its decode on the device's queue.
-// Each decode signals a timeline semaphore that the render of that frame waits for.
+// PyroWave (libpyrowave-shared.so, loaded at runtime) records its decode into our commands, which
+// we submit to the device's queue, timed when the queue can be. Each decode signals a timeline
+// semaphore that the render of that frame waits for.
 class PyrowaveDecoder {
 public:
     // Loads the library and checks it has the API version we were built against. Only tried once.
@@ -61,6 +62,9 @@ public:
         VkQueue queue = VK_NULL_HANDLE;
         uint32_t queueFamily = 0;
         std::mutex* queueMutex = nullptr;
+        // For timing decodes on the GPU; no timing if timestampValidBits is 0
+        uint32_t timestampValidBits = 0;
+        float timestampPeriodNs = 0.0f;
     };
 
     // Null if PyroWave can't decode on this device. width and height must be even.
@@ -87,6 +91,19 @@ public:
 
     using Gap = PyrowaveGap;
 
+    // Where a decode() call's time went. The parts leave out the waits, and the rest of the call
+    // (taking planes, and readying our commands) isn't broken out.
+    struct DecodeTimes {
+        int64_t waitedNs = 0;  // Waiting, for the queue or for the GPU, rather than decoding
+        int64_t pushNs = 0;    // Pushing the frame's packets into PyroWave, and checking it can decode
+        int64_t recordNs = 0;  // PyroWave recording the decode (pyrowave_decoder_decode_gpu_buffer())
+        int64_t submitNs = 0;  // Submitting it
+        // Of recordNs, how long PyroWave held the queue (to submit), and how many times. Taken
+        // over the whole call, but only recording takes the queue.
+        int64_t pyrowaveSubmitNs = 0;
+        int pyrowaveSubmits = 0;
+    };
+
     // Whether a frame is whole. Matches MoonBridge.PARTIAL_KIND_*.
     enum class Partial : int {
         None = 0,
@@ -96,7 +113,7 @@ public:
 
     // Decodes one frame into free planes. The render must wait for *readyValue on timeline()
     // before sampling them. Null if the frame couldn't be decoded, or every planes are held.
-    // Not thread safe: frames come from one thread.
+    // Not thread safe: frames come from one thread. *times says where the call's time went.
     //
     // A partial frame comes with its gaps, in order, if it has any. The blocks that arrived whole
     // are decoded, and the rest are left out, which blurs their area a little. PyroWave won't
@@ -111,7 +128,13 @@ public:
     // blocks arrived, so it's decoded with whatever else did. Otherwise recordStarts is null, and
     // its blocks are in order.
     PyrowavePlanes* decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
-                           const std::vector<size_t>* recordStarts, Partial partial, uint64_t* readyValue);
+                           const std::vector<size_t>* recordStarts, Partial partial, uint64_t* readyValue,
+                           DecodeTimes* times);
+
+    // When the decode that signals readyValue ran on the GPU, on the GPU's clock, once the
+    // timeline reaches it. False if decodes aren't timed, or its commands were reused since.
+    // Thread safe.
+    bool gpuTimes(uint64_t readyValue, int64_t* startNs, int64_t* endNs);
 
     // Returns planes to the pool once nothing reads them any more. Thread safe.
     void release(PyrowavePlanes* planes);
@@ -123,6 +146,9 @@ private:
     PyrowavePlanes* acquirePlanes();
     bool createPlanes(PyrowavePlanes& planes);
     void destroyPlanes(PyrowavePlanes& planes);
+    // The queue lock PyroWave takes for its submissions, counting the wait in waitedNs_
+    static void lockQueue(void* userdata);
+    static void unlockQueue(void* userdata);
     uint32_t planeWidth(int plane) const { return plane == 0 ? width_ : width_ / 2; }
     uint32_t planeHeight(int plane) const { return plane == 0 ? height_ : height_ / 2; }
 
@@ -148,6 +174,26 @@ private:
     VkCommandPool commandPool_ = VK_NULL_HANDLE;
     VkCommandBuffer commandBuffer_ = VK_NULL_HANDLE;
     VkFence fence_ = VK_NULL_HANDLE;
+
+    // Each decode's commands, which PyroWave records into and we submit, between two timestamps
+    // when they're timed. Reused in turn, once the GPU is done with them.
+    struct DecodeSlot {
+        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+        uint64_t value = 0;  // Timeline value its submitted decode signals, 0 if none
+    };
+    static constexpr size_t kDecodeSlots = 8;
+    DecodeSlot decodeSlots_[kDecodeSlots];
+    size_t nextSlot_ = 0;
+    VkQueryPool timestampPool_ = VK_NULL_HANDLE;  // Two per slot
+    // Guards the slots' values, so a slot's timestamps aren't read as it's reused
+    std::mutex timestampMutex_;
+
+    // Time the decode in progress has spent waiting
+    int64_t waitedNs_ = 0;
+    // How long and how many times PyroWave has held the queue in the decode in progress
+    int64_t queueLockedNs_ = 0;
+    int64_t queueHeldNs_ = 0;
+    int queueHolds_ = 0;
 
     // Signaled with each decode's value. Decodes wait for the one before, which also keeps one
     // from writing planes an earlier, dropped frame is still being decoded into.
