@@ -151,7 +151,6 @@
     <string name="title_checkbox_host_audio">Spela upp ljud på datorn</string>
     <string name="summary_checkbox_host_audio">Spela upp ljud från datorn och den här enheten</string>
     <string name="category_advanced_settings">Utvecklade inställningar</string>
-    <string name="title_unlock_fps">Lås upp alla möjliga bildfrekvenser</string>
     <string name="title_checkbox_reduce_refresh_rate">Tillåt minskning av uppdateringsfrekvensen</string>
     <string name="title_checkbox_disable_warnings">Ta bort varningsmedelanden</string>
     <string name="summary_checkbox_disable_warnings">Ta bort varningsmeddelanden om inmatning på skärmen när du strömmar</string>
@@ -171,8 +170,6 @@
     <string name="summary_troubleshooting">Visa gissningar för att utvärdera och åtgärda vanliga strömningsbeskymmer</string>
     <string name="title_privacy_policy">Integritetspolicy</string>
     <string name="summary_privacy_policy">Visa Moonlights integritetspolicy</string>
-    <string name="resolution_360p">360p</string>
-    <string name="resolution_480p">480p</string>
     <string name="resolution_720p">720p</string>
     <string name="resolution_1440p">1440p</string>
     <string name="resolution_4k">4K</string>
@@ -235,7 +232,6 @@
     <string name="summary_osc_opacity">Gör kontrollerna på skärmen mer/mindre genomskinliga</string>
     <string name="summary_checkbox_enable_pip">Gör det möjligt att se strömmen (men inte att styra den) medan du gör andra saker samtidigt</string>
     <string name="category_ui_settings">Inställningar för användargränssnittet</string>
-    <string name="summary_unlock_fps">Streaming med 90 eller 120 FPS kan minska latenstiden på avancerade enheter, men kan orsaka fördröjning eller instabilitet på enheter som inte har stöd för det</string>
     <string name="summary_checkbox_reduce_refresh_rate">Lägre uppdateringsfrekvenser på skärmen kan spara ström på bekostnad av ytterligare videolatens</string>
     <string name="summary_full_range">Detta kan leda till förlust av detalj i ljusa och mörka områden om enheten inte visar videoinnehåll med fullt omfång på rätt sätt.</string>
     <string name="fps_120">120 FPS</string>
@@ -245,7 +241,6 @@
     <string name="fps_60">60 FPS</string>
     <string name="summary_frame_pacing">Ange hur du ska balansera videofördröjning och jämnhet</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">Native FPS varning</string>
     <string name="category_gamepad_settings">Spelkontroller inställningar</string>
     <string name="title_checkbox_gamepad_motion_sensors">Tillåt användning av spelkontrollens rörelsesensorer</string>
     <string name="videoformat_auto">Automatisk (Rekommenderad)</string>

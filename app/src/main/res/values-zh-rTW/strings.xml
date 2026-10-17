@@ -111,8 +111,6 @@
     <string name="summary_fps_list">提高影格速率以取得更順暢的視訊串流，降低可在低效能裝置上取得更好的串流體驗。</string>
     <string name="title_seekbar_bitrate">視訊位元速率</string>
     <string name="summary_seekbar_bitrate">提高位元速率以提升圖像品質，降低可在較慢的網路中取得更好的串流體驗。</string>
-    <string name="title_unlock_fps">解鎖所有可用影格速率</string>
-    <string name="summary_unlock_fps">以 90 或 120 畫面更新率串流可能會減少在高效能裝置上的網路延時，但在不支援的裝置上會卡頓或不穩定的狀況</string>
     <string name="title_checkbox_stretch_video">將畫面延展至全螢幕</string>
     <string name="title_checkbox_disable_warnings">停用錯誤訊息</string>
     <string name="summary_checkbox_disable_warnings">停用串流中連線錯誤訊息</string>
@@ -225,9 +223,7 @@
     <string name="fps_60">60 FPS</string>
     <string name="fps_90">90 FPS</string>
     <string name="fps_120">120 FPS</string>
-    <string name="resolution_360p">360P</string>
     <string name="resolution_720p">720P</string>
-    <string name="resolution_480p">480P</string>
     <string name="resolution_1080p">1080P</string>
     <string name="resolution_1440p">1440P</string>
     <string name="title_frame_pacing">視訊影格調步</string>
@@ -260,7 +256,6 @@
     <string name="pair_pairing_help">若您的主機電腦正在執行 Sunshine，請導覽至 Sunshine 網頁 UI 並輸入 PIN 碼。</string>
     <string name="pcview_menu_eol">NVIDIA GameStream 終止服務</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">原生 FPS 警告</string>
     <string name="category_gamepad_settings">手把設定</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">一律使用觸摸板控制滑鼠</string>
     <string name="summary_checkbox_gamepad_motion_sensors">在使用動態感測器模擬手把時啟用支援的主機以要求動態感測器資料，若動態感測器未在遊戲中使用，停用後可能會輕微降低電力和網路使用量。</string>

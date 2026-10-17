@@ -160,7 +160,6 @@
     <string name="poor_connection_msg">Слабое соединение с ПК</string>
     <string name="title_details">Детали</string>
     <string name="title_enable_perf_overlay">Включить отображение статистики</string>
-    <string name="title_unlock_fps">Показать неподдерживаемые настройки частоты кадров</string>
     <string name="applist_details_id">ID приложения:</string>
     <string name="title_checkbox_vibrate_fallback">Эмуляция виброотдачи</string>
     <string name="summary_checkbox_vibrate_osc">Вибрировать устройство для эмуляции виброотдачи при экранном управлении</string>
@@ -171,7 +170,6 @@
     <string name="title_checkbox_mouse_nav_buttons">Включить кнопки вперед и назад для мыши</string>
     <string name="slow_connection_msg">Медленное подключение к ПК
 \nСнизьте битрейт</string>
-    <string name="summary_unlock_fps">Трансляция со скоростью 90 или 120 кадров в секунду может уменьшить задержку на устройствах высокого класса, но может вызвать задержки или сбой на устройствах без поддержки этого функционала</string>
     <string name="summary_enable_perf_overlay">Отображение оверлея на экране с информацией о производительности во время трансляции в режиме реального времени</string>
     <string name="perf_overlay_decoder">Декодер: %1$s</string>
     <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
@@ -234,7 +232,6 @@
     <string name="summary_frame_pacing">Укажите, как сбалансировать задержку и плавность видеосигнала</string>
     <string name="summary_privacy_policy">Посмотреть политику конфиденциальности Moonlight</string>
     <string name="title_privacy_policy">Политика конфиденциальности</string>
-    <string name="resolution_360p">360p</string>
     <string name="resolution_1080p">1080p</string>
     <string name="resolution_1440p">1440p</string>
     <string name="summary_troubleshooting">Посмотрите советы по обнаружению и устранению проблем</string>
@@ -248,9 +245,7 @@
     <string name="fps_30">30 FPS</string>
     <string name="title_frame_pacing">Скорость вывода/отрисовки кадра</string>
     <string name="pacing_balanced_alt">Сбалансированно с лимитом FPS</string>
-    <string name="resolution_480p">480p</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">Встроенное предупреждение о FPS</string>
     <string name="category_gamepad_settings">Настройки геймпада</string>
     <string name="title_seekbar_vibrate_fallback_strength">Отрегулируйте интенсивность эмулируемой вибрации</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>

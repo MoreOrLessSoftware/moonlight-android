@@ -36,8 +36,11 @@ public class HelpListPreference extends ListPreference {
 
     @Override
     public CharSequence getSummary() {
-        CharSequence entry = getEntry();
-        return entry != null ? entry : "";
+        // Not getEntry(), since while code changes the entries and their values
+        // one after the other, the value's index may be past the end of the entries
+        int index = findIndexOfValue(getValue());
+        CharSequence[] entries = getEntries();
+        return entries != null && index >= 0 && index < entries.length ? entries[index] : "";
     }
 
     @Override
@@ -45,6 +48,14 @@ public class HelpListPreference extends ListPreference {
         super.setValue(value);
 
         // Older Android versions don't refresh the summary themselves
+        notifyChanged();
+    }
+
+    @Override
+    public void setEntries(CharSequence[] entries) {
+        super.setEntries(entries);
+
+        // The summary shows the chosen entry's name, which may have changed
         notifyChanged();
     }
 

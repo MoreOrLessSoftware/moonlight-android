@@ -182,7 +182,6 @@
     <string name="error_code_prefix">Hata kodu:</string>
     <string name="perf_overlay_hostprocessinglatency">Ana makine işleme gecikmesi asg/azm/ortalama: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">Yerel FPS Uyarısı</string>
     <string name="title_checkbox_enable_audiofx">Sistem ekolayzır desteğini etkinleştir</string>
     <string name="category_gamepad_settings">Oyun Kumandası Ayarları</string>
     <string name="title_seekbar_vibrate_fallback_strength">Taklit edilmiş gürültü yoğunluğunu ayarla</string>
@@ -207,8 +206,6 @@
     <string name="summary_osc_opacity">Ekrandaki kontrolleri daha fazla/daha az saydam hale getirin</string>
     <string name="summary_checkbox_enable_sops">En iyi akış için GFE oyun ayarlarını değiştirmesine izin ver</string>
     <string name="category_advanced_settings">Gelişmiş Ayarlar</string>
-    <string name="title_unlock_fps">Mümkün olan tüm kare hızlarının kilidini aç</string>
-    <string name="summary_unlock_fps">90 veya 120 FPS yayın yapmak ileri teknoloji cihazlarda gecikmeyi azaltabilir ancak bunu desteklemeyen cihazlarda gecikmeye veya kararsızlığa neden olabilir</string>
     <string name="title_checkbox_reduce_refresh_rate">Yenileme hızının azaltılmasına izin ver</string>
     <string name="summary_checkbox_reduce_refresh_rate">Daha düşük ekran yenileme hızları, bazı ek video gecikmeleri pahasına güç tasarrufu sağlayabilir</string>
     <string name="summary_checkbox_disable_warnings">Akış sırasında ekrandaki bağlantı uyarı mesajlarını devre dışı bırakın</string>
@@ -225,7 +222,6 @@
     <string name="summary_setup_guide">Oyun bilgisayarınızı akış için nasıl ayarlayacağınıza ilişkin talimatları görüntüleyin</string>
     <string name="title_troubleshooting">Sorun giderme kılavuzu</string>
     <string name="title_privacy_policy">Gizlilik politikası</string>
-    <string name="resolution_480p">480p</string>
     <string name="resolution_1080p">1080p</string>
     <string name="summary_troubleshooting">Yaygın akış sorunlarını teşhis etmeye ve düzeltmeye yönelik ipuçlarını görüntüle</string>
     <string name="summary_privacy_policy">Moonlight gizlilik politikasını görüntüleyin</string>
@@ -259,7 +255,6 @@
     <string name="resolution_prefix_native_landscape">(Manzara)</string>
     <string name="resolution_prefix_native_portrait">(Portre)</string>
     <string name="summary_disable_frame_drop">Bazı cihazlarda mikro kekemeliği azaltabilir ancak gecikmeyi artırabilir</string>
-    <string name="resolution_360p">360p</string>
     <string name="pcview_menu_eol">NVIDIA GameStream Hizmet Şartları</string>
     <string name="resolution_720p">720p</string>
     <string name="fps_30">30 FPS</string>

@@ -47,7 +47,6 @@
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_checkbox_stretch_video">Rozciągnięcie wideo do pełnego ekranu</string>
     <string name="resolution_prefix_native">Natywna</string>
-    <string name="title_native_fps_dialog">Ostrzeżenie o natywnym FPS</string>
     <string name="title_checkbox_enable_audiofx">Włącz obsługę korektora systemowego</string>
     <string name="category_gamepad_settings">Ustawienia gamepada</string>
     <string name="title_checkbox_multi_controller">Automatyczne wykrywanie obecności gamepada</string>
@@ -102,10 +101,8 @@
     <string name="title_checkbox_host_audio">Odtwarzanie dźwięku na komputerze</string>
     <string name="summary_checkbox_host_audio">Odtwarzanie dźwięku z komputera i tego urządzenia</string>
     <string name="category_advanced_settings">Ustawienia zaawansowane</string>
-    <string name="title_unlock_fps">Odblokuj wszystkie możliwe liczby klatek na sekundę</string>
     <string name="title_checkbox_reduce_refresh_rate">Zezwalaj na zmniejszenie częstotliwości odświeżania</string>
     <string name="summary_checkbox_reduce_refresh_rate">Niższe częstotliwości odświeżania wyświetlacza mogą oszczędzać energię kosztem dodatkowych opóźnień wideo</string>
-    <string name="summary_unlock_fps">Przesyłanie strumieniowe w 90 lub 120 klatkach na sekundę może zmniejszyć opóźnienia na urządzeniach wysokiej klasy, ale może powodować opóźnienia lub niestabilność na urządzeniach, które nie są w stanie tego obsłużyć</string>
     <string name="title_checkbox_disable_warnings">Wyłączanie komunikatów ostrzegawczych</string>
     <string name="summary_checkbox_disable_warnings">Wyłączanie wyświetlanych na ekranie komunikatów ostrzegawczych o połączeniu podczas przesyłania strumieniowego</string>
     <string name="title_disable_frame_drop">Nigdy nie porzucaj klatek</string>
@@ -122,7 +119,6 @@
     <string name="title_setup_guide">Instrukcja konfiguracji</string>
     <string name="title_privacy_policy">Polityka prywatności</string>
     <string name="summary_privacy_policy">Zobacz politykę prywatności Moonlight</string>
-    <string name="resolution_360p">360p</string>
     <string name="resolution_720p">720p</string>
     <string name="toast_controller_type_changed">Typ gamepada może zostać zmieniony z powodu emulacji czujnika ruchu</string>
     <string name="resolution_4k">4K</string>
@@ -183,7 +179,6 @@
     <string name="title_seekbar_bitrate">Szybkość transmisji wideo</string>
     <string name="summary_checkbox_flip_face_buttons">Przełącza przyciski A/B i X/Y dla gamepadów i elementów sterujących na ekranie</string>
     <string name="category_help">Pomoc</string>
-    <string name="resolution_480p">480p</string>
     <string name="pair_pairing_msg">Wprowadź następujący kod PIN na komputerze docelowym:</string>
     <string name="pair_pairing_help">Jeśli na komputerze hosta działa Sunshine, przejdź do interfejsu użytkownika Sunshine aby wprowadzić kod PIN.</string>
     <string name="unpairing">Rozparowywanie…</string>

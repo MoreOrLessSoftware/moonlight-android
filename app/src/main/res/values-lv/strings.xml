@@ -40,7 +40,6 @@
     <string name="perf_overlay_netlatency">Vidējā tīkla aizkave: %1$d ms (novirze, izkliede, dispersija: %2$d ms)</string>
     <string name="analogscroll_none">Nav (abas kursorsviras pārvieto peli)</string>
     <string name="analogscroll_left">Kreisā analogā kursorsvira</string>
-    <string name="summary_unlock_fps">Pārraidīšana ar 90 vai 120 kadriem sekundē var samazināt aizkavi augstas klases ierīcēm, bet var izraisīt aizkaves vai nestabilitāti ierīcēm, kas neatbalsta šo funkcionalitāti</string>
     <string name="perf_overlay_hostprocessinglatency">Datora apstrādes aizkave min./mak./vidējā: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="summary_checkbox_enable_audiofx">Ļauj straumēšanas laikā darboties skaņas efektiem, bet var palielināt skaņas aizkavi</string>
     <string name="conn_hardware_latency">Vidējā aparatūras dekodēšanas aizkave:</string>

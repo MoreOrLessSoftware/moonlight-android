@@ -1,18 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="resolution_names">
-        <item>@string/resolution_360p</item>
-        <item>@string/resolution_480p</item>
         <item>@string/resolution_720p</item>
         <item>@string/resolution_1080p</item>
         <item>@string/resolution_1440p</item>
         <item>@string/resolution_4k</item>
     </string-array>
 
-    <!-- Keep this in sync with PreferenceConfiguration.isNativeResolution()! -->
+    <!-- Keep this in sync with PreferenceConfiguration.isNativeResolution()! It also
+         knows 640x360 and 854x480, which can still be entered as custom resolutions. -->
     <string-array name="resolution_values" translatable="false">
-        <item>640x360</item>
-        <item>854x480</item>
         <item>1280x720</item>
         <item>1920x1080</item>
         <item>2560x1440</item>

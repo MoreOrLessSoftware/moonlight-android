@@ -140,7 +140,6 @@
     <string name="searching_pc">Търсене на достъпни компютри в локалната мрежа…\n\n Уверете се, че Sunshine работи на отдалечения компютър, или че GameStream е включен в настройките на GeForce Experience SHIELD.</string>
     <string name="resolution_prefix_native">Локална</string>
     <string name="fps_suffix_fps">кадри/сек</string>
-    <string name="title_native_fps_dialog">Предупреждение за локални кадри/сек</string>
     <string name="summary_checkbox_enable_audiofx">Разрешава на звуковите ефекти да работят по време на поточното предаване, но може да увеличи забавянето на звука</string>
     <string name="category_gamepad_settings">Настройки на контролера</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
@@ -189,8 +188,6 @@
     <string name="summary_checkbox_enable_sops">Позволява на GFE да променя игралните настройки за по-добро поточно предаване</string>
     <string name="summary_checkbox_host_audio">Възпроизвеждане на звука едновременно и на компютъра, и на това устройство</string>
     <string name="category_advanced_settings">Разширени настройки</string>
-    <string name="title_unlock_fps">Отключване на всички възможни кадрови честоти</string>
-    <string name="summary_unlock_fps">Излъчването на 90 или 120 кадъра/сек може да намали забавянето на по-мощните устройства, но може да предизвика проблеми на устройства, които не могат да поддържат такива скорости</string>
     <string name="title_checkbox_host_audio">Възпроизвеждане на звук на компютъра</string>
     <string name="title_checkbox_mouse_nav_buttons">Включване на бутоните на мишката за преминаване напред и назад</string>
     <string name="toast_reset_osc_success">Настройките на екранните елементи за управление са нулирани</string>
@@ -225,8 +222,6 @@
     <string name="title_troubleshooting">Ръководство за отстраняване на проблеми</string>
     <string name="title_privacy_policy">Политика за поверителност</string>
     <string name="summary_privacy_policy">Преглед на политиката за поверителност на Moonlight</string>
-    <string name="resolution_360p">360p</string>
-    <string name="resolution_480p">480p</string>
     <string name="resolution_720p">720p</string>
     <string name="resolution_1440p">1440p</string>
     <string name="resolution_4k">4K</string>

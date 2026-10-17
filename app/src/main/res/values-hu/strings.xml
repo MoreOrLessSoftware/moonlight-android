@@ -12,8 +12,6 @@
     <string name="title_disable_frame_drop">Soha ne dobjon el képkockákat</string>
     <string name="summary_checkbox_disable_warnings">Streamelés közben a képernyőn megjelenő csatlakozási figyelmeztető üzenetek kikapcsolása</string>
     <string name="title_checkbox_disable_warnings">Figyelmeztető üzenetek kikapcsolása</string>
-    <string name="summary_unlock_fps">A 90 vagy 120 FPS-en történő streamelés csökkentheti a csúcskategóriás eszközök késleltetését, de akadozást vagy instabilitást okozhat azokon az eszközökön, amelyek ezt nem támogatják</string>
-    <string name="title_unlock_fps">Az összes lehetséges képkockasebesség feloldása</string>
     <string name="category_advanced_settings">Haladó beállítások</string>
     <string name="summary_checkbox_host_audio">Hang lejátszása a számítógépről és erről az eszközről</string>
     <string name="title_checkbox_host_audio">Hang lejátszása számítógépen</string>
@@ -189,8 +187,6 @@
     <string name="title_checkbox_reduce_refresh_rate">A frissítési sebesség csökkentésének engedélyezése</string>
     <string name="summary_frame_pacing">Add meg a videók késleltetésének és simaságának egyensúlyát</string>
     <string name="title_checkbox_enable_audiofx">Rendszeres kiegyenlítő támogatás engedélyezése</string>
-    <string name="resolution_360p">360p</string>
-    <string name="title_native_fps_dialog">Natív FPS figyelmeztetés</string>
     <string name="pacing_balanced">Kiegyensúlyozott</string>
     <string name="summary_full_range">Ez részletvesztést okoz a világos és sötét területeken, ha a készülék nem jeleníti meg megfelelően a teljes színtartományú videotartalmat.</string>
     <string name="summary_privacy_policy">A Moonlight adatvédelmi szabályzatának megtekintése</string>
@@ -209,7 +205,6 @@
     <string name="summary_checkbox_gamepad_touchpad_as_mouse">Kényszeríti a gamepad touchpad bevitelét a gazdagép egér vezérlésére, még akkor is, ha egy touchpaddal ellátott gamepadot emulál.</string>
     <string name="title_frame_pacing">A videó képkocka-ütemezése</string>
     <string name="resolution_1440p">1440p</string>
-    <string name="resolution_480p">480p</string>
     <string name="videoformat_hevcalways">HEVC előnyben részesítése</string>
     <string name="fps_60">60 FPS</string>
     <string name="audioconf_51surround">5.1 Térhatású hangzás</string>

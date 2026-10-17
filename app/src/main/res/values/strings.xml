@@ -167,7 +167,12 @@
     <string name="resolution_prefix_native_landscape">(Landscape)</string>
     <string name="resolution_prefix_native_portrait">(Portrait)</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">Native FPS Warning</string>
+    <string name="fps_custom_entry">Custom (%1$s FPS)</string>
+    <string name="resolution_custom_entry">Custom (%1$s)</string>
+    <string name="resolution_custom_message">Enter a width and height in pixels</string>
+    <string name="resolution_custom_width">Width (e.g. 1920)</string>
+    <string name="resolution_custom_height">Height (e.g. 1080)</string>
+    <string name="resolution_custom_invalid">Enter a number from 1 to %1$d</string>
     <string name="title_checkbox_auto_resume_stream">Auto-resume stream after sleep</string>
     <string name="summary_checkbox_auto_resume_stream">If a stream is running when you put your device to sleep, resume it automatically upon wakeup.</string>
 
@@ -255,8 +260,6 @@
     <string name="settings_tab_audio">Audio</string>
     <string name="settings_tab_input">Input</string>
     <string name="settings_tab_other">Other</string>
-    <string name="title_unlock_fps">Unlock all possible frame rates</string>
-    <string name="summary_unlock_fps">Streaming at 90 or 120 FPS may reduce latency on high-end devices but can cause lag or instability on devices that can\'t support it</string>
     <string name="title_checkbox_reduce_refresh_rate">Allow refresh rate reduction</string>
     <string name="summary_checkbox_reduce_refresh_rate">Lower display refresh rates can save power at the expense of some additional video latency</string>
     <string name="title_checkbox_disable_warnings">Disable warning messages</string>
@@ -296,8 +299,6 @@
     <string name="local_network_rationale">Moonlight requires local network permissions to communicate with nearby hosts</string>
 
     <!-- Array strings -->
-    <string name="resolution_360p">360p</string>
-    <string name="resolution_480p">480p</string>
     <string name="resolution_720p">720p</string>
     <string name="resolution_1080p">1080p</string>
     <string name="resolution_1440p">1440p</string>
@@ -368,8 +369,6 @@
     <string name="title_actual_display_refresh_rate">Actual display refresh rate</string>
     <string name="summary_actual_display_refresh_rate">Leave at 0 to measure the display\'s exact refresh rate when the stream starts and ask the host for a frame rate that lines up with it. Enter a rate to send that instead. (Experimental)</string>
     <string name="summary_refresh_rate_measured">Measured when the stream starts</string>
-    <string name="checkbox_state_on">ON</string>
-    <string name="checkbox_state_off">OFF</string>
     <string name="title_checkbox_ultra_low_latency">Vendor low-latency decoder flags</string>
     <string name="summary_checkbox_ultra_low_latency">Also apply chip-specific low latency flags for Snapdragon 8 Gen 2/8 (s) Gen 3/8 Elite, Exynos and MediaTek decoders on top of Android\'s standard low latency mode. May reduce latency on those devices.</string>
     

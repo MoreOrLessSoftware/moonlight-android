@@ -176,8 +176,6 @@
     <string name="title_checkbox_host_audio">Diffuser l\'audio sur le PC</string>
     <string name="summary_checkbox_host_audio">Diffuser l\'audio sur l\'ordinateur et sur cet appareil</string>
     <string name="category_advanced_settings">Paramètres avancés</string>
-    <string name="title_unlock_fps">Débloquer toutes les fréquences d\'images possibles</string>
-    <string name="summary_unlock_fps">Le streaming à 90 ou 120 FPS peut réduire la latence sur les appareils haut de gamme, mais peut entraîner un décalage ou une instabilité sur les appareils qui ne le supporte pas</string>
     <string name="summary_checkbox_disable_warnings">Désactive les messages d\'avertissement sur la connexion pendant le stream</string>
     <string name="title_disable_frame_drop">Ne jamais perdre d\'images</string>
     <string name="summary_disable_frame_drop">Peut réduire les micro-saccades sur certains appareils, mais peut augmenter la latence</string>
@@ -230,8 +228,6 @@
     <string name="pacing_balanced">Équilibré</string>
     <string name="resolution_720p">720p</string>
     <string name="pacing_smoothness">Préférer la qualité vidéo (risque d\'augmenter la latence)</string>
-    <string name="resolution_360p">360p</string>
-    <string name="resolution_480p">480p</string>
     <string name="resolution_1440p">1440p</string>
     <string name="resolution_1080p">1080p</string>
     <string name="resolution_4k">4K</string>
@@ -262,7 +258,6 @@
     <string name="category_gamepad_settings">Paramètres manette</string>
     <string name="perf_overlay_hostprocessinglatency">Latence de traitement de l\'hôte min/max/moyenne : %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">Avertissement sur le FPS natif</string>
     <string name="title_checkbox_gamepad_motion_sensors">Autoriser l\'utilisation des capteurs de mouvement de la manette</string>
     <string name="videoformat_av1always">Préférer l\'AV1 (expérimental)</string>
     <string name="videoformat_h264always">Préférer le H.264</string>

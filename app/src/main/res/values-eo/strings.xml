@@ -14,8 +14,6 @@
     <string name="resolution_prefix_native_portrait">(vertikala)</string>
     <string name="suffix_osc_opacity">%</string>
     <string name="category_help">Helpo</string>
-    <string name="resolution_360p">360p</string>
-    <string name="resolution_480p">480p</string>
     <string name="resolution_720p">720p</string>
     <string name="resolution_4k">4K</string>
     <string name="videoformat_hevcalways">Preferi HEVC</string>

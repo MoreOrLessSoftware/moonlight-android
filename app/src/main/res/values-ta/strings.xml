@@ -135,7 +135,6 @@
     <string name="resolution_prefix_native_landscape">(நிலப்பரப்பு)</string>
     <string name="resolution_prefix_native_portrait">(உருவப்படம்)</string>
     <string name="fps_suffix_fps">Fps</string>
-    <string name="title_native_fps_dialog">சொந்த எஃப்.பி.எச் எச்சரிக்கை</string>
     <string name="category_audio_settings">ஆடியோ அமைப்புகள்</string>
     <string name="title_audio_config_list">ஒலி உள்ளமைவை சரவுண்ட் செய்யுங்கள்</string>
     <string name="summary_audio_config_list">வீட்டு-தியேட்டர் அமைப்புகளுக்கு 5.1 அல்லது 7.1 சரவுண்ட் ஒலியை இயக்கவும்</string>
@@ -199,8 +198,6 @@
     <string name="title_checkbox_host_audio">கணினியில் ஆடியோ இயக்கவும்</string>
     <string name="summary_checkbox_host_audio">கணினி மற்றும் இந்த சாதனத்திலிருந்து ஆடியோவை இயக்கவும்</string>
     <string name="category_advanced_settings">மேம்பட்ட அமைப்புகள்</string>
-    <string name="title_unlock_fps">சாத்தியமான அனைத்து பிரேம் விகிதங்களையும் திறக்கவும்</string>
-    <string name="summary_unlock_fps">90 அல்லது 120 FPS இல் ச்ட்ரீமிங் செய்வது உயர்நிலை சாதனங்களில் தாமதத்தைக் குறைக்கலாம், ஆனால் அதை ஆதரிக்க முடியாத சாதனங்களில் பின்னடைவு அல்லது உறுதியற்ற தன்மையை ஏற்படுத்தும்</string>
     <string name="summary_checkbox_reduce_refresh_rate">குறைந்த காட்சி புதுப்பிப்பு விகிதங்கள் சில கூடுதல் வீடியோ தாமதத்தின் இழப்பில் சக்தியை மிச்சப்படுத்தும்</string>
     <string name="title_checkbox_disable_warnings">எச்சரிக்கை செய்திகளை முடக்கு</string>
     <string name="summary_checkbox_disable_warnings">ச்ட்ரீமிங் செய்யும் போது திரை இணைப்பு எச்சரிக்கை செய்திகளை முடக்கு</string>
@@ -220,8 +217,6 @@
     <string name="title_privacy_policy">தனியுரிமைக் கொள்கை</string>
     <string name="summary_privacy_policy">மூன்லைட்டின் தனியுரிமைக் கொள்கையைக் காண்க</string>
     <string name="toast_controller_type_changed">இயக்க சென்சார் எமுலேசன் காரணமாக கேம்பேட் வகை மாற்றப்படலாம்</string>
-    <string name="resolution_360p">360 ப</string>
-    <string name="resolution_480p">480 ப</string>
     <string name="resolution_720p">720 ஆ</string>
     <string name="resolution_1080p">1080 ப</string>
     <string name="resolution_1440p">1440 ப</string>

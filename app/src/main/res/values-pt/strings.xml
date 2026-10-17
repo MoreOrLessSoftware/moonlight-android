@@ -105,8 +105,6 @@
     <string name="summary_checkbox_enable_pip">Permite que a transmissão seja visualizada (mas não controlada) enquanto usa outros apps</string>
     <string name="summary_checkbox_host_audio">Reproduz o áudio do computador e deste aparelho</string>
     <string name="category_advanced_settings">Configurações Avançadas</string>
-    <string name="title_unlock_fps">Liberar todas as taxas de quadros possíveis</string>
-    <string name="summary_unlock_fps">Transmitir a 90 ou 120 FPS pode reduzir a latência em aparelhos de última geração, mas pode causar atraso ou instabilidade em aparelhos que não suportam</string>
     <string name="title_checkbox_reduce_refresh_rate">Permitir redução de taxa de atualização</string>
     <string name="summary_checkbox_reduce_refresh_rate">Taxas menores de atualização do display podem gravar energia ao custo de latência de video adicional</string>
     <string name="summary_checkbox_disable_warnings">Desativa as mensagens de aviso de conexão no ecrã durante a transmissão</string>
@@ -119,7 +117,6 @@
     <string name="title_enable_post_stream_toast">Mostrar aviso de latência após terminar a transmissão</string>
     <string name="title_troubleshooting">Guia de solução de problemas</string>
     <string name="summary_troubleshooting">Veja dicas para diagnosticar e corrigir problemas comuns de streaming</string>
-    <string name="resolution_360p">360p</string>
     <string name="resolution_1080p">1080p</string>
     <string name="fps_60">60 FPS</string>
     <string name="fps_90">90 FPS</string>
@@ -243,7 +240,6 @@
     <string name="title_checkbox_flip_face_buttons">Inverter botões</string>
     <string name="title_privacy_policy">Política de privacidade</string>
     <string name="summary_privacy_policy">Veja a política de privacidade do Moonlight</string>
-    <string name="resolution_480p">480p</string>
     <string name="resolution_720p">720p</string>
     <string name="summary_frame_pacing">Especifique o equilíbrio entre latência e suavidade do vídeo</string>
     <string name="analogscroll_none">Nenhum (ambos os sticks movem o rato)</string>
