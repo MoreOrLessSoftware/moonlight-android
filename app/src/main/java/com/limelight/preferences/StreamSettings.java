@@ -29,12 +29,10 @@ import com.limelight.LimeLog;
 import com.limelight.PcView;
 import com.limelight.R;
 import com.limelight.binding.video.MediaCodecHelper;
-import com.limelight.utils.Dialog;
 import com.limelight.utils.UiHelper;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.HashSet;
 
 public class StreamSettings extends Activity {
     // The settings pages and their tabs, in tab order
@@ -177,8 +175,6 @@ public class StreamSettings extends Activity {
     public static class SettingsFragment extends PreferenceFragment {
         private static final String ARG_PAGE_XML_ID = "PageXmlId";
 
-        // The values of the native resolutions added as their own entries
-        private final HashSet<String> nativeResolutionValues = new HashSet<>();
         private float maxSupportedFps;
 
         static SettingsFragment newInstance(int pageXmlId) {
@@ -254,7 +250,6 @@ public class StreamSettings extends Activity {
             }
 
             appendPreferenceEntry(pref, newName, newValue);
-            nativeResolutionValues.add(newValue);
         }
 
         private void addNativeResolutionEntries(int nativeWidth, int nativeHeight, boolean insetsRemoved) {
@@ -663,14 +658,6 @@ public class StreamSettings extends Activity {
                 public boolean onPreferenceChange(Preference preference, Object newValue) {
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(SettingsFragment.this.getActivity());
                     String valueStr = (String) newValue;
-
-                    // If this is native resolution, show the warning dialog
-                    if (nativeResolutionValues.contains(valueStr)) {
-                        Dialog.displayDialog(getActivity(),
-                                getResources().getString(R.string.title_native_res_dialog),
-                                getResources().getString(R.string.text_native_res_dialog),
-                                false);
-                    }
 
                     // Write the new bitrate value
                     resetBitrateToDefault(prefs, valueStr, null);

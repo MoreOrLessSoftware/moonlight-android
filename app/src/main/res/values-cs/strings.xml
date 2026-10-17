@@ -55,7 +55,6 @@
     <string name="applist_details_id">ID aplikace:</string>
     <string name="addpc_fail">K zadanému počítači se nepodařilo připojit. Ujistěte se, že jsou ve firewallu povoleny nezbytné porty.</string>
     <string name="addpc_enter_ip">Musíte zadat IP adresu</string>
-    <string name="title_native_res_dialog">Varování pro nativní rozlišení</string>
     <string name="title_checkbox_vibrate_fallback">Emulovat podporu vibrací</string>
     <string name="title_seekbar_deadzone">Upravit deadzone analogových páček</string>
     <string name="check_ports_msg">Zkontrolujte svůj firewall a pravidla přesměrování pro tyto porty:</string>
@@ -206,13 +205,6 @@
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Dekodér: %1$s</string>
     <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
-    <string name="text_native_res_dialog">GeForce Experience oficiálně nepodporuje nativní rozlišení a proto nenastaví rozlišení displeje vašeho hostitelského PC. Musíte jej nastavit ručně ve hře.
-\n
-\nPokud v NVIDIA Control Panelu vytvoříte vlastní rozlišení pro vaše zařízení, prosím ujistěte se, že jste si přečetli a že chápete varování od NVIDIE ohledně možného poškození monitoru, nestability PC a dalších možných problémů.
-\n
-\nNejsme zodpovědni za žádné problémy, které vzniknou používáním vlastního rozlišení na vašem PC.
-\n
-\nA nakonec, vaše zařízení nebo hostitelský počítač nemusí podporovat streamování v nativním rozlišení. Pokud vám to nefunguje, bohužel se s tím nedá nic dělat.</string>
     <string name="title_fps_list">Snímková frekvence videa</string>
     <string name="summary_fps_list">Zvyšte pro plynulejší video stream. Snižte pro lepší výkon na levnějších zařízeních.</string>
     <string name="title_seekbar_bitrate">Datový tok videa</string>

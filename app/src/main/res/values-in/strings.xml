@@ -185,8 +185,6 @@
     <string name="applist_refresh_error_msg">Gagal mendapatkan daftar aplikasi</string>
     <string name="applist_quit_success">Berhasil keluar</string>
     <string name="addpc_unknown_host">Tidak dapat menyelesaikan alamat PC. Pastikan Anda tidak salah ketik di alamat.</string>
-    <string name="title_native_res_dialog">Peringatan Resolusi Asli</string>
-    <string name="text_native_res_dialog">Mode resolusi asli dan/atau FPS mungkin tidak didukung oleh server streaming, Anda mungkin perlu untuk mengatur custom display mode yang tempat untuk host PC secara manual.\n\nJika Anda memilih untuk membuat resolusi khusus di Panel Kontrol NVIDIA agar sesuai dengan resolusi perangkat Anda, pastikan Anda telah membaca dan memahami peringatan NVIDIA terkait kemungkinan kerusakan monitor, ketidakstabilan PC, dan potensi masalah lainnya.\n\nKami tidak bertanggung jawab atas masalah apa pun yang diakibatkan oleh pembuatan resolusi khusus pada PC Anda.\n\nTerakhir, perangkat atau PC host Anda mungkin tidak mendukung streaming pada resolusi asli. Jika tidak berfungsi pada perangkat Anda, sayangnya Anda kurang beruntung.</string>
     <string name="summary_audio_config_list">Aktifkan suara surround 5.1 atau 7.1 untuk sistem home theater</string>
     <string name="summary_seekbar_deadzone">Catatan: Beberapa game dapat menerapkan zona mati yang lebih besar daripada yang dikonfigurasi untuk digunakan oleh Moonlight.</string>
     <string name="title_checkbox_mouse_emulation">Emulasi mouse melalui gamepad</string>

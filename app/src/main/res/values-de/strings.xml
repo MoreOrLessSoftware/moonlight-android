@@ -195,14 +195,6 @@
     <string name="title_enable_post_stream_toast">Zeige Latenz-Informationen nach dem Streaming</string>
     <string name="summary_enable_post_stream_toast">Anzeige einer Informationsmeldung über die Latenz nach dem Ende des Streams</string>
     <string name="resolution_prefix_native">Nativ</string>
-    <string name="text_native_res_dialog">Native Auflösungsmodi werden unter Umständen nicht vom Streaming Server unterstützt. Wahrscheinlich musst du diese manuell für den Host einstellen.
-\n
-\nWenn du eine benutzerdefinierte Auflösung in der NVIDIA Systemsteuerung erstellst, um die Auflösung deines Geräts anzupassen, stelle bitte sicher, dass du die Warnung von NVIDIA bezüglich möglicher Monitorschäden, PC-Instabilität und anderer potenzieller Probleme gelesen und verstanden hast.
-\n
-\nWir übernehmen keine Verantwortung für Probleme, die aus der Erstellung einer angepassten Auflösung auf deinem PC resultieren.
-\n
-\nEs kann sein, dass dein Monitor eine notwendige Konfiguration nicht unterstützt. In diesem Fall, kann ein Virtuelles Display Abhilfe schaffen. Allerdings kann es sein, dass dein Gerät oder dein Host das Streaming in einer bestimmten Auflösung oder Bildwiederholrate nicht unterstützt.</string>
-    <string name="title_native_res_dialog">Native Auflösungswarnung</string>
     <string name="check_ports_msg">Überprüfe deine Firewall und Portweiterleitungsregeln für folgende(n) Port(s):</string>
     <string name="early_termination_error">Beim Starten des Streams auf deinem Host ist etwas schief gelaufen.
 \n

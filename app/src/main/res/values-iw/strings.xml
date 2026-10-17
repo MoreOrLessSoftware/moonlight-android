@@ -69,7 +69,6 @@
     <string name="addpc_enter_ip">חייב להכניס כתובת IP</string>
     <string name="category_basic_settings">הגדרות בסיסיות</string>
     <string name="title_resolution_list">רזולוציית וידיאו</string>
-    <string name="title_native_res_dialog">אזהרת רזולוצייה טבעית</string>
     <string name="title_fps_list">פריימים לשניה</string>
     <string name="wol_waking_msg">ייקחו כמה שניות להפעיל את המחשב. אם הוא לא, אנא וודא שהוא מוגדר נכון לפונקציית Wake-On-LAN.</string>
     <string name="nettest_text_success">הרשת שלך איננה חוסמת את מונלייט, בבקשה בדוק את הגדרות חומת האש במחשב המארח.
@@ -129,13 +128,6 @@
     <string name="addpc_fail">לא ניתן להתחבר למחשב שנבחר. נא לבדוק שהפורטים הנחוצים פתוחים בחומת האש.</string>
     <string name="addpc_wrong_sitelocal">הכתובת לא נראת נכונה. צריך להשתמש בכתובת IP הציבורית בכדי להתחבר דרך האינטרנט.</string>
     <string name="summary_resolution_list">להגביר לשיפור איכות התמונה. להוריד לשיפור ביצועים על מערכות ישנות ורשתות איטיות.</string>
-    <string name="text_native_res_dialog">רזולוציות טבעיות אינן נתמכות רשמית דרך Geforce Expereience, הרזולוציה לא מוגדרת במסך המארח. יש להגדירה ידנית בזמן משחק.
-\n
-\nיש לקרוא ולהבין את ההנחיות של NVIDIA לגבי אי יציבות ונזקים אם מגדירים רזולוציה מותאמת אישית דרך פאנל הניהול.
-\n
-\nמונלייט אינו אחראי לבעיות או נזקים שנגרמים כתוצאה משימוש ברזולוציה מותאמת אישית.
-\n
-\nהמכשיר שלך כנראה ואינו תומך ברזולוציה טבעית.</string>
     <string name="summary_seekbar_bitrate">הגבר לשיפור איכות התמונה. הנמך בכדי לשפר ביצועים על גבי חיבור רשת איטי.</string>
     <string name="summary_audio_config_list">הפעל קול היקפי בהגדרת 5.1 או 7.1 עבור מערכות קולנוע ביתי</string>
     <string name="summary_checkbox_enable_audiofx">אפשר לאפקטי סאונד לפעול בזמן הזרמה, יגרום להשהיית אודיו</string>

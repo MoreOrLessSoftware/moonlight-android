@@ -186,13 +186,6 @@
     <string name="applist_menu_hide_app">Esconder Aplicación</string>
     <string name="applist_connect_msg">Conectando al Equipo…</string>
     <string name="summary_checkbox_mouse_nav_buttons">Activar esta opción puede desconfigurar la función de clic derecho en algunos dispositivos inestables</string>
-    <string name="text_native_res_dialog">Es posible que la resolución nativa y/o los FPS no sean compatibles con el servidor de streaming. Es probable que tengas que configurar manualmente un modo de visualización personalizado para el PC host.
-\n
-\nSi decides crear una resolución personalizada en el Panel de control de NVIDIA para que coincida con la configuración de tu pantalla, asegúrate de haber leído y comprendido la advertencia de NVIDIA sobre posibles daños en el monitor, inestabilidad del PC y otros problemas potenciales.
-\n
-\nNo nos hacemos responsables de ningún problema derivado de la creación de una resolución personalizada en tu PC.
-\n
-\nEs posible que tu monitor no admita la configuración de pantalla necesaria. Si es así, puede intentar configurar un monitor virtual. Por último, si tu dispositivo o PC anfitrión no soporta streaming a una resolución o frecuencia de refresco específica, lamentablemente no tienes suerte.</string>
     <string name="resolution_prefix_native">Nativo</string>
     <string name="summary_audio_config_list">Activar sonido envolvente de 5.1 o 7.1 canales para sistemas de teatro en casa</string>
     <string name="title_checkbox_vibrate_fallback">Emular la vibración del mando con vibración del equipo</string>
@@ -207,7 +200,6 @@
     <string name="slow_connection_msg">Conexión lenta al PC
 \nReduce la tasa de bits</string>
     <string name="addpc_wrong_sitelocal">La dirección no luce correcta. Debes usar la dirección IP Pública de tu Rúter para la transmisión por Internet.</string>
-    <string name="title_native_res_dialog">Advertencia Resolución Nativa</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="category_input_settings">Opciones de Entrada</string>
     <string name="title_checkbox_touchscreen_trackpad">Usa la pantalla táctil como panel táctil</string>

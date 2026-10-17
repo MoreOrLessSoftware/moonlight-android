@@ -120,7 +120,6 @@
     <string name="addpc_enter_ip">Bir IP adresi girmelisiniz</string>
     <string name="category_basic_settings">Temel Ayarlar</string>
     <string name="summary_resolution_list">Görüntü netliğini artırmak için yükseltin. Düşük güçteki cihazlarda ve daha yavaş ağlarda daha iyi performans için azaltın.</string>
-    <string name="title_native_res_dialog">Yerel çözünürlük uyarısı</string>
     <string name="title_fps_list">Video kare hızı</string>
     <string name="title_seekbar_bitrate">Video bit hızı</string>
     <string name="summary_checkbox_touchscreen_trackpad">Etkinleştirilirse, dokunmatik ekran bir dokunmatik fare gibi davranır. Devre dışı bırakılırsa, dokunmatik ekran doğrudan fare imlecini kontrol eder.</string>
@@ -157,13 +156,6 @@
     <string name="no">Hayır</string>
     <string name="perf_overlay_netlatency">Ortalama ağ gecikmesi: %1$d ms (varyans: %2$d ms)</string>
     <string name="addpc_wrong_sitelocal">Bu adres doğru görünmüyor. İnternet üzerinden akış için yönlendiricinizin genel IP adresini kullanmanız gerekir.</string>
-    <string name="text_native_res_dialog">Yerel çözünürlük ve/veya FPS, akış sunucusu tarafından desteklenmeyebilir. Muhtemelen ana bilgisayar için uygun bir özel ekran kipini el ile yapılandırmanız gerekecek.
-\n
-\nNVIDIA Kontrol Panelinde ekran ayarlarınızla eşleşmesi için özel bir çözünürlük oluşturmayı seçerseniz lütfen NVIDIA tarafından olası monitör hasarı, bilgisayar kararsızlığı ve diğer olası sorunlarla ilgili uyarısını okuyup anladığınızdan emin olun.
-\n
-\nBilgisayarınızda özel bir çözünürlük oluşturulmasından kaynaklanan sorunlardan sorumlu değiliz.
-\n
-\nMonitörünüz gerekli ekran yapılandırmasını desteklemiyor olabilir. Eğer öyleyse, sanal bir monitör kurmayı deneyebilirsiniz. Son olarak, cihazınız veya ana bilgisayarınız belirli bir çözünürlükte veya yenileme hızında akışı desteklemiyorsa ne yazık ki şansınız kalmaz.</string>
     <string name="summary_seekbar_bitrate">Daha iyi görüntü kalitesi için artırın. Daha yavaş bağlantılarda performansı artırmak için azaltın.</string>
     <string name="title_checkbox_stretch_video">Videoyu tam ekrana genişlet</string>
     <string name="title_checkbox_vibrate_fallback">Titreşim ile gürültü desteğini taklit et</string>

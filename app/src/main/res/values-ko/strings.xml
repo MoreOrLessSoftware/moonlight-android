@@ -123,14 +123,6 @@
     <string name="resolution_prefix_native">네이티브</string>
     <string name="summary_fps_list">높을수록 화면이 더 부드러워집니다. 저사양 기기에서는 낮추는것이 좋습니다.</string>
     <string name="title_fps_list">FPS 설정</string>
-    <string name="text_native_res_dialog">네이티브 해상도 및 FPS는 스트리밍 서버에서 지원하지 않을 수 있습니다. 호스트 PC에 대해 일치하는 사용자 지정 디스플레이 모드를 수동으로 구성해야 할 수 있습니다.
-\n
-\n화면 설정과 일치하도록 NVIDIA 제어판에서 사용자 정의 해상도를 생성 할 경우 모니터 손상, PC 불안정 및 기타 잠재적인 문제에 대한 NVIDIA의 경고를 읽고 이해했는지 확인하십시오.
-\n
-\nMoonlight는 PC에서 사용자 지정 해상도를 생성하여 발생하는 문제에 대해 책임을 지지 않습니다.
-\n
-\n모니터가 필요한 디스플레이 구성을 지원하지 않을 경우 가상 모니터 설정을 시도할 수 있습니다. 장치나 호스트 PC가 특정 해상도나 새로 고침 빈도로 스트리밍을 지원하지 않을 수 있습니다.</string>
-    <string name="title_native_res_dialog">네이티브 해상도 주의사항</string>
     <string name="addpc_wrong_sitelocal">주소가 잘못된 것 같습니다. 인터넷을 통해 스트리밍하려면 라우터의 공용 IP 주소를 사용해야합니다.</string>
     <string name="applist_details_id">앱 ID:</string>
     <string name="applist_menu_hide_app">게임 숨기기</string>

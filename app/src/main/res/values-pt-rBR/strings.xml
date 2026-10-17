@@ -146,14 +146,6 @@
     <string name="category_basic_settings">Configurações Básicas</string>
     <string name="title_resolution_list">Resolução</string>
     <string name="summary_resolution_list">Aumente para melhorar a clareza da imagem. Diminua para melhor desempenho em dispositivos de baixo custo e redes mais lentas.</string>
-    <string name="title_native_res_dialog">Alerta de Resolução Nativa</string>
-    <string name="text_native_res_dialog">Os modos de resolução nativa não são oficialmente suportados pelo GeForce Experience, portanto, ele não definirá a resolução da tela do host. Você precisará configurá-lo manualmente durante o jogo.
-\n
-\nSe você optar por criar uma resolução personalizada no Painel de controle da NVIDIA para corresponder à resolução do seu dispositivo, certifique-se de ter lido e entendido o aviso da NVIDIA sobre possíveis danos ao monitor, instabilidade do PC e outros problemas potenciais.
-\n
-\nNão nos responsabilizamos por quaisquer problemas resultantes da criação de uma resolução personalizada em seu PC.
-\n
-\nPor fim, seu dispositivo ou PC host pode não suportar transmissões na resolução nativa. Se não funcionar no seu dispositivo, você está sem sorte, infelizmente.</string>
     <string name="title_fps_list">Taxa de quadros por segundo</string>
     <string name="summary_fps_list">Aumente para uma transmissão de vídeo mais suave. Diminua para melhor desempenho em dispositivos de baixo custo.</string>
     <string name="title_seekbar_bitrate">Taxa de bits</string>

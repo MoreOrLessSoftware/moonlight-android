@@ -195,14 +195,6 @@
     <string name="pcview_menu_header_online">En ligne</string>
     <string name="resolution_prefix_native">Native</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
-    <string name="text_native_res_dialog">La résolution native et/ou le FPS peuvent ne pas être pris en charge par le serveur de streaming. Vous devrez probablement configurer manuellement un mode d\'affichage personnalisé correspondant pour le PC hôte.
-\n
-\nSi vous choisissez de créer une résolution personnalisée dans le panneau de configuration NVIDIA pour correspondre aux paramètres de votre écran, assurez-vous d\'avoir lu et compris l\'avertissement de NVIDIA concernant les dommages possibles au moniteur, l\'instabilité du PC et d\'autres problèmes potentiels.
-\n
-\nNous ne sommes pas responsables des problèmes résultant de la création d\'une résolution personnalisée sur votre PC.
-\n
-\nIl se peut que votre moniteur ne prenne pas en charge la configuration d\'affichage requise. Si c\'est le cas, vous pouvez essayer de configurer un moniteur virtuel. Enfin, si votre appareil ou votre PC hôte ne prend pas en charge le streaming à une résolution ou à un taux de rafraîchissement spécifique, vous ne pourrez pas y faire grand chose malheureusement.</string>
-    <string name="title_native_res_dialog">Avertissement sur la résolution native</string>
     <string name="applist_menu_hide_app">Cacher l\'application</string>
     <string name="check_ports_msg">Vérifiez vos règles de pare-feu pour les ports suivants :</string>
     <string name="early_termination_error">Quelque chose s\'est mal passé sur votre PC hôte en démarrant le stream.

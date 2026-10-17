@@ -65,14 +65,6 @@
     <string name="title_seekbar_bitrate">Tốc độ bit video</string>
     <string name="summary_fps_list">Tăng để stream video mượt mà hơn. Giảm để có hiệu năng tốt hơn trên các thiết bị tầm thấp hơn.</string>
     <string name="title_fps_list">Tốc độ khung hình video</string>
-    <string name="text_native_res_dialog">Các chế độ độ phân giải gốc không được GeForce Experience hỗ trợ chính thức, nên nó sẽ không tự đặt độ phân giải hiển thị của máy chủ. Bạn sẽ cần phải đặt nó theo cách thủ công trong khi đang trong trò chơi.
-\n
-\nNếu bạn chọn việc tạo một độ phân giải tuỳ chỉnh trong Bảng điều khiển NVIDIA để khớp với độ phân giải thiết bị, vui lòng chắc chắn là bạn đã đọc và hiểu cảnh báo của NVIDIA về hư hại màn hình có thể có, sự bất ổn của PC, và các vấn đề tiềm năng khác.
-\n
-\nChúng tôi không chịu trách nhiệm cho bất kỳ vấn đề nào gây ra từ việc tạo độ phân giải tuỳ chỉnh trên PC.
-\n
-\nCuối cùng, thiết bị hoặc PC chủ có thể không hỗ trợ việc stream tại độ phân giải gốc. Nếu việc này không hoạt động trên thiết bị, không may mắn là bạn không thể làm gì được.</string>
-    <string name="title_native_res_dialog">Cảnh báo độ phân giải gốc</string>
     <string name="summary_resolution_list">Tăng để cải thiện độ rõ của hình ảnh. Giảm để có hiệu năng tốt hơn trên các thiết bị tầm thấp hơn và các mạng chậm hơn.</string>
     <string name="title_resolution_list">Độ phân giải video</string>
     <string name="category_basic_settings">Cài đặt cơ bản</string>

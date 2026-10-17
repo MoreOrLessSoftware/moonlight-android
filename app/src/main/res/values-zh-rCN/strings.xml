@@ -191,14 +191,6 @@
     <string name="pcview_menu_header_online">在线</string>
     <string name="resolution_prefix_native">本地</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
-    <string name="text_native_res_dialog">流媒体服务器可能不支持原始分辨率或者 FPS。您可能需要手动为主机配置匹配的自定义显示模式。
-\n
-\n如果您选择在 NVIDIA 控制面板中创建与屏幕设置相匹配的自定义分辨率，请确保您已阅读并理解 NVIDIA 关于显示器可能损坏、电脑不稳定和其他潜在问题的警告。
-\n
-\n我们不对因在电脑上创建自定义分辨率而导致的任何问题负责。
-\n
-\n您的显示器可能不支持必要的显示配置。如果是这样，您可以尝试设置虚拟显示器。最后，如果您的设备或主机不支持以特定分辨率或刷新率进行流式传输，那就很不幸了。</string>
-    <string name="title_native_res_dialog">本地分辨率警告</string>
     <string name="applist_menu_hide_app">隐藏游戏</string>
     <string name="check_ports_msg">请检查您的防火墙和端口转发规则中的端口：</string>
     <string name="early_termination_error">开始串流时您的主机电脑出了点问题。

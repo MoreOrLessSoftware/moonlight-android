@@ -188,16 +188,8 @@
     <string name="pcview_menu_pair_pc">Parr med PC</string>
     <string name="scut_not_paired">PC ikke parret</string>
     <string name="summary_checkbox_flip_face_buttons">Veksler A/B og X/Y-knapper for spillkontrollere, og innstillingskontroller som vises på skjermen</string>
-    <string name="text_native_res_dialog">Innebygd oppløsningsmodus støttes ikke offisielt av GeForce Experience, så det vil ikke sette skjermoppløsning for verten på egenhånd. Du vil måtte sette det manuelt inne i spillet.
-\n
-\nHvis du velger å opprette en egendefinert oppløsning i NVIDIA-kontrollpanelet for å samsvare med enhetsoppløsningen må du forsikre deg om at du har lest og forstått NVIDIA sin advarsel om mulig skjermskade, PC-instabilitet, og andre potensielle problemer.
-\n
-\nVi er ikke ansvarlige for noen problemer som oppstår ved å lage en egendefinert oppløsning på din PC.
-\n
-\nDet kan hende din enhet eller verts-PC ikke støtter strømming i egentlig oppløsning. Hvis det ikke fungerer på din enhet er det dessverre ingenting du kan gjøre.</string>
     <string name="summary_checkbox_multi_controller">Å fjerne dette valget påtvinger tilkoblet spillkontroller</string>
     <string name="resolution_prefix_native">Innebygd</string>
-    <string name="title_native_res_dialog">Advarsel om innebygd oppløsning</string>
     <string name="title_checkbox_flip_face_buttons">Veksle diamantknapper</string>
     <string name="resolution_prefix_native_fullscreen">Systemspesifikk fullskjerm</string>
     <string name="perf_overlay_netlatency">Gjennomsnittlig nettverksforsinkelse: %1$d ms (variasjon: %2$d ms)</string>

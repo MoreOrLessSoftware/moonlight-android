@@ -67,13 +67,6 @@
     <string name="applist_quit_app">Saindo</string>
     <string name="applist_quit_success">Saiu com sucesso</string>
     <string name="applist_quit_fail">Falha ao sair</string>
-    <string name="text_native_res_dialog">Os modos de resolução nativa não são oficialmente suportados pelo GeForce Experience, portanto, ele não definirá a resolução da ecrã do host. Precisará configurá-lo manualmente durante o jogo.
-\n
-\nSe optar por criar uma resolução personalizada no Painel de controle da NVIDIA para corresponder à resolução do seu aparelho, certifique-se de ter lido e entendido o aviso da NVIDIA sobre possíveis danos ao monitor, instabilidade do PC e outros problemas potenciais.
-\n
-\nNão nos responsabilizamos por quaisquer problemas resultantes da criação de uma resolução personalizada no seu PC.
-\n
-\nPor fim, o seu aparelho ou PC host pode não suportar transmissões na resolução nativa. Se não funcionar no seu aparelho, está sem sorte, infelizmente.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="resolution_prefix_native_landscape">(Paisagem)</string>
     <string name="resolution_prefix_native_portrait">(Retrato)</string>
@@ -175,7 +168,6 @@
     <string name="category_basic_settings">Configurações Básicas</string>
     <string name="title_resolution_list">Resolução</string>
     <string name="summary_resolution_list">Aumente para melhorar a clareza da imagem. Diminua para melhor desempenho em aparelhos de baixo custo e redes mais lentas.</string>
-    <string name="title_native_res_dialog">Alerta de Resolução Nativa</string>
     <string name="title_fps_list">Taxa de quadros por segundo</string>
     <string name="title_seekbar_bitrate">Taxa de bits</string>
     <string name="summary_seekbar_bitrate">Aumente para uma melhor qualidade de imagem. Diminua para melhorar o desempenho em conexões mais lentas.</string>

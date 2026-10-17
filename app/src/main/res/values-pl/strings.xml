@@ -40,7 +40,6 @@
     <string name="addpc_wrong_sitelocal">Ten adres nie wygląda prawidłowo. Do przesyłania strumieniowego przez Internet należy używać publicznego adresu IP routera.</string>
     <string name="title_resolution_list">Rozdzielczość wideo</string>
     <string name="summary_resolution_list">Zwiększ, aby poprawić klarowność obrazu. Zmniejsz, aby uzyskać lepszą wydajność na słabszych urządzeniach i wolniejszych połączeniach sieciowych.</string>
-    <string name="title_native_res_dialog">Ostrzeżenie o rozdzielczości natywnej</string>
     <string name="title_fps_list">Częstotliwość odświeżania wideo</string>
     <string name="summary_fps_list">Zwiększ, aby uzyskać płynniejszy strumień wideo. Zmniejsz, aby uzyskać lepszą wydajność na słabszych urządzeniach.</string>
     <string name="summary_seekbar_bitrate">Zwiększ, aby uzyskać lepszą jakość obrazu. Zmniejsz, aby poprawić wydajność na wolniejszych połączeniach.</string>
@@ -247,13 +246,6 @@
     <string name="applist_menu_details">Wyświetl szczegóły</string>
     <string name="addpc_fail">Nie można połączyć się z określonym komputerem. Upewnij się, że wymagane porty są dozwolone przez zaporę sieciową.</string>
     <string name="category_basic_settings">Ustawienia podstawowe</string>
-    <string name="text_native_res_dialog">Natywna rozdzielczość i/lub liczba klatek na sekundę mogą nie być obsługiwane przez serwer streamingu. Prawdopodobnie konieczne będzie ręczne skonfigurowanie odpowiedniego niestandardowego trybu wyświetlania dla komputera hosta.
-\n
-\nJeśli zdecydujesz się utworzyć niestandardową rozdzielczość w panelu sterowania NVIDIA aby dopasować ustawienia ekranu, upewnij się, że przeczytałeś i zrozumiałeś ostrzeżenie firmy NVIDIA dotyczące możliwego uszkodzenia monitora, niestabilności komputera i innych potencjalnych problemów.
-\n
-\nNie ponosimy odpowiedzialności za jakiekolwiek problemy wynikające z utworzenia niestandardowej rozdzielczości na komputerze.
-\n
-\nMoże się zdarzyć, że monitor nie obsługuje wymaganej konfiguracji wyświetlania. W takim przypadku można spróbować skonfigurować monitor wirtualny. Jeśli urządzenie lub komputer hosta nie obsługuje przesyłania strumieniowego w określonej rozdzielczości lub częstotliwości odświeżania, niestety nie masz szczęścia.</string>
     <string name="fps_suffix_fps">FPS</string>
     <string name="summary_checkbox_gamepad_motion_fallback">Używa wbudowanych czujników ruchu urządzenia, jeśli czujniki gamepada nie są obsługiwane przez podłączony gamepad lub wersję systemu Android.
 \nUwaga: Włączenie tej opcji może spowodować, że gamepad będzie wyświetlany na hoście jako kontroler PlayStation.</string>

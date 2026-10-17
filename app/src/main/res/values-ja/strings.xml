@@ -156,7 +156,6 @@
     <string name="perf_overlay_dectime">平均デコード時間: %1$.2f ms</string>
     <string name="applist_menu_details">詳細を表示</string>
     <string name="applist_menu_scut">ショートカットを作成</string>
-    <string name="title_native_res_dialog">ネイティブ解像度に関する警告</string>
     <string name="perf_overlay_streamdetails">ビデオストリーム: %1$s %2$.2f FPS</string>
     <string name="unable_to_pin_shortcut">現在のランチャーでは、ピン留めされたショートカットを作成することはできません。</string>
     <string name="message_decoding_reset">デバイスのビデオデコーダーが選択されたストリーミング設定でクラッシュし続けています。ストリーミング設定はデフォルトにりせっとされました。</string>
@@ -174,11 +173,4 @@
     <string name="slow_connection_msg">PCへの接続が低速
 \nビットレートを下げてください</string>
     <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
-    <string name="text_native_res_dialog">ネイティブ解像度やFPSがストリーミングサーバーによってサポートされていない可能性があります。ホストPCに対して、手動で一致するカスタム表示モードを設定する必要があるでしょう。
-\n
-\nNVIDIAコントロールパネルでカスタム解像度を作成して画面設定に合わせることを選択した場合は、モニターに損傷やPCの不安定性、その他の潜在的な問題の可能性についてNVIDIAの警告を読み、理解したことを確認してください。
-\n
-\nカスタム解像度を作成することに起因する問題について、私たちは責任を負いません。
-\n
-\nモニターが必要な表示設定をサポートしていない場合もあります。その場合は、仮想モニターを設定してみてください。最後に、デバイスまたはホストPCが特定の解像度またはリフレッシュレートでのストリーミングをサポートしていない場合、残念ながら運が悪かったということになります。</string>
 </resources>
