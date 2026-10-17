@@ -185,6 +185,12 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
             overlayView.setVisibility(View.GONE);
         }
 
+        // And a border, so the running app is easy to spot in the grid
+        View runningBorder = parentView.findViewById(R.id.running_border);
+        if (runningBorder != null) {
+            runningBorder.setVisibility(obj.isRunning ? View.VISIBLE : View.GONE);
+        }
+
         String appKey = this.computer.uuid + ":" + obj.app.getAppId();
         AppPreferences.AppSettings appSettings = AppPreferences.getAppSettings(context, appKey);
 

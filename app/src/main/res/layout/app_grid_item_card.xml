@@ -68,4 +68,11 @@
             </TextView>
         </LinearLayout>
     </LinearLayout>
+    <!-- Shown around the running app's card -->
+    <View
+        android:id="@+id/running_border"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/app_card_running_border"
+        android:visibility="gone" />
 </FrameLayout>
