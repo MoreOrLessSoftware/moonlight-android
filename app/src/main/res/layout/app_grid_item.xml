@@ -35,7 +35,7 @@
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
         android:layout_margin="8dp"
-        android:src="@drawable/ic_tool_red"
+        android:src="@drawable/ic_gear_red"
         android:visibility="gone">
     </ImageView>
 </RelativeLayout>
