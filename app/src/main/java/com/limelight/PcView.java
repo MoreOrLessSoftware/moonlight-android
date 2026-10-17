@@ -34,6 +34,7 @@ import com.limelight.utils.UiHelper;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.Application;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Intent;
@@ -82,7 +83,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
     private int autoResumeNoGamePollCount = 0;
-    private boolean hasShownRefreshRateToast = false;
+    // Whether the app came to the foreground at this activity, from being launched or from
+    // another app, so it shows the refresh rate. Not when coming back from our own activities,
+    // like a stream, or when made again by a configuration change.
+    private static boolean showRefreshRateOnResume = false;
+    private static boolean foregroundTrackerRegistered = false;
     private QuickLaunchView quickLaunchView;
     private OverridesView overridesView;
     
@@ -396,9 +401,58 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
     }
 
+    // Counts the app's started activities to see when it comes to the foreground
+    private static void registerForegroundTracker(Application application) {
+        if (foregroundTrackerRegistered) {
+            return;
+        }
+        foregroundTrackerRegistered = true;
+
+        application.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            private int startedActivities;
+            private boolean changingConfigurations;
+
+            @Override
+            public void onActivityStarted(Activity activity) {
+                if (changingConfigurations) {
+                    // The same activity made again, so it was never stopped as far as we count
+                    changingConfigurations = false;
+                    return;
+                }
+                if (startedActivities++ == 0) {
+                    showRefreshRateOnResume = activity instanceof PcView;
+                }
+            }
+
+            @Override
+            public void onActivityStopped(Activity activity) {
+                if (activity.isChangingConfigurations()) {
+                    changingConfigurations = true;
+                    return;
+                }
+                // Not below 0 if an activity started before we were registered
+                startedActivities = Math.max(0, startedActivities - 1);
+            }
+
+            @Override
+            public void onActivityCreated(Activity activity, Bundle savedInstanceState) {}
+            @Override
+            public void onActivityResumed(Activity activity) {}
+            @Override
+            public void onActivityPaused(Activity activity) {}
+            @Override
+            public void onActivitySaveInstanceState(Activity activity, Bundle outState) {}
+            @Override
+            public void onActivityDestroyed(Activity activity) {}
+        });
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Before onStart(), so this activity starting is counted
+        registerForegroundTracker(getApplication());
 
         // Assume we're in the foreground when created to avoid a race
         // between binding to CMS and onResume()
@@ -562,12 +616,12 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         // Display a decoder crash notification if we've returned after a crash
         UiHelper.showDecoderCrashDialog(this);
 
-        // Display current refresh rate only on first load
-        if (!hasShownRefreshRateToast) {
+        // Display current refresh rate when the app comes to the foreground here
+        if (showRefreshRateOnResume) {
             Display display = getWindowManager().getDefaultDisplay();
             float refreshRate = display.getRefreshRate();
             Toast.makeText(this, Html.fromHtml("Current refresh rate: <b>" + UiHelper.formatRefreshRate(refreshRate) + "</b>"), Toast.LENGTH_LONG).show();
-            hasShownRefreshRateToast = true;
+            showRefreshRateOnResume = false;
         }
 
         inForeground = true;
