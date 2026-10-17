@@ -54,7 +54,7 @@ public class ResolutionListPreference extends CustomValueListPreference {
     @Override
     protected View createCustomInput(String currentValue) {
         Context context = getContext();
-        int padding = getInputPadding(context);
+        int padding = PreferenceHelp.getInputPadding(context);
 
         LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -89,8 +89,8 @@ public class ResolutionListPreference extends CustomValueListPreference {
         EditText widthInput = (EditText) layout.getChildAt(0);
         EditText heightInput = (EditText) layout.getChildAt(1);
 
-        int width = parsePositiveInt(widthInput.getText().toString());
-        int height = parsePositiveInt(heightInput.getText().toString());
+        int width = PreferenceHelp.parsePositiveInt(widthInput.getText().toString());
+        int height = PreferenceHelp.parsePositiveInt(heightInput.getText().toString());
 
         boolean valid = true;
         if (width <= 0 || width > MAX_WIDTH) {

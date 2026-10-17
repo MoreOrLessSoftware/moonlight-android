@@ -2,7 +2,6 @@ package com.limelight.preferences;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.media.MediaCodecInfo;
@@ -311,26 +310,6 @@ public class StreamSettings extends Activity {
             // Update the preference with the new list
             pref.setEntries(entries);
             pref.setEntryValues(entryValues);
-        }
-
-        private void resetBitrateToDefault(SharedPreferences prefs, String res, String fps) {
-            if (res == null) {
-                res = prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, PreferenceConfiguration.DEFAULT_RESOLUTION);
-            }
-            if (fps == null) {
-                fps = prefs.getString(PreferenceConfiguration.FPS_PREF_STRING, PreferenceConfiguration.DEFAULT_FPS);
-            }
-
-            prefs.edit()
-                    .putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
-                            PreferenceConfiguration.getDefaultBitrate(res, fps))
-                    .apply();
-
-            // Show the new bitrate as its summary
-            Preference bitratePref = findPreference(PreferenceConfiguration.BITRATE_PREF_STRING);
-            if (bitratePref instanceof SeekBarPreference) {
-                ((SeekBarPreference) bitratePref).refreshValue();
-            }
         }
 
         @Override
@@ -650,35 +629,6 @@ public class StreamSettings extends Activity {
                     hdrPref.setSummary("Update the firmware on your NVIDIA SHIELD Android TV to enable HDR");
                 }
             }
-
-            // Add a listener to the FPS and resolution preference
-            // so the bitrate can be auto-adjusted
-            findPreference(PreferenceConfiguration.RESOLUTION_PREF_STRING).setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-                @Override
-                public boolean onPreferenceChange(Preference preference, Object newValue) {
-                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(SettingsFragment.this.getActivity());
-                    String valueStr = (String) newValue;
-
-                    // Write the new bitrate value
-                    resetBitrateToDefault(prefs, valueStr, null);
-
-                    // Allow the original preference change to take place
-                    return true;
-                }
-            });
-            findPreference(PreferenceConfiguration.FPS_PREF_STRING).setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-                @Override
-                public boolean onPreferenceChange(Preference preference, Object newValue) {
-                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(SettingsFragment.this.getActivity());
-                    String valueStr = (String) newValue;
-
-                    // Write the new bitrate value
-                    resetBitrateToDefault(prefs, null, valueStr);
-
-                    // Allow the original preference change to take place
-                    return true;
-                }
-            });
         }
     }
 }

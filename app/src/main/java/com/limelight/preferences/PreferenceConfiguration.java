@@ -103,6 +103,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_MULTI_CONTROLLER = true;
     private static final boolean DEFAULT_USB_DRIVER = true;
     private static final String DEFAULT_VIDEO_FORMAT = "auto";
+    private static final String VIDEO_FORMAT_PYROWAVE = "forcepyrowave";
     private static final String DEFAULT_VIDEO_RENDERER = "auto";
     private static final String DEFAULT_SPATIAL_DITHERING = "off";
     private static final String DEFAULT_JITTER_BUFFER = "balanced";
@@ -315,10 +316,23 @@ public class PreferenceConfiguration {
         }
     }
 
-    public static int getDefaultBitrate(String resString, String fpsString) {
+    private static boolean isPyrowaveVideoFormat(String videoFormatString) {
+        return VIDEO_FORMAT_PYROWAVE.equals(videoFormatString);
+    }
+
+    public static int getDefaultBitrate(String resString, String fpsString, String videoFormatString) {
         int width = getWidthFromResolutionString(resString);
         int height = getHeightFromResolutionString(resString);
         int fps = Integer.parseInt(fpsString);
+
+        if (isPyrowaveVideoFormat(videoFormatString)) {
+            // PyroWave compresses every frame on its own, so unlike the other codecs its
+            // bitrate grows in step with both the pixel count and the frame rate. This is
+            // 400 Mbps at 1440p120 (112 Mbps at 1080p60), which looks good on phone and
+            // tablet sized screens.
+            double bitsPerPixel = 400_000_000.0 / (2560 * 1440 * 120);
+            return (int)Math.round(width * height * (double)fps * bitsPerPixel / 1_000_000) * 1000;
+        }
 
         // This logic is shamelessly stolen from Moonlight Qt:
         // https://github.com/moonlight-stream/moonlight-qt/blob/master/app/settings/streamingpreferences.cpp
@@ -382,7 +396,8 @@ public class PreferenceConfiguration {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         return getDefaultBitrate(
                 prefs.getString(RESOLUTION_PREF_STRING, DEFAULT_RESOLUTION),
-                prefs.getString(FPS_PREF_STRING, DEFAULT_FPS));
+                prefs.getString(FPS_PREF_STRING, DEFAULT_FPS),
+                prefs.getString(VIDEO_FORMAT_PREF_STRING, DEFAULT_VIDEO_FORMAT));
     }
 
     private static FormatOption getVideoFormatValue(Context context) {
@@ -401,7 +416,7 @@ public class PreferenceConfiguration {
         else if (str.equals("neverh265")) {
             return FormatOption.FORCE_H264;
         }
-        else if (str.equals("forcepyrowave")) {
+        else if (str.equals(VIDEO_FORMAT_PYROWAVE)) {
             return FormatOption.FORCE_PYROWAVE;
         }
         else {

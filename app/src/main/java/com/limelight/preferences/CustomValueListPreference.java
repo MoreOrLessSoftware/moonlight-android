@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.util.AttributeSet;
 import android.view.View;
-import android.view.WindowManager;
 
 import com.limelight.R;
 
@@ -130,8 +129,7 @@ public abstract class CustomValueListPreference extends HelpListPreference {
                 .setPositiveButton(android.R.string.ok, null)
                 .setNegativeButton(android.R.string.cancel, null)
                 .create();
-        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-        dialog.show();
+        PreferenceHelp.showWithKeyboard(dialog, input);
 
         // Replace the OK button's listener so an invalid value doesn't close the dialog
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
@@ -148,19 +146,5 @@ public abstract class CustomValueListPreference extends HelpListPreference {
                 dialog.dismiss();
             }
         });
-    }
-
-    // The side padding for a custom value's inputs, so they line up with the dialog's message
-    static int getInputPadding(Context context) {
-        float density = context.getResources().getDisplayMetrics().density;
-        return (int) (20 * density + 0.5f);
-    }
-
-    static int parsePositiveInt(String text) {
-        try {
-            return Integer.parseInt(text.trim());
-        } catch (NumberFormatException e) {
-            return 0;
-        }
     }
 }

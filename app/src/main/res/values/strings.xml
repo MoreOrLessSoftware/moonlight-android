@@ -157,6 +157,8 @@
     <string name="summary_seekbar_bitrate">Increase for better image quality. Decrease to improve performance on slower connections.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="seekbar_custom">Custom</string>
+    <string name="seekbar_recommended">Recommended (%1$s)</string>
+    <string name="seekbar_title_recommended">%1$s (%2$s recommended)</string>
     <string name="seekbar_custom_message">Enter a value in %1$s</string>
     <string name="seekbar_custom_invalid">Enter a number greater than 0</string>
     <string name="title_checkbox_stretch_video">Stretch video to full-screen</string>
@@ -264,7 +266,7 @@
     <string name="summary_checkbox_disable_warnings">Disable on-screen connection warning messages while streaming</string>
     <string name="title_disable_frame_drop">Never drop frames</string>
     <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
-    <string name="title_video_format">Change codec settings</string>
+    <string name="title_video_format">Video codec</string>
     <string name="title_pyrowave_late_frames">PyroWave late frames</string>
     <string name="summary_pyrowave_late_frames">Only used with the PyroWave codec and host frame timing pacing: configure how much blurriness you want to accept for a smoother stream</string>
     <string name="pyrowave_late_frames_off">Off (least blur)</string>
@@ -315,7 +317,7 @@
     <string name="videoformat_av1always">Prefer AV1 (Experimental)</string>
     <string name="videoformat_hevcalways">Prefer HEVC</string>
     <string name="videoformat_h264always">Prefer H.264</string>
-    <string name="videoformat_pyrowave">PyroWave (Experimental, 200+ Mbps LAN)</string>
+    <string name="videoformat_pyrowave">PyroWave (Experimental, high bandwidth)</string>
 
     <string name="videorenderer_auto">Automatic (Recommended)</string>
     <string name="videorenderer_direct">Direct Surface (Legacy)</string>

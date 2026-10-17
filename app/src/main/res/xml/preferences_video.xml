@@ -19,15 +19,23 @@
             android:entries="@array/fps_names"
             android:entryValues="@array/fps_values"
             android:defaultValue="60" />
+        <com.limelight.preferences.HelpListPreference
+            android:key="video_format"
+            android:title="@string/title_video_format"
+            android:entries="@array/video_format_names"
+            android:entryValues="@array/video_format_values"
+            android:summary="@string/summary_video_format"
+            android:defaultValue="auto" />
         <com.limelight.preferences.SeekBarPreference
             android:key="seekbar_bitrate_kbps"
             android:dialogMessage="@string/summary_seekbar_bitrate"
-            seekbar:min="500"
+            seekbar:min="1000"
             android:max="150000"
-            seekbar:step="500"
+            seekbar:step="1000"
             seekbar:keyStep="1000"
             seekbar:divisor="1000"
             seekbar:custom="true"
+            seekbar:recommendedBitrate="true"
             android:summary="@string/summary_seekbar_bitrate"
             android:text="@string/suffix_seekbar_bitrate_mbps"
             android:title="@string/title_seekbar_bitrate" />
@@ -73,13 +81,6 @@
             android:summary="@string/summary_actual_display_refresh_rate"
             android:inputType="numberDecimal"
             android:defaultValue="0" />
-        <com.limelight.preferences.HelpListPreference
-            android:key="video_format"
-            android:title="@string/title_video_format"
-            android:entries="@array/video_format_names"
-            android:entryValues="@array/video_format_values"
-            android:summary="@string/summary_video_format"
-            android:defaultValue="auto" />
         <com.limelight.preferences.HelpListPreference
             android:key="pyrowave_late_frames"
             android:title="@string/title_pyrowave_late_frames"

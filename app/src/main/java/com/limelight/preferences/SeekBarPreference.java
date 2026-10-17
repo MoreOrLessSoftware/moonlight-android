@@ -10,9 +10,9 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -40,6 +40,7 @@ public class SeekBarPreference extends DialogPreference
     private final int keyStepSize;
     private final int divisor;
     private final boolean allowCustom;
+    private final boolean showRecommendedBitrate;
     private int currentValue;
     private boolean sliderTouched;
 
@@ -78,6 +79,7 @@ public class SeekBarPreference extends DialogPreference
         divisor = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "divisor", 1);
         keyStepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "keyStep", 0);
         allowCustom = attrs.getAttributeBooleanValue(SEEKBAR_SCHEMA_URL, "custom", false);
+        showRecommendedBitrate = attrs.getAttributeBooleanValue(SEEKBAR_SCHEMA_URL, "recommendedBitrate", false);
     }
 
     @Override
@@ -143,6 +145,27 @@ public class SeekBarPreference extends DialogPreference
 
         layout.addView(seekBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
+        // The recommended bitrate goes under the slider, since the dialog's
+        // buttons are taken by OK, Cancel and Custom. It may be past the slider's end.
+        if (showRecommendedBitrate) {
+            // For the current resolution, frame rate and codec
+            final int recommended = PreferenceConfiguration.getDefaultBitrate(context);
+            Button recommendedButton = new Button(context, null, android.R.attr.borderlessButtonStyle);
+            recommendedButton.setText(context.getString(R.string.seekbar_recommended, formatValue(recommended)));
+            recommendedButton.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    saveValueAndClose(recommended);
+                }
+            });
+
+            LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            buttonParams.gravity = Gravity.CENTER_HORIZONTAL;
+            layout.addView(recommendedButton, buttonParams);
+        }
+
         if (shouldPersist()) {
             currentValue = getPersistedInt(defaultValue);
         }
@@ -180,11 +203,12 @@ public class SeekBarPreference extends DialogPreference
 
     private String formatValue(int value) {
         String t;
-        if (divisor != 1) {
+        if (divisor != 1 && value % divisor != 0) {
+            // Only a value saved before values became whole numbers has a fraction
             t = String.format((Locale)null, "%.1f", value / (float)divisor);
         }
         else {
-            t = String.valueOf(value);
+            t = String.valueOf(value / divisor);
         }
         return suffix == null ? t : t.concat(suffix.length() > 1 ? " "+suffix : suffix);
     }
@@ -194,12 +218,21 @@ public class SeekBarPreference extends DialogPreference
         return formatValue(currentValue);
     }
 
-    // Shows the saved value after something other than this preference changes it
-    public void refreshValue() {
-        if (shouldPersist()) {
-            currentValue = getPersistedInt(defaultValue);
-            notifyChanged();
+    // Says what bitrate is recommended when the current one is lower. The settings list
+    // redraws its rows whenever any setting changes, so this follows changes to the
+    // resolution, frame rate and codec too.
+    @Override
+    public CharSequence getTitle() {
+        CharSequence title = super.getTitle();
+
+        // The superclass constructor asks for the title before this class is set up
+        if (showRecommendedBitrate && title != null) {
+            int recommended = PreferenceConfiguration.getDefaultBitrate(context);
+            if (currentValue < recommended) {
+                return context.getString(R.string.seekbar_title_recommended, title, formatValue(recommended));
+            }
         }
+        return title;
     }
 
     public void setProgress(int progress) {
@@ -221,49 +254,52 @@ public class SeekBarPreference extends DialogPreference
         }
     }
 
+    // Saves a value from outside the slider, which may be past its end, and closes the dialog
+    private void saveValueAndClose(int value) {
+        currentValue = value;
+        if (shouldPersist()) {
+            persistInt(value);
+            callChangeListener(value);
+        }
+        notifyChanged();
+        if (getDialog() != null) {
+            getDialog().dismiss();
+        }
+    }
+
     private void showCustomValueDialog() {
         final EditText input = new EditText(context);
-        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
         int shownValue = (!sliderTouched && currentValue > maxValue) ? currentValue : seekBar.getProgress();
-        input.setText(String.format((Locale)null, "%.1f", shownValue / (float)divisor));
+        input.setText(String.valueOf(Math.round(shownValue / (float)divisor)));
         input.setSelectAllOnFocus(true);
 
+        // Pad it in from the dialog's edges like the other custom value inputs
+        int padding = PreferenceHelp.getInputPadding(context);
+        FrameLayout inputLayout = new FrameLayout(context);
+        inputLayout.setPadding(padding, 0, padding, 0);
+        inputLayout.addView(input);
+
         final AlertDialog dialog = new AlertDialog.Builder(context)
-                .setTitle(getTitle())
+                .setTitle(getDialogTitle())
                 .setMessage(suffix == null ? null : context.getString(R.string.seekbar_custom_message, suffix))
-                .setView(input)
+                .setView(inputLayout)
                 .setPositiveButton(android.R.string.ok, null)
                 .setNegativeButton(android.R.string.cancel, null)
                 .create();
-        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-        dialog.show();
+        PreferenceHelp.showWithKeyboard(dialog, input);
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                float entered;
-                try {
-                    entered = Float.parseFloat(input.getText().toString().trim());
-                } catch (NumberFormatException e) {
-                    entered = 0;
-                }
-
-                int value = Math.round(entered * divisor);
+                int value = PreferenceHelp.parsePositiveInt(input.getText().toString()) * divisor;
                 if (value <= 0) {
                     input.setError(context.getString(R.string.seekbar_custom_invalid));
                     return;
                 }
 
-                currentValue = value;
-                if (shouldPersist()) {
-                    persistInt(value);
-                    callChangeListener(value);
-                }
-                notifyChanged();
                 dialog.dismiss();
-                if (getDialog() != null) {
-                    getDialog().dismiss();
-                }
+                saveValueAndClose(value);
             }
         });
     }

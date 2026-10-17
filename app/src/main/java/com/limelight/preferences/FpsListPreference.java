@@ -57,7 +57,7 @@ public class FpsListPreference extends CustomValueListPreference {
         input.setSelectAllOnFocus(true);
 
         // Pad it in from the dialog's edges like the resolution inputs
-        int padding = getInputPadding(getContext());
+        int padding = PreferenceHelp.getInputPadding(getContext());
         FrameLayout layout = new FrameLayout(getContext());
         layout.setPadding(padding, 0, padding, 0);
         layout.addView(input);
@@ -67,7 +67,7 @@ public class FpsListPreference extends CustomValueListPreference {
     @Override
     protected String readCustomInput(View view) {
         EditText input = (EditText) ((FrameLayout) view).getChildAt(0);
-        int fps = parsePositiveInt(input.getText().toString());
+        int fps = PreferenceHelp.parsePositiveInt(input.getText().toString());
         if (fps <= 0) {
             input.setError(getContext().getString(R.string.seekbar_custom_invalid));
             return null;
