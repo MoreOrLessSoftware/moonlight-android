@@ -93,7 +93,7 @@ public class PreferenceConfiguration {
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
-    private static final boolean DEFAULT_ENABLE_ULTRA_LOW_LATENCY = false;
+    private static final boolean DEFAULT_ENABLE_ULTRA_LOW_LATENCY = true;
     private static final boolean DEFAULT_STRETCH = false;
     private static final boolean DEFAULT_SOPS = true;
     private static final boolean DEFAULT_DISABLE_TOASTS = false;
