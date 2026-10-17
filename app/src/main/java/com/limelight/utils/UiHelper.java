@@ -104,14 +104,43 @@ public class UiHelper {
             view.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
+                    // Use the whole navigation bar, not just its tappable part. With gesture
+                    // navigation nothing there is tappable, but the transparent gesture bar
+                    // still covers the bottom of the list.
+                    int navBarBottom;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        navBarBottom = windowInsets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                    }
+                    else {
+                        navBarBottom = windowInsets.getSystemWindowInsetBottom();
+                    }
+
                     view.setPadding(view.getPaddingLeft(),
                             view.getPaddingTop(),
                             view.getPaddingRight(),
-                            windowInsets.getTappableElementInsets().bottom);
+                            Math.max(navBarBottom, windowInsets.getTappableElementInsets().bottom));
                     return windowInsets;
                 }
             });
-            view.requestApplyInsets();
+
+            // Requesting insets does nothing until the view is attached, and views
+            // created in a fragment's onCreateView() aren't attached yet
+            if (view.isAttachedToWindow()) {
+                view.requestApplyInsets();
+            }
+            else {
+                view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                    @Override
+                    public void onViewAttachedToWindow(View v) {
+                        v.removeOnAttachStateChangeListener(this);
+                        v.requestApplyInsets();
+                    }
+
+                    @Override
+                    public void onViewDetachedFromWindow(View v) {
+                    }
+                });
+            }
         }
     }
 
