@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Side padding plus each card's 6dp margin lines cards up with the 12dp inset of
+     the Quick Launch and Overrides sections above -->
 <GridView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/fragmentView"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:numColumns="auto_fit"
-    android:columnWidth="320dp"
-    android:stretchMode="spacingWidthUniform"
+    android:columnWidth="300dp"
+    android:stretchMode="columnWidth"
     android:focusable="true"
     android:focusableInTouchMode="true"
     android:nextFocusLeft="@id/settingsButton"
+    android:paddingLeft="6dp"
+    android:paddingRight="6dp"
     android:clipToPadding="false"
     android:gravity="center"/>

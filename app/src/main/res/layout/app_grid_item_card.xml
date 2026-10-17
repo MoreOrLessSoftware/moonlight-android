@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Box art on the left, the app name and its settings overrides on the right -->
+<!-- Box art on the left, the app name and its settings overrides on the right.
+     The grid stretches cards to fill its columns, so the width here is only a fallback. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="320dp"
+    android:layout_width="match_parent"
     android:layout_height="147dp"
     android:padding="6dp">
     <LinearLayout
