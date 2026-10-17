@@ -8,8 +8,10 @@ import android.os.Looper;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.nvstream.http.NvApp;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class QuickLaunchManager {
     public static final String QUICK_LAUNCH_PREF_FILENAME = "QuickLaunch";
@@ -368,39 +370,63 @@ public class QuickLaunchManager {
      * Move a Quick Launch item left (earlier in the list)
      */
     public boolean moveQuickLaunchItemLeft(String key) {
-        List<String> sortOrder = getSortOrder();
-        int index = sortOrder.indexOf(key);
+        return moveQuickLaunchItem(key, -1, null);
+    }
 
-        // Can't move left if it's already first or not found
-        if (index <= 0) {
-            return false;
-        }
-
-        // Swap with previous item in sort order
-        String temp = sortOrder.get(index - 1);
-        sortOrder.set(index - 1, sortOrder.get(index));
-        sortOrder.set(index, temp);
-
-        saveSortOrder(sortOrder);
-        notifyUpdate();
-        return true;
+    /**
+     * Move a Quick Launch item left past the previous item of the given PC,
+     * for when only that PC's items are shown
+     */
+    public boolean moveQuickLaunchItemLeft(String key, String computerUuid) {
+        return moveQuickLaunchItem(key, -1, computerUuid);
     }
 
     /**
      * Move a Quick Launch item right (later in the list)
      */
     public boolean moveQuickLaunchItemRight(String key) {
+        return moveQuickLaunchItem(key, 1, null);
+    }
+
+    /**
+     * Move a Quick Launch item right past the next item of the given PC,
+     * for when only that PC's items are shown
+     */
+    public boolean moveQuickLaunchItemRight(String key, String computerUuid) {
+        return moveQuickLaunchItem(key, 1, computerUuid);
+    }
+
+    private boolean moveQuickLaunchItem(String key, int direction, String computerUuid) {
+        // Items of other PCs to skip over, if only one PC's items are shown
+        Set<String> skippedKeys = new HashSet<>();
+        if (computerUuid != null) {
+            for (QuickLaunchItem item : getAllQuickLaunchItems()) {
+                if (!computerUuid.equals(item.computerUuid)) {
+                    skippedKeys.add(item.key);
+                }
+            }
+        }
+
         List<String> sortOrder = getSortOrder();
         int index = sortOrder.indexOf(key);
-
-        // Can't move right if it's already last or not found
-        if (index < 0 || index >= sortOrder.size() - 1) {
+        if (index < 0) {
             return false;
         }
 
-        // Swap with next item in sort order
-        String temp = sortOrder.get(index + 1);
-        sortOrder.set(index + 1, sortOrder.get(index));
+        // Find the nearest shown item in that direction
+        int target = index + direction;
+        while (target >= 0 && target < sortOrder.size() && skippedKeys.contains(sortOrder.get(target))) {
+            target += direction;
+        }
+
+        // Can't move if it's already first or last
+        if (target < 0 || target >= sortOrder.size()) {
+            return false;
+        }
+
+        // Swap with that item in sort order
+        String temp = sortOrder.get(target);
+        sortOrder.set(target, sortOrder.get(index));
         sortOrder.set(index, temp);
 
         saveSortOrder(sortOrder);

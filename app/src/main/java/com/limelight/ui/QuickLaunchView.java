@@ -27,6 +27,7 @@ import com.limelight.utils.QuickLaunchManager;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.UiHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class QuickLaunchView {
@@ -49,6 +50,8 @@ public class QuickLaunchView {
     
     private String contextMenuQuickLaunchKey;
     private boolean receiverRegistered = false;
+    // Only items of this PC are shown, or all items when null
+    private String computerUuidFilter;
     
     private final BroadcastReceiver quickLaunchUpdateReceiver = new BroadcastReceiver() {
         @Override
@@ -78,6 +81,14 @@ public class QuickLaunchView {
         loadQuickLaunchButtons();
     }
     
+    /**
+     * Show only the given PC's items, or all items when null
+     */
+    public void setComputerFilter(String computerUuid) {
+        computerUuidFilter = computerUuid;
+        loadQuickLaunchButtons();
+    }
+
     /**
      * Add an app to Quick Launch
      */
@@ -205,9 +216,18 @@ public class QuickLaunchView {
         // Clear existing buttons
         quickLaunchContainer.removeAllViews();
         
-        // Get all Quick Launch items
+        // Get all Quick Launch items, or just one PC's while its apps are shown
         List<QuickLaunchManager.QuickLaunchItem> items = quickLaunchManager.getAllQuickLaunchItems();
-        
+        if (computerUuidFilter != null) {
+            List<QuickLaunchManager.QuickLaunchItem> filteredItems = new ArrayList<>();
+            for (QuickLaunchManager.QuickLaunchItem item : items) {
+                if (computerUuidFilter.equals(item.computerUuid)) {
+                    filteredItems.add(item);
+                }
+            }
+            items = filteredItems;
+        }
+
         if (items.isEmpty()) {
             quickLaunchSection.setVisibility(View.GONE);
             return;
@@ -365,7 +385,7 @@ public class QuickLaunchView {
     }
 
     private void moveQuickLaunchItemLeft(String key) {
-        if (quickLaunchManager.moveQuickLaunchItemLeft(key)) {
+        if (quickLaunchManager.moveQuickLaunchItemLeft(key, computerUuidFilter)) {
             // Success - the broadcast will trigger UI refresh automatically
         } else {
             Toast.makeText(activity, "Cannot move left", Toast.LENGTH_SHORT).show();
@@ -373,7 +393,7 @@ public class QuickLaunchView {
     }
 
     private void moveQuickLaunchItemRight(String key) {
-        if (quickLaunchManager.moveQuickLaunchItemRight(key)) {
+        if (quickLaunchManager.moveQuickLaunchItemRight(key, computerUuidFilter)) {
             // Success - the broadcast will trigger UI refresh automatically
         } else {
             Toast.makeText(activity, "Cannot move right", Toast.LENGTH_SHORT).show();

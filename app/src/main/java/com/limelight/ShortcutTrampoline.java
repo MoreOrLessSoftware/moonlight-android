@@ -193,16 +193,11 @@ public class ShortcutTrampoline extends Activity {
                                                 // Close this activity
                                                 finish();
 
-                                                // Add the PC view at the back (and clear the task)
-                                                Intent i;
-                                                i = new Intent(ShortcutTrampoline.this, PcView.class);
+                                                // Add the PC view at the back showing this PC's apps (and clear the task)
+                                                Intent i = new Intent(ShortcutTrampoline.this, PcView.class);
                                                 i.setAction(Intent.ACTION_MAIN);
                                                 i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
-                                                intentStack.add(i);
-
-                                                // Take this intent's data and create an intent to start the app view
-                                                i = new Intent(getIntent());
-                                                i.setClass(ShortcutTrampoline.this, AppView.class);
+                                                i.putExtra(AppView.UUID_EXTRA, details.uuid);
                                                 intentStack.add(i);
 
                                                 // If a game is running, we'll make the stream the top level activity

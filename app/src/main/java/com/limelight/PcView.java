@@ -29,6 +29,7 @@ import com.limelight.utils.HelpLauncher;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.SessionResumeManager;
 import com.limelight.utils.ShortcutHelper;
+import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
 
 import android.app.Activity;
@@ -62,14 +63,20 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 import android.widget.AdapterView.AdapterContextMenuInfo;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 
 import org.xmlpull.v1.XmlPullParserException;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class PcView extends Activity implements AdapterFragmentCallbacks, QuickLaunchView.QuickLaunchCallback {
+public class PcView extends Activity implements AdapterFragmentCallbacks, QuickLaunchView.QuickLaunchCallback, AppView.Host {
     private RelativeLayout noPcFoundLayout;
+    // The app list shown in place of the PC grid, or null while showing PCs
+    private volatile AppView appView;
+    private CharSequence pcListTitle;
+    private OnBackInvokedCallback appListBackCallback;
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
@@ -96,6 +103,24 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
                     // Start updates
                     startComputerUpdates();
+
+                    // A PC shortcut launches us with the PC whose apps to show
+                    final String appListUuid = getIntent().getStringExtra(AppView.UUID_EXTRA);
+                    if (appListUuid != null) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                // Only open it once, not on every rebind
+                                getIntent().removeExtra(AppView.UUID_EXTRA);
+
+                                ComputerDetails computer = managerBinder != null ?
+                                        managerBinder.getComputer(appListUuid) : null;
+                                if (computer != null && !isFinishing()) {
+                                    showAppList(computer, false, false);
+                                }
+                            }
+                        });
+                    }
 
                     // Force a keypair to be generated early to avoid discovery delays
                     new AndroidCryptoProvider(PcView.this).getClientCertificate();
@@ -149,6 +174,9 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
         // Set the correct layout for the PC grid
         pcGridAdapter.updateLayoutWithPreferences(this, PreferenceConfiguration.readPreferences(this));
+        if (appView != null) {
+            appView.updateLayoutWithPreferences();
+        }
 
         // Setup the list view
         ImageButton settingsButton = findViewById(R.id.settingsButton);
@@ -190,6 +218,9 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         LinearLayout quickLaunchSection = findViewById(R.id.quickLaunchSection);
         LinearLayout quickLaunchContainer = findViewById(R.id.quickLaunchContainer);
         quickLaunchView = new QuickLaunchView(this, quickLaunchSection, quickLaunchContainer, this);
+        if (appView != null) {
+            quickLaunchView.setComputerFilter(appView.getComputerUuid());
+        }
 
         // Initialize Overrides section
         overridesView = new OverridesView(this);
@@ -216,13 +247,108 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
-        if (pcGridAdapter.getCount() == 0) {
+        updateNoPcFoundLayout();
+        pcGridAdapter.notifyDataSetChanged();
+    }
+
+    private void updateNoPcFoundLayout() {
+        if (appView == null && pcGridAdapter.getCount() == 0) {
             noPcFoundLayout.setVisibility(View.VISIBLE);
         }
         else {
             noPcFoundLayout.setVisibility(View.INVISIBLE);
         }
-        pcGridAdapter.notifyDataSetChanged();
+    }
+
+    private void replaceGridFragment() {
+        // The fragment asks us which grid to show, so this swaps
+        // between the PC grid and the app grid.
+        try {
+            getFragmentManager().beginTransaction()
+                    .replace(R.id.pcFragmentContainer, new AdapterFragment())
+                    .commitAllowingStateLoss();
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void showAppList(ComputerDetails computer, boolean newlyPaired, boolean showHiddenApps) {
+        if (appView != null) {
+            appView.close();
+        }
+
+        appView = new AppView(this, this, managerBinder, computer, newlyPaired, showHiddenApps);
+
+        setTitle(computer.name);
+        if (quickLaunchView != null) {
+            quickLaunchView.setComputerFilter(computer.uuid);
+        }
+        updateNoPcFoundLayout();
+        replaceGridFragment();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && appListBackCallback == null) {
+            appListBackCallback = new OnBackInvokedCallback() {
+                @Override
+                public void onBackInvoked() {
+                    closeAppList();
+                }
+            };
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, appListBackCallback);
+        }
+
+        // If polling is already running, the app list needs its own poller now.
+        // Otherwise startComputerUpdates() will start it.
+        if (runningPolling) {
+            appView.startPolling();
+        }
+    }
+
+    @Override
+    public void closeAppList() {
+        if (appView == null) {
+            return;
+        }
+
+        appView.close();
+        appView = null;
+
+        unregisterAppListBackCallback();
+
+        setTitle(pcListTitle);
+        if (quickLaunchView != null) {
+            quickLaunchView.setComputerFilter(null);
+        }
+        updateNoPcFoundLayout();
+        replaceGridFragment();
+    }
+
+    private void unregisterAppListBackCallback() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && appListBackCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(appListBackCallback);
+            appListBackCallback = null;
+        }
+    }
+
+    @Override
+    // NOTE: This will NOT be called on Android 13+ with android:enableOnBackInvokedCallback="true"
+    public void onBackPressed() {
+        // Back from the app list returns to the PC list
+        if (appView != null) {
+            closeAppList();
+        }
+        else {
+            super.onBackPressed();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == AppView.REQUEST_APP_SETTINGS && appView != null) {
+            appView.onAppSettingsResult();
+        }
     }
 
     @Override
@@ -232,6 +358,8 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         // Assume we're in the foreground when created to avoid a race
         // between binding to CMS and onResume()
         inForeground = true;
+
+        pcListTitle = getTitle();
 
         // Create a GLSurfaceView to fetch GLRenderer unless we have
         // a cached result already.
@@ -314,9 +442,20 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
                         if (details.pairState == PairState.PAIRED) {
                             shortcutHelper.createAppViewShortcutForOnlineHost(details);
                         }
+
+                        AppView currentAppView = appView;
+                        if (currentAppView != null) {
+                            currentAppView.onComputerUpdated(details);
+                        }
                     }
                 }
             });
+
+            AppView currentAppView = appView;
+            if (currentAppView != null) {
+                currentAppView.startPolling();
+            }
+
             runningPolling = true;
         }
     }
@@ -328,6 +467,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             }
 
             freezeUpdates = true;
+
+            AppView currentAppView = appView;
+            if (currentAppView != null) {
+                currentAppView.stopPolling();
+            }
 
             managerBinder.stopPolling();
 
@@ -352,6 +496,14 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         if (overridesView != null) {
             overridesView.onDestroy();
         }
+
+        if (appView != null) {
+            appView.close();
+            appView = null;
+        }
+        unregisterAppListBackCallback();
+
+        SpinnerDialog.closeDialogs(this);
 
         if (managerBinder != null) {
             unbindService(serviceConnection);
@@ -424,7 +576,13 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         if (quickLaunchView != null && quickLaunchView.onCreateContextMenu(menu, v, menuInfo)) {
             return;
         }
-        
+
+        if (appView != null) {
+            super.onCreateContextMenu(menu, v, menuInfo);
+            appView.onCreateContextMenu(menu, v, menuInfo);
+            return;
+        }
+
         stopComputerUpdates(false);
 
         // Call superclass
@@ -585,10 +743,9 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
                             // Open the app list after a successful pairing attempt
                             doAppList(computer, true, false);
                         }
-                        else {
-                            // Start polling again if we're still in the foreground
-                            startComputerUpdates();
-                        }
+
+                        // Start polling again if we're still in the foreground
+                        startComputerUpdates();
                     }
                 });
             }
@@ -690,12 +847,13 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             return;
         }
 
-        Intent i = new Intent(this, AppView.class);
-        i.putExtra(AppView.NAME_EXTRA, computer.name);
-        i.putExtra(AppView.UUID_EXTRA, computer.uuid);
-        i.putExtra(AppView.NEW_PAIR_EXTRA, newlyPaired);
-        i.putExtra(AppView.SHOW_HIDDEN_APPS_EXTRA, showHiddenGames);
-        startActivity(i);
+        // Use the service's copy of the PC, which polling keeps up to date
+        ComputerDetails liveComputer = managerBinder.getComputer(computer.uuid);
+        if (liveComputer == null) {
+            return;
+        }
+
+        showAppList(liveComputer, newlyPaired, showHiddenGames);
     }
 
     @Override
@@ -704,7 +862,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         if (quickLaunchView != null && quickLaunchView.onContextItemSelected(item)) {
             return true;
         }
-        
+
+        if (appView != null) {
+            return appView.onContextItemSelected(item) || super.onContextItemSelected(item);
+        }
+
         AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
         final ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(info.position);
         switch (item.getItemId()) {
@@ -888,11 +1050,19 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
 
     @Override
     public int getAdapterFragmentLayoutId() {
+        if (appView != null) {
+            return appView.getAdapterFragmentLayoutId();
+        }
         return R.layout.pc_grid_view;
     }
 
     @Override
     public void receiveAbsListView(AbsListView listView) {
+        if (appView != null) {
+            appView.receiveAbsListView(listView);
+            return;
+        }
+
         listView.setAdapter(pcGridAdapter);
         listView.setOnItemClickListener(new OnItemClickListener() {
             @Override
