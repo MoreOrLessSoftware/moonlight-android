@@ -523,8 +523,14 @@ public class AppView {
     }
 
     public int getAdapterFragmentLayoutId() {
-        return PreferenceConfiguration.readPreferences(activity).compactAppGrid ?
-                    R.layout.app_grid_view_compact : R.layout.app_grid_view;
+        switch (PreferenceConfiguration.readPreferences(activity).appGridMode) {
+            case PreferenceConfiguration.APP_GRID_MODE_COMPACT:
+                return R.layout.app_grid_view_compact;
+            case PreferenceConfiguration.APP_GRID_MODE_CARDS:
+                return R.layout.app_grid_view_card;
+            default:
+                return R.layout.app_grid_view;
+        }
     }
 
     public void receiveAbsListView(AbsListView listView) {

@@ -2,6 +2,7 @@ package com.limelight.grid;
 
 import android.content.Context;
 import android.graphics.BitmapFactory;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -17,6 +18,7 @@ import com.limelight.grid.assets.NetworkAssetLoader;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.preferences.AppPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.utils.UiHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,6 +31,7 @@ import java.util.Set;
 public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     private static final int ART_WIDTH_PX = 300;
     private static final int COMPACT_WIDTH_DP = 115;
+    private static final int CARD_WIDTH_DP = 96;
     private static final int LARGE_WIDTH_DP = 150;
 
     private final ComputerDetails computer;
@@ -75,11 +78,13 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     }
 
     private static int getLayoutIdForPreferences(PreferenceConfiguration prefs) {
-        if (prefs.compactAppGrid) {
-            return R.layout.app_grid_item_compact;
-        }
-        else {
-            return R.layout.app_grid_item;
+        switch (prefs.appGridMode) {
+            case PreferenceConfiguration.APP_GRID_MODE_COMPACT:
+                return R.layout.app_grid_item_compact;
+            case PreferenceConfiguration.APP_GRID_MODE_CARDS:
+                return R.layout.app_grid_item_card;
+            default:
+                return R.layout.app_grid_item;
         }
     }
 
@@ -87,11 +92,16 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         int dpi = context.getResources().getDisplayMetrics().densityDpi;
         int dp;
 
-        if (prefs.compactAppGrid) {
-            dp = COMPACT_WIDTH_DP;
-        }
-        else {
-            dp = LARGE_WIDTH_DP;
+        switch (prefs.appGridMode) {
+            case PreferenceConfiguration.APP_GRID_MODE_COMPACT:
+                dp = COMPACT_WIDTH_DP;
+                break;
+            case PreferenceConfiguration.APP_GRID_MODE_CARDS:
+                dp = CARD_WIDTH_DP;
+                break;
+            default:
+                dp = LARGE_WIDTH_DP;
+                break;
         }
 
         double scalingDivisor = ART_WIDTH_PX / (dp * (dpi / 160.0));
@@ -175,10 +185,23 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
             overlayView.setVisibility(View.GONE);
         }
 
+        String appKey = this.computer.uuid + ":" + obj.app.getAppId();
+        AppPreferences.AppSettings appSettings = AppPreferences.getAppSettings(context, appKey);
+
+        // Cards always show the name, with the app's settings overrides below it
+        TextView cardTitle = parentView.findViewById(R.id.card_title);
+        if (cardTitle != null) {
+            cardTitle.setText(obj.app.getAppName());
+        }
+        TextView cardDetails = parentView.findViewById(R.id.card_details);
+        if (cardDetails != null) {
+            String overrides = appSettings.useGlobalSettings ? "" : describeOverrides(appSettings);
+            cardDetails.setText(overrides);
+            cardDetails.setVisibility(overrides.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+
         // Show settings indicator if app has custom settings (use global settings is false)
         if (settingsIndicator != null) {
-            String appKey = this.computer.uuid + ":" + obj.app.getAppId();
-            AppPreferences.AppSettings appSettings = AppPreferences.getAppSettings(context, appKey);
             if (!appSettings.useGlobalSettings) {
                 settingsIndicator.setVisibility(View.VISIBLE);
             } else {
@@ -192,5 +215,42 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         else {
             parentView.setAlpha(1.0f);
         }
+    }
+
+    // A short summary of the settings this app overrides, e.g. "2560×1440 · 120 FPS · 50 Mbps"
+    private String describeOverrides(AppPreferences.AppSettings settings) {
+        List<String> parts = new ArrayList<>();
+
+        if (settings.resolution != null) {
+            parts.add(settings.resolution.replace('x', '×'));
+        }
+        if (settings.fps > 0) {
+            parts.add(settings.fps + " FPS");
+        }
+        if (settings.bitrate > 0) {
+            // Bitrates are saved in Kbps
+            parts.add(UiHelper.formatRate(settings.bitrate / 1000.0, " Mbps"));
+        }
+        if (settings.framePacing != null) {
+            String[] names = context.getResources().getStringArray(R.array.video_frame_pacing_names);
+            String[] values = context.getResources().getStringArray(R.array.video_frame_pacing_values);
+            for (int i = 0; i < values.length; i++) {
+                if (values[i].equals(settings.framePacing)) {
+                    parts.add(names[i]);
+                    break;
+                }
+            }
+        }
+        if (settings.actualDisplayRefreshRate > 0) {
+            parts.add("Display " + UiHelper.formatRefreshRate(settings.actualDisplayRefreshRate));
+        }
+        if (settings.enableHdr != null) {
+            parts.add(Boolean.parseBoolean(settings.enableHdr) ? "HDR on" : "HDR off");
+        }
+        if (settings.enablePerfOverlay != null) {
+            parts.add(Boolean.parseBoolean(settings.enablePerfOverlay) ? "Perf overlay on" : "Perf overlay off");
+        }
+
+        return TextUtils.join(" · ", parts);
     }
 }

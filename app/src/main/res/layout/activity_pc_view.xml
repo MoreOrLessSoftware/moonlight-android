@@ -148,7 +148,7 @@
         android:layout_alignParentRight="true"
         android:src="@drawable/ic_app_grid_compact"
         android:preferKeepClear="true"
-        android:contentDescription="Toggle Box Art Size"
+        android:contentDescription="Change App View"
         android:visibility="gone"
         style="?android:attr/borderlessButtonStyle"/>
 

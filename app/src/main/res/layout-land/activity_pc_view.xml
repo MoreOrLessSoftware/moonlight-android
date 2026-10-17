@@ -140,7 +140,7 @@
         android:layout_alignParentLeft="true"
         android:layout_below="@id/helpButton"
         android:src="@drawable/ic_app_grid_compact"
-        android:contentDescription="Toggle Box Art Size"
+        android:contentDescription="Change App View"
         android:visibility="gone"
         style="?android:attr/borderlessButtonStyle"/>
 

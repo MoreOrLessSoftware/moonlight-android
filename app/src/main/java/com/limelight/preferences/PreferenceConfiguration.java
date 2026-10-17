@@ -51,7 +51,7 @@ public class PreferenceConfiguration {
     private static final String OSC_OPACITY_PREF_STRING = "seekbar_osc_opacity";
     private static final String LANGUAGE_PREF_STRING = "list_languages";
     // Set by the app list's view toggle rather than the settings page
-    public static final String COMPACT_APP_GRID_PREF_STRING = "checkbox_compact_app_grid";
+    public static final String APP_GRID_MODE_PREF_STRING = "app_grid_mode";
     private static final String MULTI_CONTROLLER_PREF_STRING = "checkbox_multi_controller";
     static final String AUDIO_CONFIG_PREF_STRING = "list_audio_config";
     private static final String USB_DRIVER_PREF_SRING = "checkbox_usb_driver";
@@ -179,7 +179,13 @@ public class PreferenceConfiguration {
     public int oscOpacity;
     public boolean stretchVideo, enableSops, playHostAudio, disableWarnings;
     public String language;
-    public boolean compactAppGrid, multiController, usbDriver, flipFaceButtons;
+    // How the app list shows apps, in the order the view toggle cycles through them
+    public static final int APP_GRID_MODE_LARGE = 0;
+    public static final int APP_GRID_MODE_COMPACT = 1;
+    public static final int APP_GRID_MODE_CARDS = 2;
+    public static final int APP_GRID_MODE_COUNT = 3;
+    public int appGridMode;
+    public boolean multiController, usbDriver, flipFaceButtons;
     public boolean onscreenController;
     public boolean onlyL3R3;
     public boolean showGuideButton;
@@ -685,7 +691,7 @@ public class PreferenceConfiguration {
         config.enableSops = prefs.getBoolean(SOPS_PREF_STRING, DEFAULT_SOPS);
         config.stretchVideo = prefs.getBoolean(STRETCH_PREF_STRING, DEFAULT_STRETCH);
         config.playHostAudio = prefs.getBoolean(HOST_AUDIO_PREF_STRING, DEFAULT_HOST_AUDIO);
-        config.compactAppGrid = prefs.getBoolean(COMPACT_APP_GRID_PREF_STRING, false);
+        config.appGridMode = prefs.getInt(APP_GRID_MODE_PREF_STRING, APP_GRID_MODE_LARGE);
         config.multiController = prefs.getBoolean(MULTI_CONTROLLER_PREF_STRING, DEFAULT_MULTI_CONTROLLER);
         config.usbDriver = prefs.getBoolean(USB_DRIVER_PREF_SRING, DEFAULT_USB_DRIVER);
         config.onscreenController = prefs.getBoolean(ONSCREEN_CONTROLLER_PREF_STRING, ONSCREEN_CONTROLLER_DEFAULT);

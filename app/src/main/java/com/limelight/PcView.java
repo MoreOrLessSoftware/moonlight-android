@@ -207,7 +207,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         appGridSizeToggleButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                toggleAppGridSize();
+                cycleAppGridMode();
             }
         });
         updateTopBarForAppList();
@@ -269,7 +269,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
     }
 
-    // While an app list is shown, the add PC button becomes the box art size toggle
+    // While an app list is shown, the add PC button becomes the app view toggle
     private void updateTopBarForAppList() {
         ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
         ImageButton appGridSizeToggleButton = findViewById(R.id.appGridSizeToggleButton);
@@ -278,10 +278,18 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
             addComputerButton.setVisibility(View.GONE);
             appGridSizeToggleButton.setVisibility(View.VISIBLE);
 
-            // The icon shows the size the button switches to
-            boolean compact = PreferenceConfiguration.readPreferences(this).compactAppGrid;
-            appGridSizeToggleButton.setImageResource(compact ?
-                    R.drawable.ic_app_grid_large : R.drawable.ic_app_grid_compact);
+            // The icon shows the view the button switches to
+            switch (getNextAppGridMode()) {
+                case PreferenceConfiguration.APP_GRID_MODE_COMPACT:
+                    appGridSizeToggleButton.setImageResource(R.drawable.ic_app_grid_compact);
+                    break;
+                case PreferenceConfiguration.APP_GRID_MODE_CARDS:
+                    appGridSizeToggleButton.setImageResource(R.drawable.ic_app_grid_cards);
+                    break;
+                default:
+                    appGridSizeToggleButton.setImageResource(R.drawable.ic_app_grid_large);
+                    break;
+            }
         }
         else {
             addComputerButton.setVisibility(View.VISIBLE);
@@ -289,14 +297,20 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         }
     }
 
-    private void toggleAppGridSize() {
+    private int getNextAppGridMode() {
+        int mode = PreferenceConfiguration.readPreferences(this).appGridMode;
+        return (mode + 1) % PreferenceConfiguration.APP_GRID_MODE_COUNT;
+    }
+
+    private void cycleAppGridMode() {
         if (appView == null) {
             return;
         }
 
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean compact = prefs.getBoolean(PreferenceConfiguration.COMPACT_APP_GRID_PREF_STRING, false);
-        prefs.edit().putBoolean(PreferenceConfiguration.COMPACT_APP_GRID_PREF_STRING, !compact).apply();
+        PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putInt(PreferenceConfiguration.APP_GRID_MODE_PREF_STRING, getNextAppGridMode())
+                .apply();
 
         // Re-create the grid to pick up the new item and column sizes
         appView.updateLayoutWithPreferences();
