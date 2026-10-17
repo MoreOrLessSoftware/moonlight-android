@@ -131,7 +131,7 @@
     <string name="toast_reset_osc_success">Екранні елементи керування повернуті до положень за замовчуванням</string>
     <string name="title_disable_frame_drop">Ніколи не пропускати кадри</string>
     <string name="summary_disable_frame_drop">Може зменшити мікрозависання на деяких пристроях але, також збільшити затримку</string>
-    <string name="title_enable_hdr">Увімкнути HDR (Експериментально)</string>
+    <string name="title_enable_hdr">Увімкнути HDR</string>
     <string name="summary_enable_hdr">Транслювати в HDR, якщо це підтримується грою та графічним процесором ПК. Для HDR потрібен графічний процесор із підтримкою кодування HEVC Main 10.</string>
     <string name="title_checkbox_vibrate_osc">Увімкнути вібрацію</string>
     <string name="title_fps_list">Частота кадрів</string>

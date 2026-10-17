@@ -144,7 +144,7 @@
     <string name="toast_reset_osc_success">Экранные элементы управления возвращены к положениям по умолчанию</string>
     <string name="title_disable_frame_drop">Никогда не пропускать кадры</string>
     <string name="summary_disable_frame_drop">Может уменьшить микрозависания на некоторых устройствах, но также увеличить задержку</string>
-    <string name="title_enable_hdr">Включить HDR (Экспериментально)</string>
+    <string name="title_enable_hdr">Включить HDR</string>
     <string name="summary_enable_hdr">Потоковая передача с HDR, когда игра и графический процессор ПК поддерживают эту функцию. Для HDR требуется графический процессор с поддержкой кодирования HEVC Main 10.</string>
     <string name="title_enable_post_stream_toast">Показывать отчёт о задержке после трансляции</string>
     <string name="summary_enable_post_stream_toast">Отобразить сообщение с информацией о задержке после окончания трансляции</string>

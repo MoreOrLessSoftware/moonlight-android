@@ -235,7 +235,7 @@
     <string name="summary_checkbox_enable_pip">Permite que la transmisión sea vista (pero no controlable) mientras se usa la multitarea</string>
     <string name="title_disable_frame_drop">Nunca disminuir cuadros</string>
     <string name="summary_disable_frame_drop">Puede reducir micro-tartamudeos (Stuttering) en algunos dispositivos , pero puede incrementar latencia</string>
-    <string name="title_enable_hdr">Activar HDR (Alto Rango Dinámico / Experimental)</string>
+    <string name="title_enable_hdr">Activar HDR (Alto Rango Dinámico)</string>
     <string name="summary_enable_hdr">Transmite en HDR cuando el juego y la GPU del PC lo admitan. HDR requiere una GPU compatible con la codificación HEVC Main 10.</string>
     <string name="summary_enable_perf_overlay">Mostrar en tiempo real la información del desempeño de la transmisión mientras está activa la misma</string>
     <string name="title_enable_post_stream_toast">Mostrar mensajes sobre latencia mientras se transmite</string>

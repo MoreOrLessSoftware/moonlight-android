@@ -218,7 +218,7 @@
     <string name="title_checkbox_disable_warnings">Изключване на предупредителните съобщения</string>
     <string name="summary_checkbox_disable_warnings">Изключване на екранните предупредителни съобщения за връзката по време на излъчването</string>
     <string name="title_video_format">Промяна на настройките на кодиране</string>
-    <string name="title_enable_hdr">Включване на HDR (експериментално)</string>
+    <string name="title_enable_hdr">Включване на HDR</string>
     <string name="title_enable_perf_overlay">Показване на статистика за производителността</string>
     <string name="title_enable_post_stream_toast">Показване на съобщение относно забавянето след излъчването</string>
     <string name="summary_setup_guide">Вижте инструкции как да настроите компютъра си за поточно предаване на игри</string>

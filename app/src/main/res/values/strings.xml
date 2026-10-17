@@ -272,7 +272,7 @@
     <string name="pyrowave_late_frames_smooth">Smoother</string>
     <string name="pyrowave_late_frames_smoothest">Smoothest (most blur)</string>
     <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>
-    <string name="title_enable_hdr">Enable HDR / 10-bit SDR (Experimental)</string>
+    <string name="title_enable_hdr">Enable HDR / 10-bit SDR</string>
     <string name="summary_enable_hdr">Stream HDR / 10-bit SDR when the game and PC GPU support it. Requires a GPU with HEVC Main 10 encoding support.</string>
     <string name="title_full_range">Force full range video (Experimental)</string>
     <string name="summary_full_range">This will cause loss of detail in light and dark areas if your device doesn\'t properly display full range video content.</string>
@@ -368,8 +368,8 @@
     <string name="title_actual_display_refresh_rate">Actual display refresh rate</string>
     <string name="summary_actual_display_refresh_rate">Leave at 0 to measure the display\'s exact refresh rate when the stream starts and ask the host for a frame rate that lines up with it. Enter a rate to send that instead. (Experimental)</string>
     <string name="summary_refresh_rate_measured">Measured when the stream starts</string>
-    <string name="title_checkbox_ultra_low_latency">Ultra low latency (Experimental)</string>
-    <string name="summary_checkbox_ultra_low_latency">Apply additional decoder flags for SD8Gen2/8(s)Gen3/8Elite, Exynos and MTK devices that may reduce latency</string>
+    <string name="title_checkbox_ultra_low_latency">Vendor low-latency decoder flags</string>
+    <string name="summary_checkbox_ultra_low_latency">Also apply chip-specific low latency flags for Snapdragon 8 Gen 2/8 (s) Gen 3/8 Elite, Exynos and MediaTek decoders on top of Android\'s standard low latency mode. May reduce latency on those devices.</string>
     
     <!-- Quick Launch strings -->
     <string name="quick_launch_section_title">Quick Launch</string>

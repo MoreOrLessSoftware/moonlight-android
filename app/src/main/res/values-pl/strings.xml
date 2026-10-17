@@ -112,7 +112,7 @@
     <string name="title_video_format">Zmiana ustawień kodeka</string>
     <string name="summary_video_format">Nowsze kodeki mogą obniżyć wymagania dotyczące przepustowości wideo, jeśli urządzenie je obsługuje. Wybrane kodeki mogą zostać zignorowane, jeśli nie są obsługiwane przez oprogramowanie hosta lub procesor graficzny.</string>
     <string name="summary_disable_frame_drop">Może zmniejszyć mikroprzycięcia na niektórych urządzeniach, ale może zwiększyć opóźnienia</string>
-    <string name="title_enable_hdr">Włącz HDR (eksperymentalnie)</string>
+    <string name="title_enable_hdr">Włącz HDR</string>
     <string name="summary_enable_hdr">Przesyłaj strumieniowo HDR, gdy gra i procesor graficzny komputera obsługują tę funkcję. HDR wymaga GPU z obsługą kodowania HEVC Main 10.</string>
     <string name="title_full_range">Wymuś pełny zakres wideo (eksperymentalne)</string>
     <string name="summary_enable_perf_overlay">Wyświetlanie informacji o wydajności strumienia w czasie rzeczywistym podczas strumieniowania</string>

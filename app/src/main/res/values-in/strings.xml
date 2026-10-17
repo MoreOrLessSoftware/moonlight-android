@@ -205,7 +205,7 @@
     <string name="summary_checkbox_gamepad_motion_fallback">Menggunakan motion sensor bawaan perangkat anda jika sensor gamepad tidak disupport oleh gamepad yang sedang terkoneksi atau versi Android ponsel anda.\nCatatan: mengaktifkan opsi ini dapat membuat gamepad anda muncul Sebagai PlayStation controller di pc host.</string>
     <string name="summary_disable_frame_drop">Dapat mengurangi micro-stuttering di sebagian perangkat, tapi bisa menaikkan latency</string>
     <string name="title_video_format">Ganti setelan codec</string>
-    <string name="title_enable_hdr">Aktifkan HDR (Experimental)</string>
+    <string name="title_enable_hdr">Aktifkan HDR</string>
     <string name="title_full_range">Paksa full range video (Experimental)</string>
     <string name="perf_overlay_hostprocessinglatency">Pengolahan host latency min / maks / rata-rata: %1$.1f / %2$.1f / %3$.1f ms</string>
     <string name="fps_suffix_fps">FPS</string>

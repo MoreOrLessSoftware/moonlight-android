@@ -238,7 +238,7 @@
     <string name="summary_disable_frame_drop">Může na některých zařízeních snížit mikrozádrhy, ale může zvýšit zpoždění</string>
     <string name="title_video_format">Změnit nastavení HEVC</string>
     <string name="summary_video_format">HEVC sníží datový přenos, ale vyžaduje novější zařízení</string>
-    <string name="title_enable_hdr">Povolit HDR (experimentální)</string>
+    <string name="title_enable_hdr">Povolit HDR</string>
     <string name="summary_enable_hdr">Streamovat v HDR, pokud jej hra a GPU počítače podporují. HDR vyžaduje GPU GTX 1000 nebo novější.</string>
     <string name="videoformat_hevcalways">Vždy použít HEVC (může padat)</string>
     <string name="title_frame_pacing">Frame pacing videa</string>

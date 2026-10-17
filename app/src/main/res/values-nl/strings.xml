@@ -166,7 +166,7 @@
     <string name="title_checkbox_enable_pip">Scherm-in-Scherm toeschouwermodus inschakelen</string>
     <string name="title_disable_frame_drop">Frames nooit overslaan</string>
     <string name="summary_disable_frame_drop">Kan micro-stotteren op sommige toestellen verminderen, maar kan vertraging verhogen</string>
-    <string name="title_enable_hdr">HDR Inschakelen (Experimenteel)</string>
+    <string name="title_enable_hdr">HDR Inschakelen</string>
     <string name="summary_enable_hdr">Stream HDR wanneer het spel en PC-GPU dit ondersteunen. HDR vereist een GPU met HEVC Main 10-coderingsondersteuning.</string>
     <string name="title_enable_perf_overlay">Prestatiestatistieken tonen tijdens het streamen</string>
     <string name="title_details">Details</string>

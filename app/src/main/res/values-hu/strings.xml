@@ -5,7 +5,7 @@
     <string name="summary_enable_perf_overlay">Valós idejű stream teljesítmény adatok mutatása streamelés közben</string>
     <string name="title_enable_perf_overlay">Teljesítménystatisztikák megjelenítése streamelés közben</string>
     <string name="summary_enable_hdr">HDR streamelés, ha a játék és a számítógép GPU-ja támogatja. A HDR-hez HEVC Main 10 kódolási támogatással rendelkező GPU szükséges.</string>
-    <string name="title_enable_hdr">HDR engedélyezése (Kísérleti)</string>
+    <string name="title_enable_hdr">HDR engedélyezése</string>
     <string name="summary_video_format">Az újabb kodekek csökkenthetik a videó sávszélességigényét, ha a készülék támogatja őket. A codec-kiválasztások figyelmen kívül hagyhatók, ha a gazdaszoftver vagy a GPU nem támogatja őket.</string>
     <string name="title_video_format">Kodekbeállítások módosítása</string>
     <string name="summary_disable_frame_drop">Csökkentheti a mikroakadozást egyes eszközökön, de növelheti a késleltetést</string>

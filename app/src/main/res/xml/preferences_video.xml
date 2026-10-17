@@ -46,11 +46,6 @@
             android:summary="@string/summary_jitter_buffer"
             android:defaultValue="balanced" />
         <CheckBoxPreference
-            android:defaultValue="false"
-            android:key="checkbox_ultra_low_latency"
-            android:summary="@string/summary_checkbox_ultra_low_latency"
-            android:title="@string/title_checkbox_ultra_low_latency" />
-        <CheckBoxPreference
             android:key="checkbox_stretch_video"
             android:title="@string/title_checkbox_stretch_video"
             android:defaultValue="false" />
@@ -111,6 +106,11 @@
             android:entryValues="@array/spatial_dithering_values"
             android:summary="@string/summary_spatial_dithering"
             android:defaultValue="off" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_ultra_low_latency"
+            android:summary="@string/summary_checkbox_ultra_low_latency"
+            android:title="@string/title_checkbox_ultra_low_latency" />
         <CheckBoxPreference
             android:key="checkbox_full_range"
             android:title="@string/title_full_range"
