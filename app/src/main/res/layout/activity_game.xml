@@ -54,6 +54,25 @@
         android:preferKeepClear="true"
         android:visibility="gone" />
 
+    <!-- The stream's settings as it starts. A toast cuts text off after two lines. -->
+    <TextView
+        android:id="@+id/streamInfoOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="64dp"
+        android:layout_marginLeft="24dp"
+        android:layout_marginRight="24dp"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:gravity="center"
+        android:textSize="14sp"
+        android:textColor="#FFFFFFFF"
+        android:background="@drawable/stream_info_background"
+        android:visibility="gone" />
+
     <include layout="@layout/brightness_slider" />
 
     <com.limelight.ui.overlay.OverlayMenuView

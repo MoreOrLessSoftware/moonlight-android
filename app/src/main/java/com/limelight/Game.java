@@ -71,6 +71,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.text.Html;
+import android.text.SpannableStringBuilder;
 import android.util.Rational;
 import android.view.Display;
 import android.view.InputDevice;
@@ -122,6 +123,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private static final int THREE_FINGER_TAP_THRESHOLD = 300;
 
+    // How long the stream's settings stay on screen once it's connected
+    private static final long STREAM_INFO_SHOWN_MS = 5000;
+
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
     private VirtualController virtualController;
@@ -131,6 +135,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private NvConnection conn;
     private SpinnerDialog spinner;
+    // The stream's settings, worked out as it starts connecting and shown once it's connected
+    private String streamInfo;
     private boolean displayedFailureDialog = false;
     // Set by launchFailed() on any thread, so stageFailed() doesn't show its own dialog too
     private volatile boolean launchFailureShown = false;
@@ -2716,8 +2722,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 hideSystemUi(1000);
 
-                // Show overlay menu hint toast
-                showOverlayMenuHint();
+                // The stream's settings and how to open the overlay menu, now that the
+                // connecting spinner, which dimmed everything under it, is gone
+                SpannableStringBuilder info = new SpannableStringBuilder();
+                if (streamInfo != null) {
+                    info.append(streamInfo).append('\n');
+                }
+                info.append(getOverlayMenuHint());
+                showStreamInfo(info);
             }
         });
 
@@ -2828,6 +2840,61 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     }
 
+    // Shows the stream's settings for a few seconds, like a toast but without its two line limit
+    private void showStreamInfo(CharSequence message) {
+        final TextView view = findViewById(R.id.streamInfoOverlay);
+        if (view == null) {
+            return;
+        }
+
+        view.animate().cancel();
+        view.setText(message);
+        view.setAlpha(1.0f);
+        view.setVisibility(View.VISIBLE);
+        view.animate()
+                .alpha(0.0f)
+                .setStartDelay(STREAM_INFO_SHOWN_MS)
+                .setDuration(300)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        view.setVisibility(View.GONE);
+                    }
+                });
+    }
+
+    // Frame pacing for the stream start summary, with the jitter buffer when the mode has one.
+    // Shorter than the settings' names, which explain each choice.
+    private String describeFramePacing() {
+        switch (prefConfig.framePacing) {
+            case PreferenceConfiguration.FRAME_PACING_MIN_LATENCY:
+                return "Lowest latency";
+            case PreferenceConfiguration.FRAME_PACING_CAP_FPS:
+                return "Balanced with FPS limit";
+            case PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS:
+                return "Smoothest video";
+            case PreferenceConfiguration.FRAME_PACING_HOST_TIMED:
+                return "Sync to host, " + describeJitterBuffer() + " jitter buffer";
+            case PreferenceConfiguration.FRAME_PACING_BALANCED:
+            default:
+                return "Balanced";
+        }
+    }
+
+    private String describeJitterBuffer() {
+        switch (prefConfig.jitterBuffer) {
+            case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
+                return "lowest latency";
+            case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
+                return "low latency";
+            case PreferenceConfiguration.JITTER_BUFFER_SMOOTH:
+                return "smooth";
+            case PreferenceConfiguration.JITTER_BUFFER_BALANCED:
+            default:
+                return "balanced";
+        }
+    }
+
     private void startConnection(double measuredRefreshHz) {
         if (isFinishing() || conn == null) {
             return;
@@ -2847,15 +2914,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             hostRateText = String.format(Locale.getDefault(), " (%.2fHz)", streamConfig.getClientRefreshRateX100() / 100.0);
         }
         String configMessage = String.format(Locale.getDefault(),
-            "Streaming %dx%d @ %d FPS%s, %d Mbps, %s%s",
+            "Streaming %dx%d @ %d FPS%s, %d Mbps, %s%s\nFrame pacing: %s",
             prefConfig.width,
             prefConfig.height,
             prefConfig.fps,
             hostRateText,
             prefConfig.bitrate / 1000,
             decoderRenderer.getRendererName(),
-            prefConfig.enableHdr ? " HDR" : "");
-        Toast.makeText(Game.this, configMessage, Toast.LENGTH_LONG).show();
+            prefConfig.enableHdr ? " HDR" : "",
+            describeFramePacing());
+        streamInfo = configMessage;
 
         decoderRenderer.setRenderTarget(streamView.getHolder());
         conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
@@ -3165,9 +3233,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     /**
-     * Show a toast hint about how to open the overlay menu
+     * A hint about how to open the overlay menu
      */
-    private void showOverlayMenuHint() {
+    private CharSequence getOverlayMenuHint() {
         // Get the trigger button name
         int buttonNameResId;
         switch (prefConfig.overlayTriggerButton) {
@@ -3189,9 +3257,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
         String buttonName = getString(buttonNameResId);
 
-        // Show the toast
         String message = getString(R.string.overlay_menu_hint, buttonName);
-        Toast.makeText(this, Html.fromHtml(message), Toast.LENGTH_LONG).show();
+        return Html.fromHtml(message);
     }
 
     private Runnable buildPostActionRunnable(CustomCommand command) {
