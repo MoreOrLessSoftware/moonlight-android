@@ -19,7 +19,6 @@ import com.limelight.R;
 import com.limelight.nvstream.av.video.VideoDecoderRenderer;
 import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.PreferenceConfiguration;
-import com.limelight.utils.TrafficStatsHelper;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -116,7 +115,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int refreshRate;
     private PreferenceConfiguration prefs;
 
-    private long lastNetDataNum = 0;
+    // The video socket's byte count at the last stats window, -1 for none yet
+    private long lastNetBytes = -1;
+    private long lastNetSampleMs;
     private float smoothedFpsVariance = 0;
     private boolean fpsVarianceInitialized = false;
     private static final float VARIANCE_SMOOTHING_FACTOR = 0.7f;
@@ -1206,7 +1207,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         rendererThread = new Thread() {
             @Override
             public void run() {
-                BufferInfo info = new BufferInfo();
                 // Each decoded frame waits for this thread to pass it on, so it gets the
                 // renderer's priority rather than the -4 of Thread.setPriority() below
                 try {
@@ -1215,6 +1215,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     LimeLog.warning("Could not raise the MediaCodec output thread's priority: " + e);
                 }
 
+                BufferInfo info = new BufferInfo();
                 while (!stopping) {
                     try {
                         // Try to output a frame
@@ -1779,12 +1780,20 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 String rendererText = vulkan != null ? vulkan.getRendererText() : null;
                 String pacingText = vulkan != null ? vulkan.getPacingText() : null;
 
-                // Calculate bandwidth, sampled in both modes so a switch between them mid-stream
-                // doesn't measure from a stale count
-                long netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) + TrafficStatsHelper.getPackageTxBytes(Process.myUid());
-                // Convert bytes per second to megabits per second (Mbps)
-                float realtimeNetData = lastNetDataNum != 0 ? (netData - lastNetDataNum) * 8 / 1000000f : -1;
-                lastNetDataNum = netData;
+                // Calculate bandwidth, sampled in all modes so a switch between them mid-stream
+                // doesn't measure from a stale count. From the video socket's own byte count:
+                // Android's per-app traffic counters are cached, and lately read 0 for one window
+                // and double for the next. Over the window's actual length, which runs a little
+                // over a second.
+                long netBytes = MoonBridge.getVideoBytesReceived();
+                long netSampleMs = SystemClock.uptimeMillis();
+                float realtimeNetData = -1;
+                if (lastNetBytes >= 0 && netSampleMs > lastNetSampleMs) {
+                    // Bits per millisecond are kilobits per second
+                    realtimeNetData = ((netBytes - lastNetBytes) & 0xFFFFFFFFL) * 8f / (netSampleMs - lastNetSampleMs) / 1000f;
+                }
+                lastNetBytes = netBytes;
+                lastNetSampleMs = netSampleMs;
 
                 StringBuilder sb = new StringBuilder();
                 if (prefs.perfOverlayMinimal) {
@@ -1872,7 +1881,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
             else {
                 // Measured afresh when the overlay is turned back on
-                lastNetDataNum = 0;
+                lastNetBytes = -1;
             }
 
             globalVideoStats.add(activeWindowVideoStats);

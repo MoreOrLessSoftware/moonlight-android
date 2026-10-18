@@ -224,6 +224,11 @@ Java_com_limelight_nvstream_jni_MoonBridge_getHostTimeOnLocalClock(JNIEnv *env, 
 }
 
 JNIEXPORT jlong JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_getVideoBytesReceived(JNIEnv *env, jclass clazz) {
+    return (jlong)LiGetRTPVideoStats()->byteCountReceived;
+}
+
+JNIEXPORT jlong JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_getMicroseconds(JNIEnv *env, jclass clazz) {
     return (jlong)LiGetMicroseconds();
 }

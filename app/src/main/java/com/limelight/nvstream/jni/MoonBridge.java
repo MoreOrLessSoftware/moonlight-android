@@ -453,6 +453,10 @@ public class MoonBridge {
     // moonlight-common-c's clock, which decode units' receive and enqueue times are on
     public static native long getMicroseconds();
 
+    // Bytes that have arrived on the video socket this stream: UDP payloads, FEC and RTP headers
+    // included. A 32-bit count that wraps around, so take differences modulo 2^32.
+    public static native long getVideoBytesReceived();
+
     public static native String getLaunchUrlQueryParameters();
 
     // The PyroWave bitstream revision the host advertised, or "" (valid once the stream starts)
