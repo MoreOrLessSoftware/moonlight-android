@@ -2869,6 +2869,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private String describeJitterBuffer() {
         switch (prefConfig.jitterBuffer) {
+            case PreferenceConfiguration.JITTER_BUFFER_INSTANT:
+                return "instant";
             case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
                 return "lowest latency";
             case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:

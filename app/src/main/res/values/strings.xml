@@ -362,6 +362,7 @@
     <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
     <string name="title_jitter_buffer">Jitter buffer</string>
     <string name="summary_jitter_buffer">Only used with host frame timing pacing: configure how much latency you want to accept for a smoother stream</string>
+    <string name="jitter_buffer_instant">Instant (drops frames, may stutter)</string>
     <string name="jitter_buffer_lowest_latency">Lowest latency</string>
     <string name="jitter_buffer_low_latency">Low latency</string>
     <string name="jitter_buffer_balanced">Balanced (Recommended)</string>

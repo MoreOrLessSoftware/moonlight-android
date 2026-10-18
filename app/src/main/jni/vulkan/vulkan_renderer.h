@@ -239,9 +239,13 @@ private:
     // frame presented as it arrived rather than at its vsync
     // commitNs: when a frame presented ahead was committed to its vsync, which its slack is
     // measured from (the pacer applies the present guard there)
+    // onArrival marks a frame shown as soon as it's decoded (presentNewest()), not paced
     bool renderFrame(const FramePtr& frame, uint64_t presentId = 0, int64_t showVsyncNs = 0, bool ahead = false,
-                     int64_t commitNs = 0);
+                     int64_t commitNs = 0, bool onArrival = false);
     void presentAhead();
+    // Shows the newest waiting frame now, dropping any older ones: lowest latency mode with a
+    // mailbox swapchain, and the Instant jitter buffer
+    void presentNewest();
     void collectPresentTimings();
     bool ensureSwapchain();
     bool createSwapchain();
@@ -385,6 +389,16 @@ private:
     AChoreographer* choreographer_ = nullptr;
     bool refreshRateCallbackRegistered_ = false;
     std::atomic<bool> presentOnArrival_ {false};  // Mailbox swapchain in lowest latency mode
+
+    // The Instant jitter buffer, with host frame timing pacing: frames are shown as they arrive,
+    // each stamped with the time it was presented. Android's compositor only drops a waiting
+    // frame for a newer one when it has a timestamp of its own, so it then takes the newest at
+    // each vsync. Shown without one (as the mailbox swapchain shows them), they queue up: on an
+    // iPlay 70 mini Ultra at 144 fps, 44% of frames reached the screen a vsync later than they
+    // could have, behind the frame before. Replayed from that session, taking the newest put
+    // frames on screen 15.3 ms after they were decoded on average, against 18.9 ms, for one
+    // frame in ten never shown.
+    std::atomic<bool> instant_ {false};
     // Held for any Vulkan work: the render thread's, and frames the image reader presents ahead
     // itself. Taken before mutex_, never while holding it.
     std::mutex renderMutex_;

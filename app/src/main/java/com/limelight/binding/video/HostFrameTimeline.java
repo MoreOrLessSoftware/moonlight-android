@@ -86,6 +86,7 @@ class HostFrameTimeline {
                 decayDivisor = 32;
                 break;
             case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
+            case PreferenceConfiguration.JITTER_BUFFER_INSTANT:
                 windowNs = 2_000_000_000L;
                 coverage = 0.90;
                 decayDivisor = 32;
@@ -166,6 +167,13 @@ class HostFrameTimeline {
         }
         if (!warmingUp) {
             warmedUp = true;
+        }
+
+        // Instant: as soon as possible. Stamped with now rather than shown without a time, so
+        // SurfaceFlinger drops it if a newer frame is also due at the vsync. The timeline goes
+        // on learning, for switching back.
+        if (jitterBuffer == PreferenceConfiguration.JITTER_BUFFER_INSTANT) {
+            return nowNs;
         }
 
         return hostPtsNs + offsetNs + presentLatencyNs;

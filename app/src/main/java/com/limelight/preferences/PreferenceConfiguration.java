@@ -151,6 +151,9 @@ public class PreferenceConfiguration {
     public static final int JITTER_BUFFER_BALANCED = 1;
     public static final int JITTER_BUFFER_SMOOTH = 2;
     public static final int JITTER_BUFFER_LOWEST_LATENCY = 3;
+    // No buffer or pacing at all: each frame is shown as soon as it's decoded, and the display
+    // takes the newest at each vsync, dropping the rest
+    public static final int JITTER_BUFFER_INSTANT = 4;
 
     // What to do with a PyroWave frame still arriving when it should be ready to show: show it
     // late, or cut it short then and show it with what arrived, missing some fine detail. The
@@ -497,6 +500,9 @@ public class PreferenceConfiguration {
         }
         else if (str.equals("lowest-latency")) {
             return JITTER_BUFFER_LOWEST_LATENCY;
+        }
+        else if (str.equals("instant")) {
+            return JITTER_BUFFER_INSTANT;
         }
         else if (str.equals("smooth")) {
             return JITTER_BUFFER_SMOOTH;

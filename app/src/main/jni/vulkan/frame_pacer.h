@@ -35,6 +35,9 @@ enum class JitterBuffer : int {
     Smooth = 2,
     LowestLatency = 3,  // Less buffer than LowLatency, which like it only evens out the host's
                         // timing when frames span more than one vsync
+    Instant = 4,        // No pacing: the renderer shows each frame as it's decoded and the
+                        // compositor takes the newest at each vsync (VulkanRenderer). The host
+                        // timeline goes on learning as for LowestLatency, for switching back.
 };
 
 // Maps host frame timestamps onto the local clock.

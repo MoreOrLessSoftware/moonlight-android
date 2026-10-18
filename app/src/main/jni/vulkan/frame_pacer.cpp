@@ -78,6 +78,7 @@ void HostTimeline::applyPreset() {
             baseDecayDivisor_ = 32;
             break;
         case JitterBuffer::LowestLatency:
+        case JitterBuffer::Instant:
             baseWindowNs_ = 2'000'000'000;
             baseCoverage_ = 0.90;
             baseDecayDivisor_ = 32;
@@ -428,7 +429,8 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     // vsync early or late. At 60 fps on a 120 Hz Pixel 10 Pro, unlocked Lowest latency showed
     // about one frame in a hundred for one vsync or three instead of two.
     if (slotVsyncs_ == 1 && (timeline_.jitterBuffer() == JitterBuffer::LowLatency ||
-                             timeline_.jitterBuffer() == JitterBuffer::LowestLatency)) {
+                             timeline_.jitterBuffer() == JitterBuffer::LowestLatency ||
+                             timeline_.jitterBuffer() == JitterBuffer::Instant)) {
         phaseSamples_.clear();
         phaseLocked_ = false;
         shiftNs_ = 0;
