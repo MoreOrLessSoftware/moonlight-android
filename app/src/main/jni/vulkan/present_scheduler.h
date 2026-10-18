@@ -131,7 +131,7 @@ public:
     // longer fits (the game's frame rate went up) is given up at once.
     void setAheadWindowNs(int64_t windowNs);
     static constexpr int kNeedBuckets = 100;  // Needed slack up to 25 ms, in kGuardBucketNs
-    // What frames needed is learned over this long (times the backoff), and at least this many
+    // What frames needed is learned over this long, after each change of delay, and at least this many
     // reports, before taking a shorter delay. Many sessions are short, and the time frames need
     // varies little (0.2 ms either way on the iPlay 70 mini Ultra), so seconds of it are enough;
     // the extra bucket on the guard covers the percentile's error with this few.
@@ -156,7 +156,6 @@ private:
     uint32_t lowerCount_ = 0;
     uint32_t lowerNotSooner_ = 0;
     uint32_t lowerMisses_ = 0;
-    uint32_t lowerBackoff_ = 1;  // Grows each time a shorter delay didn't hold
     bool loweredLast_ = false;
     uint32_t settling_ = kSettlingPresents;
 

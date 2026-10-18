@@ -41,6 +41,9 @@ struct Scenario {
     double hiccupEveryS = 0;    // If set: this often, the stream pauses for about 90 ms, and the
                                 // compositor shows the two frames after it a vsync late however
                                 // early they were presented (the iPlay 70 mini Ultra at 120 Hz)
+    double slowEveryS = 0;      // If set: this often, the compositor needs slowNeedMs for slowForS
+    double slowForS = 0;
+    double slowNeedMs = 0;
     unsigned seed = 12345;
 };
 
@@ -71,7 +74,10 @@ Result run(const Scenario& s, bool verbose = true) {
         const bool secondHalf = i >= s.frames / 2;
         const int slotVsyncs = (s.slotVsyncsAfter > 0 && secondHalf) ? s.slotVsyncsAfter : s.slotVsyncs;
         vsync += period * slotVsyncs;
-        const double needMs = (s.needMsAfter >= 0 && secondHalf) ? s.needMsAfter : s.needMs;
+        double needMs = (s.needMsAfter >= 0 && secondHalf) ? s.needMsAfter : s.needMs;
+        if (s.slowEveryS > 0 && std::fmod((vsync - startNs) / 1e9, s.slowEveryS) >= s.slowEveryS - s.slowForS) {
+            needMs = s.slowNeedMs;
+        }
 
         // Frames can be committed up to a slot ahead (FramePacer::presentAheadVsyncs())
         const int64_t window = period * slotVsyncs;
@@ -220,6 +226,20 @@ int main() {
         Result r = runAndReport(s);
         check(r.finalDelay == 1, s.name, "should lower to one vsync and stay there through the hiccups");
         check(r.changes == 1, s.name, "hiccups shouldn't move the delay");
+    }
+    {
+        // The compositor slows for 3 s every minute: each time, back to two vsyncs, and one
+        // again seconds after it recovers. Once, the slow seconds stayed in what was learned
+        // and kept two vsyncs for three minutes; and each slowdown doubled the wait to retry.
+        Scenario s {"144 Hz at 144 fps, 5.4 ms, compositor slows to 7.5 ms for 3 s a minute", 144.0, 5.4};
+        s.needJitterMs = 0.2;
+        s.frames = 144 * 290;
+        s.slowEveryS = 60;
+        s.slowForS = 3;
+        s.slowNeedMs = 7.5;
+        Result r = runAndReport(s);
+        check(r.changes >= 9, s.name, "should go back to one vsync after every slowdown");
+        check(r.finalDelay == 1, s.name, "should end at one vsync");
     }
     {
         // Lowered at 72 fps, then the game runs at 144 fps: the guard no longer fits a frame's

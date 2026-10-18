@@ -165,7 +165,7 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
 
 void PresentScheduler::considerLowering(int64_t vsyncNs, int64_t periodNs) {
     if (delayFixed_ || guardFixed_ || delay_ <= kMinDelay || needCount_ < kLowerMinNeedSamples ||
-            vsyncNs - needStartNs_ < kLowerLearnNs * lowerBackoff_) {
+            vsyncNs - needStartNs_ < kLowerLearnNs) {
         return;
     }
 
@@ -189,6 +189,14 @@ void PresentScheduler::considerLowering(int64_t vsyncNs, int64_t periodNs) {
     const int64_t baseGuardNs = std::max(guardNs_, kInitialGuardNs);
     if (guard > windowNs - kLowerGuardHeadroomNs ||
             static_cast<double>(guard - baseGuardNs) >= kLowerMaxGuardCost * static_cast<double>(periodNs)) {
+        // Not now: learned afresh for the next try, so each decision rests on the last few
+        // seconds. Kept, a few seconds of a slow compositor stayed over the percentile for
+        // minutes after it recovered (in present_scheduler_test, 3 s of it kept two vsyncs for
+        // three minutes).
+        std::fill(std::begin(needSamples_), std::end(needSamples_), 0.0);
+        needTotal_ = 0;
+        needCount_ = 0;
+        needStartNs_ = 0;
         return;
     }
 
@@ -204,8 +212,8 @@ void PresentScheduler::considerLowering(int64_t vsyncNs, int64_t periodNs) {
 void PresentScheduler::setAheadWindowNs(int64_t windowNs) {
     aheadWindowNs_ = windowNs;
     if (loweredLast_ && loweredGuardCapNs_ > 0 && windowNs > 0 && guardNs_ > windowNs - kLowerGuardHeadroomNs) {
-        // Not a failure of the shorter delay, so no backoff: it's tried again once frames can
-        // be committed early enough
+        // Not a failure of the shorter delay: it's tried again once frames can be committed
+        // early enough
         undoLowering();
     }
 }
@@ -263,10 +271,13 @@ void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t perio
     raiseMisses_ += missed ? 1 : 0;
     if (raiseCount_ >= kRaiseWindow || raiseMisses_ >= kRaiseMisses) {
         if (raiseMisses_ >= kRaiseMisses && delay_ < kMaxDelay) {
-            // A shorter delay that didn't hold: wait longer before trying it again, and go back
-            // to the guard from before it
+            // A shorter delay that didn't hold: back to the guard from before it. It's tried
+            // again after learning afresh for the usual time, not longer each time. A delay that
+            // held for a while and then didn't is a compositor that slowed for a while, and a
+            // wait that doubled with each one (up to 80 s of learning) could keep the longer
+            // delay for the rest of a session. One that never holds still only tries again
+            // after a further kLowerLearnNs and its misses.
             if (loweredLast_) {
-                lowerBackoff_ = std::min<uint32_t>(lowerBackoff_ * 2, 16);
                 undoLowering();
                 return;
             }
@@ -286,7 +297,7 @@ void PresentScheduler::onPresented(int64_t vsyncNs, int delayUsed, int64_t perio
     lowerCount_++;
     lowerNotSooner_ += couldBeSooner(target, earliestNs, marginNs, periodNs) ? 0 : 1;
     lowerMisses_ += missed ? 1 : 0;
-    if (lowerCount_ >= kLowerWindow * lowerBackoff_) {
+    if (lowerCount_ >= kLowerWindow) {
         // All but one in two hundred could have (frames that arrived late have little time to
         // spare), and hardly any missed
         if (delay_ > kMinDelay && lowerNotSooner_ * 200 <= lowerCount_ && lowerMisses_ <= kLowerMaxMisses) {
