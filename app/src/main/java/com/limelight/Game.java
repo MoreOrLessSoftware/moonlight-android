@@ -2699,7 +2699,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 // The stream's settings, now that the codec the host chose is known. Toasts
                 // show two lines at most, so the frame pacing gets its own.
                 Toast.makeText(Game.this, describeStream(), Toast.LENGTH_LONG).show();
-                Toast.makeText(Game.this, "Frame pacing: " + describeFramePacing(), Toast.LENGTH_LONG).show();
+                Toast.makeText(Game.this, "Pacing: " + describeFramePacing(), Toast.LENGTH_LONG).show();
 
                 // Show overlay menu hint toast
                 showOverlayMenuHint();
@@ -2860,7 +2860,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             case PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS:
                 return "Smoothest video";
             case PreferenceConfiguration.FRAME_PACING_HOST_TIMED:
-                return "Sync to host, " + describeJitterBuffer() + " jitter buffer";
+                return "Sync to host, Buffer: " + describeJitterBuffer();
             case PreferenceConfiguration.FRAME_PACING_BALANCED:
             default:
                 return "Balanced";
@@ -2870,16 +2870,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private String describeJitterBuffer() {
         switch (prefConfig.jitterBuffer) {
             case PreferenceConfiguration.JITTER_BUFFER_INSTANT:
-                return "instant";
+                return "Instant";
             case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
-                return "lowest latency";
+                return "Lowest latency";
             case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
-                return "low latency";
+                return "Low latency";
             case PreferenceConfiguration.JITTER_BUFFER_SMOOTH:
-                return "smooth";
+                return "Smooth";
             case PreferenceConfiguration.JITTER_BUFFER_BALANCED:
             default:
-                return "balanced";
+                return "Balanced";
         }
     }
 
