@@ -350,8 +350,8 @@ public class OverridesView {
 
     private void togglePerfOverlay() {
         // Performance overlay override cycles through: 0 (default) -> 4 (minimal) -> 3 (compact)
-        // -> 1 (detailed) -> 2 (force off) -> 0 (default). Detailed keeps 1, which was force on
-        // when there were only detailed stats.
+        // -> 5 (basic) -> 1 (detailed) -> 2 (force off) -> 0 (default). Detailed keeps 1, which
+        // was force on when there were only detailed stats.
         int currentOverride = preferences.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
         int newOverride;
         switch (currentOverride) {
@@ -362,6 +362,9 @@ public class OverridesView {
                 newOverride = 3;
                 break;
             case 3:
+                newOverride = 5;
+                break;
+            case 5:
                 newOverride = 1;
                 break;
             case 1:
@@ -394,6 +397,10 @@ public class OverridesView {
             // Force compact - green icon
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
             perfOverlayLabel.setText("Stats overlay: Compact");
+        } else if (override == 5) {
+            // Force basic - green icon
+            perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
+            perfOverlayLabel.setText("Stats overlay: Basic");
         } else if (override == 1) {
             // Force detailed - green icon
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);

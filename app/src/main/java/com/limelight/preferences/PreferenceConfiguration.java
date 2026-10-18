@@ -199,6 +199,8 @@ public class PreferenceConfiguration {
     public boolean perfOverlayCompact;
     // Fewer stats in that line (perfOverlayCompact is set too)
     public boolean perfOverlayMinimal;
+    // The detailed stats without the renderer details, and only the buffer for frame pacing
+    public boolean perfOverlayBasic;
     public boolean enableLatencyToast;
     public boolean bindAllUsb;
     public boolean mouseEmulation;
@@ -740,6 +742,7 @@ public class PreferenceConfiguration {
         config.enablePerfOverlay = !perfOverlay.equals("off");
         config.perfOverlayMinimal = perfOverlay.equals("minimal");
         config.perfOverlayCompact = perfOverlay.equals("compact") || config.perfOverlayMinimal;
+        config.perfOverlayBasic = perfOverlay.equals("basic");
         config.bindAllUsb = prefs.getBoolean(BIND_ALL_USB_STRING, DEFAULT_BIND_ALL_USB);
         config.mouseEmulation = prefs.getBoolean(MOUSE_EMULATION_STRING, DEFAULT_MOUSE_EMULATION);
         config.mouseNavButtons = prefs.getBoolean(MOUSE_NAV_BUTTONS_STRING, DEFAULT_MOUSE_NAV_BUTTONS);

@@ -1620,6 +1620,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (bandwidthMbps >= 0) {
             sb.append(separator).append(context.getString(R.string.perf_overlay_compact_bandwidth, bandwidthMbps));
         }
+        appendCaptureLatency(sb, separator, lastTwo, rttInfo);
+    }
+
+    // Capture to present where it's measured, or else capture to decoded
+    private void appendCaptureLatency(StringBuilder sb, String separator, VideoStats lastTwo, long rttInfo) {
         if (lastTwo.framesWithCaptureToPresent > 0) {
             sb.append(separator).append(context.getString(R.string.perf_overlay_minimal_capture_to_present,
                     averageCaptureLatencyMs(lastTwo.totalCaptureToPresentUs, lastTwo.framesWithCaptureToPresent,
@@ -1660,16 +1665,25 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         sb.append(separator).append(context.getString(R.string.perf_overlay_compact_dectime,
                 getCodecName(videoFormat), decodeTimeMs));
 
-        // Just the buffer from the renderer's pacing headline, "<ms> ms buffer, <Hz> Hz",
-        // which only host-timed pacing has
-        if (pacingText != null) {
-            int bufferEnd = pacingText.indexOf(" ms buffer");
-            int split = pacingText.indexOf('\n');
-            if (bufferEnd > 0 && (split < 0 || bufferEnd < split)) {
-                sb.append(separator).append(context.getString(R.string.perf_overlay_compact_pacing,
-                        pacingText.substring(0, bufferEnd)));
-            }
+        String bufferMs = pacingBufferMs(pacingText);
+        if (bufferMs != null) {
+            sb.append(separator).append(context.getString(R.string.perf_overlay_compact_pacing, bufferMs));
         }
+        appendCaptureLatency(sb, separator, lastTwo, rttInfo);
+    }
+
+    // Just the buffer's milliseconds from the renderer's pacing headline, "<ms> ms buffer,
+    // <Hz> Hz", or null without one (only host-timed pacing has it)
+    private static String pacingBufferMs(String pacingText) {
+        if (pacingText == null) {
+            return null;
+        }
+        int bufferEnd = pacingText.indexOf(" ms buffer");
+        int split = pacingText.indexOf('\n');
+        if (bufferEnd > 0 && (split < 0 || bufferEnd < split)) {
+            return pacingText.substring(0, bufferEnd);
+        }
+        return null;
     }
 
     @Override
@@ -1772,8 +1786,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     appendCompactPerfText(sb, fps, lastTwo, rttInfo, decodeTimeMs, realtimeNetData, pacingText);
                 }
                 else {
+                    // Basic leaves out the renderer's details, and has only the buffer for pacing
+                    boolean basic = prefs.perfOverlayBasic;
                     sb.append(context.getString(R.string.perf_overlay_decoder, decoder));
-                    if (rendererText != null && !rendererText.isEmpty()) {
+                    if (!basic && rendererText != null && !rendererText.isEmpty()) {
                         sb.append(" \u00b7 ").append(rendererText);
                     }
                     sb.append('\n');
@@ -1803,7 +1819,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency)).append('\n');
                     }
                     sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
-                    if (pacingText != null) {
+                    String bufferMs = basic ? pacingBufferMs(pacingText) : null;
+                    if (bufferMs != null) {
+                        sb.append('\n').append(context.getString(R.string.perf_overlay_pacing_buffer, bufferMs));
+                    }
+                    else if (!basic && pacingText != null) {
                         // The buffer on the pacing line, and the lock state and skipped frames below
                         // it, like the stream details below the decoder
                         int split = pacingText.indexOf('\n');
@@ -1819,7 +1839,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, details));
                         }
                     }
-                    if (lastTwo.framesWithCaptureToDecoded > 0) {
+                    if (basic && lastTwo.framesWithCaptureToPresent > 0) {
+                        // Basic has capture to decoded only where present isn't measured
+                        sb.append('\n').append(context.getString(R.string.perf_overlay_capture_to_present,
+                                averageCaptureLatencyMs(lastTwo.totalCaptureToPresentUs,
+                                        lastTwo.framesWithCaptureToPresent, lastTwo.presentedWithoutNetworkTransit,
+                                        rttInfo)));
+                    }
+                    else if (lastTwo.framesWithCaptureToDecoded > 0) {
                         float decodedMs = averageCaptureLatencyMs(lastTwo.totalCaptureToDecodedUs,
                                 lastTwo.framesWithCaptureToDecoded, lastTwo.decodedWithoutNetworkTransit, rttInfo);
                         if (lastTwo.framesWithCaptureToPresent > 0) {

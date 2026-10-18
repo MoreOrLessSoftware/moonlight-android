@@ -115,11 +115,13 @@
     <string name="perf_overlay_dectime">Decoding time: %1$.2f ms</string>
     <string name="perf_overlay_bandwidth">Network bandwidth: %1$.1f Mbps</string>
     <string name="perf_overlay_pacing">Frame pacing: %1$s</string>
+    <string name="perf_overlay_pacing_buffer">Frame pacing: %1$s ms</string>
     <string name="perf_overlay_pacing_details">└ %1$s</string>
     <!-- The compact stats, joined in one line along the top. Times are in ms. -->
     <string name="perf_overlay_compact_stream">%1$s @ %2$.2f</string>
     <string name="perf_overlay_capture_latency">Capture to decoded/present: %1$.1f/%2$.1f ms</string>
     <string name="perf_overlay_capture_to_decoded">Capture to decoded: %1$.1f ms</string>
+    <string name="perf_overlay_capture_to_present">Capture to present: %1$.1f ms</string>
     <string name="perf_overlay_compact_bandwidth">%1$.0f Mbps</string>
     <string name="perf_overlay_compact_fps">In/render: %1$.2f/%2$.2f</string>
     <string name="perf_overlay_compact_netdrops">Dropped: %1$.2f%%</string>
@@ -130,8 +132,8 @@
     <string name="perf_overlay_compact_pacing">Frame pacing: %1$s</string>
     <!-- The minimal stats, a shorter compact line -->
     <string name="perf_overlay_minimal_fps">%1$.2f FPS</string>
-    <string name="perf_overlay_minimal_capture_to_present">Capture to present: %1$.1f</string>
-    <string name="perf_overlay_minimal_capture_to_decoded">Capture to decoded: %1$.1f</string>
+    <string name="perf_overlay_minimal_capture_to_present">Capture to present: %1$.0f</string>
+    <string name="perf_overlay_minimal_capture_to_decoded">Capture to decoded: %1$.0f</string>
 
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
@@ -301,6 +303,7 @@
     <string name="perf_overlay_off">Off</string>
     <string name="perf_overlay_minimal">Minimal</string>
     <string name="perf_overlay_compact">Compact</string>
+    <string name="perf_overlay_basic">Basic</string>
     <string name="perf_overlay_detailed">Detailed</string>
     <string name="title_enable_post_stream_toast">Show latency message after streaming</string>
     <string name="summary_enable_post_stream_toast">Display a latency information message after the stream ends</string>

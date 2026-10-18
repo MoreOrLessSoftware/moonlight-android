@@ -3203,7 +3203,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         String current = !prefConfig.enablePerfOverlay ? "off" :
                 prefConfig.perfOverlayMinimal ? "minimal" :
-                prefConfig.perfOverlayCompact ? "compact" : "detailed";
+                prefConfig.perfOverlayCompact ? "compact" :
+                prefConfig.perfOverlayBasic ? "basic" : "detailed";
         int checked = -1;
         for (int i = 0; i < values.length; i++) {
             if (values[i].equals(current)) {
@@ -3221,6 +3222,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         prefConfig.enablePerfOverlay = !values[which].equals("off");
                         prefConfig.perfOverlayMinimal = values[which].equals("minimal");
                         prefConfig.perfOverlayCompact = values[which].equals("compact") || prefConfig.perfOverlayMinimal;
+                        prefConfig.perfOverlayBasic = values[which].equals("basic");
 
                         updatePerfOverlayLayout();
                         performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay ? View.VISIBLE : View.GONE);
