@@ -2696,10 +2696,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 hideSystemUi(1000);
 
-                // The stream's settings, now that the codec the host chose is known. Toasts
-                // show two lines at most, so the frame pacing gets its own.
+                // The stream's settings, now that the codec the host chose is known (the frame
+                // pacing was shown while connecting)
                 Toast.makeText(Game.this, describeStream(), Toast.LENGTH_LONG).show();
-                Toast.makeText(Game.this, "Pacing: " + describeFramePacing(), Toast.LENGTH_LONG).show();
 
                 // Show overlay menu hint toast
                 showOverlayMenuHint();
@@ -2802,6 +2801,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
+
+            // The frame pacing is known from the settings, so it shows while connecting; the
+            // stream's details follow once the host has chosen its codec
+            Toast.makeText(Game.this, "Pacing: " + describeFramePacing(), Toast.LENGTH_LONG).show();
 
             // Measure the display's actual refresh rate first, now that its mode is set, so the
             // host can be asked for a frame rate that lines up with our vsyncs
