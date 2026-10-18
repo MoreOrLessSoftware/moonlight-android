@@ -627,10 +627,16 @@ bool VulkanRenderer::createDevice() {
     // Our queues at high global priority, so the GPU runs a render (one small draw, due at a
     // vsync) ahead of other apps' work, and can preempt it. Android only lets some apps have
     // it, and a driver refuses the device when it won't, so it's tried and dropped if refused.
-    // To compare without it: adb shell setprop debug.moonlight.gpu_priority default
+    // Not for PyroWave, whose decodes share the queue family and so the priority: they keep the
+    // GPU busy most of each frame, and ahead of the compositor's own GPU work they held up the
+    // screen. On an iPlay 70 mini Ultra at 500 Mbps and 144 fps, about one in ten wake-ups from
+    // the host's idle desktop left the screen unchanged for 80 ms; at the default priority, none
+    // in 36.
+    // To choose: adb shell setprop debug.moonlight.gpu_priority default (never) or high (always)
     char priorityMode[PROP_VALUE_MAX] = {};
     __system_property_get("debug.moonlight.gpu_priority", priorityMode);
-    const bool tryHighPriority = globalPriorityExt_ && strcmp(priorityMode, "default") != 0;
+    const bool tryHighPriority = globalPriorityExt_ && strcmp(priorityMode, "default") != 0 &&
+            (!config_.pyrowave || strcmp(priorityMode, "high") == 0);
     if (tryHighPriority) {
         deviceSetup_.globalPriority.globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR;
         deviceSetup_.queue.pNext = &deviceSetup_.globalPriority;
