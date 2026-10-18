@@ -71,7 +71,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.text.Html;
-import android.text.SpannableStringBuilder;
 import android.util.Rational;
 import android.view.Display;
 import android.view.InputDevice;
@@ -123,9 +122,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private static final int THREE_FINGER_TAP_THRESHOLD = 300;
 
-    // How long the stream's settings stay on screen once it's connected
-    private static final long STREAM_INFO_SHOWN_MS = 5000;
-
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
     private VirtualController virtualController;
@@ -135,8 +131,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private NvConnection conn;
     private SpinnerDialog spinner;
-    // The stream's settings, worked out as it starts connecting and shown once it's connected
-    private String streamInfo;
     private boolean displayedFailureDialog = false;
     // Set by launchFailed() on any thread, so stageFailed() doesn't show its own dialog too
     private volatile boolean launchFailureShown = false;
@@ -1298,29 +1292,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 // Add the video codec to the post-stream toast
                 if (message != null) {
-                    message += " [";
-
-                    if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
-                        message += "H.264";
-                    }
-                    else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H265) != 0) {
-                        message += "HEVC";
-                    }
-                    else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
-                        message += "AV1";
-                    }
-                    else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
-                        message += "PyroWave";
-                    }
-                    else {
-                        message += "UNKNOWN";
-                    }
-
-                    if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
-                        message += " HDR";
-                    }
-
-                    message += "]";
+                    message += " [" + describeVideoFormat(videoFormat) + "]";
                 }
 
                 if (message != null) {
@@ -2722,14 +2694,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 hideSystemUi(1000);
 
-                // The stream's settings and how to open the overlay menu, now that the
-                // connecting spinner, which dimmed everything under it, is gone
-                SpannableStringBuilder info = new SpannableStringBuilder();
-                if (streamInfo != null) {
-                    info.append(streamInfo).append('\n');
-                }
-                info.append(getOverlayMenuHint());
-                showStreamInfo(info);
+                // The stream's settings, now that the codec the host chose is known. Toasts
+                // show two lines at most, so the frame pacing gets its own.
+                Toast.makeText(Game.this, describeStream(), Toast.LENGTH_LONG).show();
+                Toast.makeText(Game.this, "Frame pacing: " + describeFramePacing(), Toast.LENGTH_LONG).show();
+
+                // Show overlay menu hint toast
+                showOverlayMenuHint();
             }
         });
 
@@ -2840,30 +2811,50 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     }
 
-    // Shows the stream's settings for a few seconds, like a toast but without its two line limit
-    private void showStreamInfo(CharSequence message) {
-        final TextView view = findViewById(R.id.streamInfoOverlay);
-        if (view == null) {
-            return;
+    private static String describeVideoFormat(int videoFormat) {
+        String codec;
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
+            codec = "H.264";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H265) != 0) {
+            codec = "HEVC";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
+            codec = "AV1";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            codec = "PyroWave";
+        }
+        else {
+            codec = "UNKNOWN";
         }
 
-        view.animate().cancel();
-        view.setText(message);
-        view.setAlpha(1.0f);
-        view.setVisibility(View.VISIBLE);
-        view.animate()
-                .alpha(0.0f)
-                .setStartDelay(STREAM_INFO_SHOWN_MS)
-                .setDuration(300)
-                .withEndAction(new Runnable() {
-                    @Override
-                    public void run() {
-                        view.setVisibility(View.GONE);
-                    }
-                });
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
+            codec += " HDR";
+        }
+        return codec;
     }
 
-    // Frame pacing for the stream start summary, with the jitter buffer when the mode has one.
+    // The stream's format and renderer for the toast shown once it's connected, when the
+    // codec the host chose is known
+    private String describeStream() {
+        // The exact rate the host was asked for
+        String hostRateText = "";
+        if (streamConfig.getClientRefreshRateX100() > 0) {
+            hostRateText = String.format(Locale.getDefault(), " (%.2f Hz)", streamConfig.getClientRefreshRateX100() / 100.0);
+        }
+        return String.format(Locale.getDefault(),
+                "%dx%d @ %d FPS%s \u2022 %s \u2022 %d Mbps \u2022 %s",
+                prefConfig.width,
+                prefConfig.height,
+                prefConfig.fps,
+                hostRateText,
+                describeVideoFormat(decoderRenderer.getActiveVideoFormat()),
+                prefConfig.bitrate / 1000,
+                decoderRenderer.getRendererName());
+    }
+
+    // Frame pacing for the stream start toast, with the jitter buffer when the mode has one.
     // Shorter than the settings' names, which explain each choice.
     private String describeFramePacing() {
         switch (prefConfig.framePacing) {
@@ -2907,23 +2898,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 LimeLog.info(String.format(Locale.ROOT, "Asking the host for %.2f FPS", hostRate));
             }
         }
-
-        // Show stream configuration to user, with the exact rate the host was asked for
-        String hostRateText = "";
-        if (streamConfig.getClientRefreshRateX100() > 0) {
-            hostRateText = String.format(Locale.getDefault(), " (%.2fHz)", streamConfig.getClientRefreshRateX100() / 100.0);
-        }
-        String configMessage = String.format(Locale.getDefault(),
-            "Streaming %dx%d @ %d FPS%s, %d Mbps, %s%s\nFrame pacing: %s",
-            prefConfig.width,
-            prefConfig.height,
-            prefConfig.fps,
-            hostRateText,
-            prefConfig.bitrate / 1000,
-            decoderRenderer.getRendererName(),
-            prefConfig.enableHdr ? " HDR" : "",
-            describeFramePacing());
-        streamInfo = configMessage;
 
         decoderRenderer.setRenderTarget(streamView.getHolder());
         conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
@@ -3233,9 +3207,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     /**
-     * A hint about how to open the overlay menu
+     * Show a toast hint about how to open the overlay menu
      */
-    private CharSequence getOverlayMenuHint() {
+    private void showOverlayMenuHint() {
         // Get the trigger button name
         int buttonNameResId;
         switch (prefConfig.overlayTriggerButton) {
@@ -3257,8 +3231,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
         String buttonName = getString(buttonNameResId);
 
+        // Show the toast
         String message = getString(R.string.overlay_menu_hint, buttonName);
-        return Html.fromHtml(message);
+        Toast.makeText(this, Html.fromHtml(message), Toast.LENGTH_LONG).show();
     }
 
     private Runnable buildPostActionRunnable(CustomCommand command) {
