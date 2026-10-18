@@ -118,6 +118,8 @@
     <string name="perf_overlay_pacing_details">└ %1$s</string>
     <!-- The compact stats, joined in one line along the top. Times are in ms. -->
     <string name="perf_overlay_compact_stream">%1$s @ %2$.2f</string>
+    <string name="perf_overlay_capture_latency">Capture to decoded/present: %1$.1f/%2$.1f ms</string>
+    <string name="perf_overlay_capture_to_decoded">Capture to decoded: %1$.1f ms</string>
     <string name="perf_overlay_compact_bandwidth">%1$.0f Mbps</string>
     <string name="perf_overlay_compact_fps">In/render: %1$.2f/%2$.2f</string>
     <string name="perf_overlay_compact_netdrops">Dropped: %1$.2f%%</string>

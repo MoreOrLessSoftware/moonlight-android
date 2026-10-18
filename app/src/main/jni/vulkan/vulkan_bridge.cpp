@@ -157,12 +157,6 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
            ? JNI_TRUE : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_limelight_binding_video_VulkanRendererBridge_nativeIsTracing(JNIEnv*, jclass, jlong handle) {
-    VulkanRenderer* renderer = fromHandle(handle);
-    return renderer && renderer->tracing() ? JNI_TRUE : JNI_FALSE;
-}
-
 extern "C" JNIEXPORT void JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeNoteReceived(
         JNIEnv*, jclass, jlong handle, jlong hostPtsUs, jlong receiveUs, jlong enqueueUs, jchar hostProcessingLatency) {
@@ -177,6 +171,21 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeTakePresentedFrames(JNIEnv*, jclass, jlong handle) {
     VulkanRenderer* renderer = fromHandle(handle);
     return renderer ? static_cast<jint>(renderer->takePresentedFrames()) : 0;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeTakeCaptureLatency(JNIEnv* env, jclass, jlong handle,
+                                                                              jlongArray out) {
+    VulkanRenderer* renderer = fromHandle(handle);
+    if (!renderer) {
+        return;
+    }
+    const VulkanRenderer::CaptureLatency latency = renderer->takeCaptureLatency();
+    const jlong values[6] = {
+            latency.decoded.totalNs, latency.decoded.frames, latency.decoded.unsynced,
+            latency.presented.totalNs, latency.presented.frames, latency.presented.unsynced,
+    };
+    env->SetLongArrayRegion(out, 0, 6, values);
 }
 
 extern "C" JNIEXPORT jlong JNICALL

@@ -1146,6 +1146,8 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const
 }
 
 void VulkanRenderer::enqueueFrame(FramePtr frame) {
+    noteDecoded(*frame);
+
     std::deque<FramePtr> dropped;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -1688,8 +1690,15 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         // commits them, and on a Pixel 10 Pro rendering sometimes took milliseconds after that
         // (waiting for a swapchain image). Measured from here, the guard learned was a third of
         // what commits needed.
-        pendingPresents_[presentId] = {vsyncNs, presentScheduler_.delayVsyncs(), ahead,
-                                       ahead ? vsyncNs - (commitNs != 0 ? commitNs : nowNs()) : 0};
+        PendingPresent& pending = pendingPresents_[presentId];
+        pending = {vsyncNs, presentScheduler_.delayVsyncs(), ahead,
+                   ahead ? vsyncNs - (commitNs != 0 ? commitNs : nowNs()) : 0};
+        if (!frame->presentCounted) {
+            // Counted when the present is reported, at the time it reached the screen
+            pending.originNs = frame->originNs;
+            pending.originSynced = frame->originSynced;
+            frame->presentCounted = true;
+        }
         if (pendingPresents_.size() > 256) {
             // Reports lost across a swapchain rebuild never arrive
             while (!pendingPresents_.empty() && pendingPresents_.begin()->first + 128 < presentId) {
@@ -1700,6 +1709,13 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     {
         std::lock_guard<std::mutex> lock(queueMutex_);
         result = vk_.vkQueuePresentKHR(queue_, &present);
+    }
+    if (!frame->presentCounted && frame->originNs != 0 && (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)) {
+        // Without a report of when it reached the screen, until the present was queued. A frame
+        // drawn again (across a swapchain rebuild) is only counted the first time.
+        frame->presentCounted = true;
+        std::lock_guard<std::mutex> lock(latencyMutex_);
+        countLatency(captureLatency_.presented, nowNs() - frame->originNs, frame->originSynced);
     }
     if (presentId != 0) {
         const int64_t queuedNs = nowNs();
@@ -1788,6 +1804,13 @@ void VulkanRenderer::collectPresentTimings() {
                                           pending->second.ahead ? pending->second.slackNs : -1);
         }
         if (pending != pendingPresents_.end()) {
+            // A frame replaced at its vsync never reached the screen
+            if (pending->second.originNs != 0 && !pending->second.replaced) {
+                std::lock_guard<std::mutex> lock(latencyMutex_);
+                countLatency(captureLatency_.presented,
+                             static_cast<int64_t>(t.actualPresentTime) - pending->second.originNs,
+                             pending->second.originSynced);
+            }
             pendingPresents_.erase(pending);
         }
     }
@@ -1804,21 +1827,76 @@ void VulkanRenderer::collectPresentTimings() {
     }
 }
 
-bool VulkanRenderer::tracing() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return trace_.recording();
-}
-
 void VulkanRenderer::noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t hostProcessingNs) {
     // Called as the frame goes to the decoder, so the time on our clock is when decoding starts
     const int64_t queuedNs = nowNs();
     const int64_t commonToLocalNs = queuedNs - static_cast<int64_t>(LiGetMicroseconds()) * 1000;
+
+    // Where its capture latency counts from. A frame the host gave no processing time for repeats
+    // an earlier one, so it has no capture of its own.
+    if (hostProcessingNs != 0) {
+        FrameOrigin origin {0, false};
+        uint64_t captureUs = 0;
+        if (LiGetHostTimeOnLocalClock(static_cast<uint64_t>(hostPtsNs / 1000), &captureUs)) {
+            origin = {static_cast<int64_t>(captureUs) * 1000 + commonToLocalNs, true};
+        }
+        else if (receiveNs != 0) {
+            // Without clock sync, nothing measures the network transit per frame, so it's left out.
+            // The host's part is on its clock and the rest on ours, so they add without the clocks
+            // needing to agree.
+            origin = {receiveNs + commonToLocalNs - hostProcessingNs, false};
+        }
+        if (origin.ns != 0) {
+            std::lock_guard<std::mutex> lock(latencyMutex_);
+            origins_[hostPtsNs] = origin;
+            while (origins_.size() > 64) {
+                origins_.erase(origins_.begin());
+            }
+        }
+    }
+
+    if (!traceRecording_.load(std::memory_order_relaxed)) {
+        return;
+    }
     uint32_t rttMs = 0, rttVarianceMs = 0;
     if (!LiGetEstimatedRttInfo(&rttMs, &rttVarianceMs)) {
         rttMs = 0;
     }
     std::lock_guard<std::mutex> lock(mutex_);
     trace_.received(hostPtsNs, receiveNs, enqueueNs, queuedNs, commonToLocalNs, hostProcessingNs, rttMs);
+}
+
+void VulkanRenderer::noteDecoded(VideoFrame& frame) {
+    std::lock_guard<std::mutex> lock(latencyMutex_);
+    auto it = origins_.find(frame.timing.hostPtsNs);
+    if (it == origins_.end()) {
+        return;
+    }
+    frame.originNs = it->second.ns;
+    frame.originSynced = it->second.synced;
+
+    // Frames are decoded in order, so any still waiting before this one never will be
+    origins_.erase(origins_.begin(), std::next(it));
+    countLatency(captureLatency_.decoded, frame.timing.arrivalNs - frame.originNs, frame.originSynced);
+}
+
+// Under latencyMutex_. Outside a second, the clock sync or the frame's timing must be wrong.
+void VulkanRenderer::countLatency(LatencySpan& span, int64_t latencyNs, bool synced) {
+    if (latencyNs < 0 || latencyNs >= 1'000'000'000) {
+        return;
+    }
+    span.totalNs += latencyNs;
+    span.frames++;
+    if (!synced) {
+        span.unsynced++;
+    }
+}
+
+VulkanRenderer::CaptureLatency VulkanRenderer::takeCaptureLatency() {
+    std::lock_guard<std::mutex> lock(latencyMutex_);
+    CaptureLatency latency = captureLatency_;
+    captureLatency_ = {};
+    return latency;
 }
 
 bool VulkanRenderer::ensureSwapchain() {

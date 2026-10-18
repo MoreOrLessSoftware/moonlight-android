@@ -16,6 +16,14 @@ class VideoStats {
     char maxHostProcessingLatency;
     int totalHostProcessingLatency;
     int framesWithHostProcessingLatency;
+    // From capture until decoded, and until presented. Frames measured without clock sync are
+    // counted apart, since their time leaves out the network transit.
+    long totalCaptureToDecodedUs;
+    int framesWithCaptureToDecoded;
+    int decodedWithoutNetworkTransit;
+    long totalCaptureToPresentUs;
+    int framesWithCaptureToPresent;
+    int presentedWithoutNetworkTransit;
     long measurementStartTimestamp;
 
     void add(VideoStats other) {
@@ -36,6 +44,12 @@ class VideoStats {
         this.maxHostProcessingLatency = (char) Math.max(this.maxHostProcessingLatency, other.maxHostProcessingLatency);
         this.totalHostProcessingLatency += other.totalHostProcessingLatency;
         this.framesWithHostProcessingLatency += other.framesWithHostProcessingLatency;
+        this.totalCaptureToDecodedUs += other.totalCaptureToDecodedUs;
+        this.framesWithCaptureToDecoded += other.framesWithCaptureToDecoded;
+        this.decodedWithoutNetworkTransit += other.decodedWithoutNetworkTransit;
+        this.totalCaptureToPresentUs += other.totalCaptureToPresentUs;
+        this.framesWithCaptureToPresent += other.framesWithCaptureToPresent;
+        this.presentedWithoutNetworkTransit += other.presentedWithoutNetworkTransit;
 
         if (this.measurementStartTimestamp == 0) {
             this.measurementStartTimestamp = other.measurementStartTimestamp;
@@ -57,6 +71,12 @@ class VideoStats {
         this.maxHostProcessingLatency = other.maxHostProcessingLatency;
         this.totalHostProcessingLatency = other.totalHostProcessingLatency;
         this.framesWithHostProcessingLatency = other.framesWithHostProcessingLatency;
+        this.totalCaptureToDecodedUs = other.totalCaptureToDecodedUs;
+        this.framesWithCaptureToDecoded = other.framesWithCaptureToDecoded;
+        this.decodedWithoutNetworkTransit = other.decodedWithoutNetworkTransit;
+        this.totalCaptureToPresentUs = other.totalCaptureToPresentUs;
+        this.framesWithCaptureToPresent = other.framesWithCaptureToPresent;
+        this.presentedWithoutNetworkTransit = other.presentedWithoutNetworkTransit;
         this.measurementStartTimestamp = other.measurementStartTimestamp;
     }
 
@@ -73,6 +93,12 @@ class VideoStats {
         this.maxHostProcessingLatency = 0;
         this.totalHostProcessingLatency = 0;
         this.framesWithHostProcessingLatency = 0;
+        this.totalCaptureToDecodedUs = 0;
+        this.framesWithCaptureToDecoded = 0;
+        this.decodedWithoutNetworkTransit = 0;
+        this.totalCaptureToPresentUs = 0;
+        this.framesWithCaptureToPresent = 0;
+        this.presentedWithoutNetworkTransit = 0;
         this.measurementStartTimestamp = 0;
     }
 

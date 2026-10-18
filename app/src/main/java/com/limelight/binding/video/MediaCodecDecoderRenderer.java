@@ -136,6 +136,22 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     // Decode latency tracking: map PTS(us) -> enqueue time (ns)
     private final LongSparseArray<Long> enqueueNsByPtsUs = new LongSparseArray<>();
 
+    // Where a frame's capture latency counts from, on MoonBridge.getMicroseconds()'s clock: the
+    // host's capture with clock sync, or else its first packet arriving less the host's
+    // processing time. The Vulkan renderer keeps its own; these are for the direct renderer, by
+    // decoder timestamp, until the frame is decoded.
+    private static class CaptureOrigin {
+        final long timeUs;
+        final boolean synced;
+
+        CaptureOrigin(long timeUs, boolean synced) {
+            this.timeUs = timeUs;
+            this.synced = synced;
+        }
+    }
+    private final LongSparseArray<CaptureOrigin> captureOriginByPtsUs = new LongSparseArray<>();
+    private final long[] captureLatency = new long[6];
+
     // Vulkan renderer, when selected and it started on this device
     private boolean wantVulkan;
     private volatile VulkanRendererBridge vulkanRenderer;
@@ -1265,6 +1281,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
                             // Update decode latency stats using real enqueue->dequeue time
                             updateDecodeLatencyStats(presentationTimeUs);
+                            if (vulkanRenderer == null) {
+                                countCaptureToDecoded(presentationTimeUs);
+                            }
                         } else {
                             switch (outIndex) {
                                 case MediaCodec.INFO_TRY_AGAIN_LATER:
@@ -1667,6 +1686,15 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 if (pyrowave) {
                     addPyrowaveDecodeTime(vulkanRenderer.takeDecodedNs());
                 }
+
+                Arrays.fill(captureLatency, 0);
+                vulkanRenderer.takeCaptureLatency(captureLatency);
+                activeWindowVideoStats.totalCaptureToDecodedUs += captureLatency[0] / 1000;
+                activeWindowVideoStats.framesWithCaptureToDecoded += (int)captureLatency[1];
+                activeWindowVideoStats.decodedWithoutNetworkTransit += (int)captureLatency[2];
+                activeWindowVideoStats.totalCaptureToPresentUs += captureLatency[3] / 1000;
+                activeWindowVideoStats.framesWithCaptureToPresent += (int)captureLatency[4];
+                activeWindowVideoStats.presentedWithoutNetworkTransit += (int)captureLatency[5];
             }
 
             if (prefs.enablePerfOverlay) {
@@ -1764,6 +1792,19 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         }
                         else if (!details.isEmpty()) {
                             sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, details));
+                        }
+                    }
+                    if (lastTwo.framesWithCaptureToDecoded > 0) {
+                        float decodedMs = averageCaptureLatencyMs(lastTwo.totalCaptureToDecodedUs,
+                                lastTwo.framesWithCaptureToDecoded, lastTwo.decodedWithoutNetworkTransit, rttInfo);
+                        if (lastTwo.framesWithCaptureToPresent > 0) {
+                            sb.append('\n').append(context.getString(R.string.perf_overlay_capture_latency, decodedMs,
+                                    averageCaptureLatencyMs(lastTwo.totalCaptureToPresentUs,
+                                            lastTwo.framesWithCaptureToPresent, lastTwo.presentedWithoutNetworkTransit,
+                                            rttInfo)));
+                        }
+                        else {
+                            sb.append('\n').append(context.getString(R.string.perf_overlay_capture_to_decoded, decodedMs));
                         }
                     }
                 }
@@ -2047,6 +2088,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (vulkan != null) {
             vulkan.noteFrameReceived(timestampUs, receiveTimeUs, enqueueTimeUs, frameHostProcessingLatency);
         }
+        else {
+            noteCaptureOrigin(timestampUs, presentationTimeUs, receiveTimeUs, frameHostProcessingLatency);
+        }
 
         if (!queueNextInputBuffer(timestampUs, codecFlags)) {
             return MoonBridge.DR_NEED_IDR;
@@ -2203,6 +2247,70 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 }
             }
         }
+    }
+
+    // A frame the host gave no processing time for repeats an earlier one, so it has no capture of
+    // its own
+    private void noteCaptureOrigin(long ptsUs, long hostPtsUs, long receiveTimeUs, char hostProcessingLatency) {
+        if (hostProcessingLatency == 0) {
+            return;
+        }
+
+        CaptureOrigin origin;
+        long captureUs = MoonBridge.getHostTimeOnLocalClock(hostPtsUs);
+        if (captureUs >= 0) {
+            origin = new CaptureOrigin(captureUs, true);
+        }
+        else if (receiveTimeUs != 0) {
+            // Without clock sync, nothing measures the network transit per frame, so it's left
+            // out. The host's part is on its clock and the rest on ours, so they add without the
+            // clocks needing to agree.
+            origin = new CaptureOrigin(receiveTimeUs - hostProcessingLatency * 100L, false);
+        }
+        else {
+            return;
+        }
+
+        synchronized (captureOriginByPtsUs) {
+            captureOriginByPtsUs.put(ptsUs, origin);
+            while (captureOriginByPtsUs.size() > 64) {
+                captureOriginByPtsUs.removeAt(0);
+            }
+        }
+    }
+
+    private void countCaptureToDecoded(long ptsUs) {
+        CaptureOrigin origin;
+        synchronized (captureOriginByPtsUs) {
+            int index = captureOriginByPtsUs.indexOfKey(ptsUs);
+            if (index < 0) {
+                return;
+            }
+            origin = captureOriginByPtsUs.valueAt(index);
+
+            // Frames are decoded in order, so any still waiting before this one never will be
+            for (int i = index; i >= 0; i--) {
+                captureOriginByPtsUs.removeAt(i);
+            }
+        }
+
+        // Outside a second, the clock sync or the frame's timing must be wrong
+        long latencyUs = MoonBridge.getMicroseconds() - origin.timeUs;
+        if (latencyUs >= 0 && latencyUs < 1000000) {
+            activeWindowVideoStats.totalCaptureToDecodedUs += latencyUs;
+            activeWindowVideoStats.framesWithCaptureToDecoded++;
+            if (!origin.synced) {
+                activeWindowVideoStats.decodedWithoutNetworkTransit++;
+            }
+        }
+    }
+
+    // Average capture latency in milliseconds. Frames measured without clock sync leave out the
+    // network transit, which can only be estimated for them as half the round trip: that assumes
+    // the path is symmetric, at enet's 1 ms resolution.
+    private static float averageCaptureLatencyMs(long totalUs, int frames, int withoutNetworkTransit, long rttInfo) {
+        float networkMs = rttInfo >= 0 ? (rttInfo >> 32) / 2f : 0;
+        return (totalUs / 1000f + networkMs * withoutNetworkTransit) / frames;
     }
 
     static class DecoderHungException extends RuntimeException {

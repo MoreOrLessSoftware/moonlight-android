@@ -67,6 +67,13 @@ struct VideoFrame {
     PyrowaveDecoder::DecodeTimes decodeTimes;  // Where the time until then went
     int64_t lastPacketUs = 0;    // When its last packet arrived, on moonlight-common-c's clock
 
+    // Where the capture latency statistics count from, on our clock: the host's capture with clock
+    // sync, or else its first packet arriving less the host's processing time. Zero when the host
+    // gave no processing time (the frame repeats an earlier one).
+    int64_t originNs = 0;
+    bool originSynced = false;
+    bool presentCounted = false;  // Its capture to present is counted, or will be when reported
+
     AImageCropRect crop {};
     FrameTiming timing;
 };
@@ -113,8 +120,7 @@ public:
     // Switches the jitter buffer preset for the rest of the stream
     void setJitterBuffer(JitterBuffer jitterBuffer);
 
-    // Network timing of a frame, for pacer traces
-    bool tracing();
+    // Network timing of a frame, for pacer traces and the capture latency statistics
     void noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t hostProcessingNs);
 
     // Stops presenting and lets go of the output surface. Safe to call more than once.
@@ -127,6 +133,20 @@ public:
     // then its run on the GPU. Where the GPU can't time it, from handing the frame to the renderer
     // until the GPU was done with it.
     int64_t takeDecodedNs() { return decodedNs_.exchange(0); }
+
+    // Capture latency since the last call: the time from each frame's origin (see
+    // VideoFrame::originNs) until it was decoded, and until it reached the screen. Frames measured
+    // without clock sync are counted apart, as their time leaves out the network transit.
+    struct LatencySpan {
+        int64_t totalNs = 0;
+        uint32_t frames = 0;
+        uint32_t unsynced = 0;
+    };
+    struct CaptureLatency {
+        LatencySpan decoded;
+        LatencySpan presented;
+    };
+    CaptureLatency takeCaptureLatency();
 
     // For the performance overlay: what the renderer outputs, which only changes with HDR, and
     // its pacing numbers as a headline (the buffer) and details (lock state, skipped frames),
@@ -273,6 +293,8 @@ private:
         bool ahead;
         int64_t slackNs;  // How long before its vsync a frame presented ahead was presented
         bool replaced = false;  // Another frame was presented for the same vsync
+        int64_t originNs = 0;   // For the capture to present statistic, if it's counted at this present
+        bool originSynced = false;
     };
 
     // Host frame timing with display timing: present frames as they arrive, asking for the
@@ -415,6 +437,18 @@ private:
 
     std::atomic<uint32_t> presentedFrames_ {0};
     std::atomic<int64_t> decodedNs_ {0};
+
+    // Capture latency statistics. Frames' origins wait here, by host timestamp, until they're
+    // decoded.
+    struct FrameOrigin {
+        int64_t ns;
+        bool synced;
+    };
+    void noteDecoded(VideoFrame& frame);
+    void countLatency(LatencySpan& span, int64_t latencyNs, bool synced);
+    std::mutex latencyMutex_;
+    std::map<int64_t, FrameOrigin> origins_;
+    CaptureLatency captureLatency_;
 
     // The PyroWave waiting thread's: when the last decode it timed ended on the GPU
     int64_t lastDecodeGpuEndNs_ = 0;

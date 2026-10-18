@@ -20,7 +20,6 @@ public class VulkanRendererBridge {
 
     private long handle;
     private Surface decoderSurface;
-    private boolean tracing;
 
     private VulkanRendererBridge(long handle) {
         this.handle = handle;
@@ -93,7 +92,6 @@ public class VulkanRendererBridge {
         }
 
         VulkanRendererBridge bridge = new VulkanRendererBridge(handle);
-        bridge.tracing = nativeIsTracing(handle);
         if (!pyrowave) {
             bridge.decoderSurface = nativeGetDecoderSurface(handle);
             if (bridge.decoderSurface == null) {
@@ -129,13 +127,13 @@ public class VulkanRendererBridge {
     }
 
     /**
-     * Records a frame's network timing in the frame pacing trace, if one is being recorded, as
-     * it's handed to the decoder. All times in microseconds; receive and enqueue times are
-     * moonlight-common-c's. hostProcessingLatency is the host's, in tenths of a millisecond
-     * (0 if the host doesn't report it).
+     * Notes a frame's network timing as it's handed to the decoder, for the capture latency
+     * statistics and the frame pacing trace, if one is being recorded. All times in
+     * microseconds; receive and enqueue times are moonlight-common-c's. hostProcessingLatency is
+     * the host's, in tenths of a millisecond (0 if the host doesn't report it).
      */
     public void noteFrameReceived(long hostPtsUs, long receiveTimeUs, long enqueueTimeUs, char hostProcessingLatency) {
-        if (tracing && handle != 0) {
+        if (handle != 0) {
             nativeNoteReceived(handle, hostPtsUs, receiveTimeUs, enqueueTimeUs, hostProcessingLatency);
         }
     }
@@ -168,6 +166,18 @@ public class VulkanRendererBridge {
      */
     public long takeDecodedNs() {
         return handle != 0 ? nativeTakeDecodedNs(handle) : 0;
+    }
+
+    /**
+     * Capture latency since the last call, into out: the total time in nanoseconds from frames'
+     * capture until they were decoded, how many frames that counts and how many of them were
+     * measured without clock sync (and so without the network transit), then the same three
+     * for until they reached the screen.
+     */
+    public void takeCaptureLatency(long[] out) {
+        if (handle != 0) {
+            nativeTakeCaptureLatency(handle, out);
+        }
     }
 
     /** One line for the performance overlay */
@@ -217,13 +227,13 @@ public class VulkanRendererBridge {
                                                             long lastPacketUs, int[] missingRanges,
                                                             int[] recordStarts, int partialKind);
     private static native Surface nativeGetDecoderSurface(long handle);
-    private static native boolean nativeIsTracing(long handle);
     private static native void nativeNoteReceived(long handle, long hostPtsUs, long receiveTimeUs, long enqueueTimeUs,
                                                   char hostProcessingLatency);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] hdrMetadata);
     private static native void nativeSetJitterBuffer(long handle, int jitterBuffer);
     private static native int nativeTakePresentedFrames(long handle);
     private static native long nativeTakeDecodedNs(long handle);
+    private static native void nativeTakeCaptureLatency(long handle, long[] out);
     private static native String nativeGetRendererText(long handle);
     private static native String nativeGetPacingText(long handle);
     private static native void nativeStop(long handle);

@@ -446,6 +446,13 @@ public class MoonBridge {
     // The RTT is in the top 32 bits, and the RTT variance is in the bottom 32 bits
     public static native long getEstimatedRttInfo();
 
+    // A frame's presentationTimeUs (the host's capture time) on getMicroseconds()'s clock, or -1
+    // when the host doesn't answer clock sync or hasn't yet
+    public static native long getHostTimeOnLocalClock(long presentationTimeUs);
+
+    // moonlight-common-c's clock, which decode units' receive and enqueue times are on
+    public static native long getMicroseconds();
+
     public static native String getLaunchUrlQueryParameters();
 
     // The PyroWave bitstream revision the host advertised, or "" (valid once the stream starts)
