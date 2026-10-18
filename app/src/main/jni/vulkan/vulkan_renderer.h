@@ -381,6 +381,15 @@ private:
     uint64_t slotPresentIds_[kFramesInFlight] {};
     FramePtr current_;
 
+    // Keep-alive presents (keepAlive()): how often the frame on screen is presented again while
+    // the host sends nothing (0 for never), and when a new frame and any frame were last
+    // presented. Render thread, under renderMutex_.
+    int64_t keepAliveNs_ = 0;
+    int64_t lastNewFrameNs_ = 0;
+    int64_t lastPresentNs_ = 0;
+    static constexpr int64_t kKeepAliveAfterNs = 50'000'000;
+    void keepAlive();
+
     // Decoder side
     AImageReader* reader_ = nullptr;
     ANativeWindow* decoderWindow_ = nullptr;

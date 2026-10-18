@@ -117,6 +117,10 @@ void PacerTrace::immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId)
           static_cast<unsigned long long>(presentId));
 }
 
+void PacerTrace::keepAlive(int64_t nowNs, uint64_t presentId) {
+    write("W,%lld,%llu\n", static_cast<long long>(nowNs), static_cast<unsigned long long>(presentId));
+}
+
 void PacerTrace::rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs,
                           int64_t queuedNs, uint32_t imageIndex, bool fenceWaited, int64_t releasedNs) {
     write("Q,%llu,%lld,%lld,%lld,%lld,%u,%d,%lld\n", static_cast<unsigned long long>(presentId),

@@ -38,6 +38,9 @@ namespace vkr {
 //                                    the present that identifies it in Q, G and P lines (0
 //                                    without display timing). Traces from before these were
 //                                    added have only nowNs.
+//   W,nowNs,presentId                the frame on screen presented again to keep the compositor
+//                                    awake while the host sends nothing (keep-alive), with the
+//                                    present that identifies it in Q, G and P lines
 //   A,nowNs,showVsyncNs,hostPtsNs,presentId,presentDelayVsyncs,presentGuardNs
 //                                    frame presented as it arrived, asking for the vsync
 //                                    presentDelayVsyncs after showVsyncNs (host frame timing
@@ -122,6 +125,7 @@ public:
     void vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shownPtsNs, const FramePacer& pacer,
                int64_t callbackLateNs, uint64_t presentId, int presentDelayVsyncs);
     void immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId);
+    void keepAlive(int64_t nowNs, uint64_t presentId);
     void ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, uint64_t presentId, int presentDelayVsyncs,
                const FramePacer& pacer);
     void presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs);

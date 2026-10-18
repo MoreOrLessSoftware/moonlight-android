@@ -489,6 +489,16 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     }
     perfHint_.start(ndk_, perfHintTargetNs);
 
+    // Keep-alive presents while the host sends nothing (keepAlive()), every 16 ms unless
+    // changed with adb shell setprop debug.moonlight.keep_alive_ms <ms>, or 0 for none
+    keepAliveNs_ = 16'000'000;
+    {
+        char value[PROP_VALUE_MAX] = {};
+        if (__system_property_get("debug.moonlight.keep_alive_ms", value) > 0) {
+            keepAliveNs_ = static_cast<int64_t>(std::clamp(atoi(value), 0, 1000)) * 1'000'000;
+        }
+    }
+
     if (config_.pyrowave ? !createPyrowaveDecoder() : !createImageReader()) {
         return false;
     }
@@ -518,14 +528,14 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     pacer_.setPresentAhead(presentAhead_);
     pacer_.setPresentGuardNs(presentScheduler_.guardNs());
 
-    char configuration[384];
+    char configuration[512];
     snprintf(configuration, sizeof(configuration),
              "mode=%d,jitterBuffer=%d,presentAhead=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d,"
-             "perfHintUs=%lld,gpuPriority=%s,codec=%s,decoder=%s",
+             "perfHintUs=%lld,gpuPriority=%s,keepAliveMs=%lld,codec=%s,decoder=%s",
              config_.framePacing, config_.jitterBuffer, presentAhead_ ? 1 : 0, config_.streamFps, config_.streamWidth, config_.streamHeight,
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
              config_.ditherMode, static_cast<long long>(perfHintTargetNs / 1000), highPriorityQueue_ ? "high" : "default",
-             config_.codec.c_str(), config_.decoderName.c_str());
+             static_cast<long long>(keepAliveNs_ / 1'000'000), config_.codec.c_str(), config_.decoderName.c_str());
     trace_.start(config_.traceDirectory, configuration);
     traceRecording_ = trace_.recording();
 
@@ -1476,9 +1486,46 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
     if (presentAhead_ && !instant) {
         presentAhead();
     }
+    if (!frame) {
+        keepAlive();
+    }
     collectPresentTimings();
 
     ndk_->AChoreographer_postFrameCallback64(choreographer_, &VulkanRenderer::onVsyncThunk, this);
+}
+
+// While the host sends nothing (a game paused, or its desktop with the frame rate allowed to drop
+// to zero), presents the frame on screen again every keepAliveNs_. Left idle, the compositor was
+// slow to show the next frame: on an iPlay 70 mini Ultra streaming PyroWave at 144 fps, the first
+// frames after the host had been quiet for a few hundred milliseconds reached the screen 4-13
+// vsyncs late, though rendered 2-3 ms after arriving and presented before their vsync, and the
+// compositor reported they couldn't have been sooner. Each costs one render (about 1 ms on the
+// GPU), only while idle. Stamped with the time it's presented, like a frame shown on arrival, so
+// the compositor drops it if a new frame is due at the same vsync.
+void VulkanRenderer::keepAlive() {
+    // Without a time to present it at, a FIFO swapchain would show it ahead of the next new frame
+    // presented for the same vsync, a vsync late
+    if (keepAliveNs_ <= 0 || !current_ || swapchainDirty_ || !(hasDisplayTimingExt_ || presentOnArrival_)) {
+        return;
+    }
+    const int64_t now = nowNs();
+    if (now - lastNewFrameNs_ < kKeepAliveAfterNs || now - lastPresentNs_ < keepAliveNs_) {
+        return;
+    }
+
+    uint64_t presentId = 0;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!pending_.empty()) {
+            // A frame waiting for its vsync, which will be presented then
+            return;
+        }
+        if (hasDisplayTimingExt_) {
+            presentId = nextPresentId_++;
+        }
+        trace_.keepAlive(now, presentId);
+    }
+    renderFrame(current_, presentId, 0, false, 0, true);
 }
 
 void VulkanRenderer::presentAhead() {
@@ -1830,6 +1877,10 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     }
 
     slotFrames_[slot] = frame;
+    lastPresentNs_ = nowNs();
+    if (frame != current_) {
+        lastNewFrameNs_ = lastPresentNs_;
+    }
     current_ = frame;
     if (imported) {
         imported->lastUsed = frameCounter_;
