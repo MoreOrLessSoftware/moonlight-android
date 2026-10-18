@@ -561,6 +561,22 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return directory != null ? directory.getAbsolutePath() : null;
     }
 
+    private String getCodecName() {
+        if (pyrowave) {
+            return "pyrowave";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
+            return "h264";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H265) != 0) {
+            return "hevc";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
+            return "av1";
+        }
+        return "unknown";
+    }
+
     private VulkanRendererBridge createVulkanRenderer(Surface outputSurface) {
         int ditherMode;
         switch (prefs.spatialDithering) {
@@ -581,6 +597,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL,
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
                 pyrowave, pyrowaveCenterChroma, prefs.pyrowaveLateFrames, getDisplayRefreshRate(),
+                getCodecName(), pyrowave || videoDecoder == null ? null : videoDecoder.getName(),
                 getPacerTraceDirectory());
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");

@@ -90,6 +90,12 @@ void PacerTrace::jitterBuffer(JitterBuffer jitterBuffer) {
     write("J,%d\n", static_cast<int>(jitterBuffer));
 }
 
+void PacerTrace::swapchain(int64_t nowNs, int format, int colorSpace, bool hdr, uint32_t width, uint32_t height,
+                           int presentMode) {
+    write("S,%lld,%d,%d,%d,%u,%u,%d\n", static_cast<long long>(nowNs), format, colorSpace, hdr ? 1 : 0, width, height,
+          presentMode);
+}
+
 void PacerTrace::frame(const FrameTiming& timing, size_t queued, uint64_t queueDrops) {
     queueDrops_ = queueDrops;
     write("F,%lld,%lld,%lld,%zu,%llu\n", static_cast<long long>(timing.arrivalNs),

@@ -28,7 +28,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
         JNIEnv* env, jclass, jobject outputSurface, jint streamWidth, jint streamHeight, jint streamFps,
         jint framePacing, jint jitterBuffer, jint ditherMode, jint colorspace, jboolean fullRange, jboolean tenBit,
         jboolean pyrowave, jboolean pyrowaveCenterChroma, jint pyrowaveLateFrames, jfloat displayRefreshHz,
-        jstring traceDirectory) {
+        jstring codec, jstring decoderName, jstring traceDirectory) {
     ANativeWindow* output = ANativeWindow_fromSurface(env, outputSurface);
     if (!output) {
         return 0;
@@ -48,11 +48,18 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
     config.pyrowaveCenterChroma = pyrowaveCenterChroma;
     config.pyrowaveLateFrames = pyrowaveLateFrames;
     config.displayRefreshHz = displayRefreshHz;
-    if (traceDirectory) {
-        const char* chars = env->GetStringUTFChars(traceDirectory, nullptr);
-        config.traceDirectory = chars;
-        env->ReleaseStringUTFChars(traceDirectory, chars);
-    }
+    auto toString = [env](jstring string) {
+        std::string value;
+        if (string) {
+            const char* chars = env->GetStringUTFChars(string, nullptr);
+            value = chars;
+            env->ReleaseStringUTFChars(string, chars);
+        }
+        return value;
+    };
+    config.codec = toString(codec);
+    config.decoderName = toString(decoderName);
+    config.traceDirectory = toString(traceDirectory);
 
     std::unique_ptr<VulkanRenderer> renderer = VulkanRenderer::create(output, config);
 

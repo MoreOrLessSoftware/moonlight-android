@@ -21,6 +21,10 @@ namespace vkr {
 //   R,periodNs                       vsync period handed to FramePacer::setVsyncPeriod()
 //   J,jitterBuffer                   the jitter buffer preset changed mid-stream
 //                                    (FramePacer::setJitterBuffer()), from the one in C
+//   S,nowNs,format,colorSpace,hdr,width,height,presentMode
+//                                    a swapchain was created: its VkFormat, VkColorSpaceKHR and
+//                                    VkPresentModeKHR, and whether the stream was HDR (1) at the
+//                                    time. HDR comes and goes mid-stream, each time with a new one.
 //   F,arrivalNs,hostPtsNs,targetNs,queued,queueDrops
 //                                    frame arrived (FramePacer::onFrameArrived())
 //   V,vsyncNs,queued,choice,shownPtsNs,locked,slotVsyncs,slotParity,scheduleDelayNs,
@@ -109,6 +113,8 @@ public:
 
     void period(int64_t periodNs);
     void jitterBuffer(JitterBuffer jitterBuffer);
+    void swapchain(int64_t nowNs, int format, int colorSpace, bool hdr, uint32_t width, uint32_t height,
+                   int presentMode);
     void frame(const FrameTiming& timing, size_t queued, uint64_t queueDrops);
     void vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shownPtsNs, const FramePacer& pacer,
                int64_t callbackLateNs, uint64_t presentId, int presentDelayVsyncs);

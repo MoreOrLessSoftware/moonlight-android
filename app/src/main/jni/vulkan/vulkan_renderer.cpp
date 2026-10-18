@@ -500,12 +500,13 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     pacer_.setPresentAhead(presentAhead_);
     pacer_.setPresentGuardNs(presentScheduler_.guardNs());
 
-    char configuration[256];
+    char configuration[384];
     snprintf(configuration, sizeof(configuration),
-             "mode=%d,jitterBuffer=%d,presentAhead=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d",
+             "mode=%d,jitterBuffer=%d,presentAhead=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d,"
+             "codec=%s,decoder=%s",
              config_.framePacing, config_.jitterBuffer, presentAhead_ ? 1 : 0, config_.streamFps, config_.streamWidth, config_.streamHeight,
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
-             config_.ditherMode);
+             config_.ditherMode, config_.codec.c_str(), config_.decoderName.c_str());
     trace_.start(config_.traceDirectory, configuration);
     traceRecording_ = trace_.recording();
 
@@ -1949,6 +1950,11 @@ bool VulkanRenderer::createSwapchain() {
     outputBits_ = chosen.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ? 10 : 8;
     presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR;
     presentScheduler_.onSwapchainCreated();
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        trace_.swapchain(nowNs(), chosen.format, chosen.colorSpace, hdrActive_, extent.width, extent.height,
+                         presentMode);
+    }
 
     if (renderPass_ && renderPassFormat_ != chosen.format) {
         destroyPipelines();

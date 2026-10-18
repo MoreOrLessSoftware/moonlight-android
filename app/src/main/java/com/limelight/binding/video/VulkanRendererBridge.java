@@ -70,6 +70,8 @@ public class VulkanRendererBridge {
      * @param pyrowaveCenterChroma the PyroWave host sites 4:2:0 chroma at the center (the nonary
      *                             host) rather than with the left luma sample
      * @param pyrowaveLateFrames one of PreferenceConfiguration.PYROWAVE_LATE_FRAMES_*
+     * @param codec h264, hevc, av1 or pyrowave, and decoderName the MediaCodec decoder (null for
+     *              PyroWave), both recorded in pacer traces
      * @param traceDirectory where frame pacing traces are written when switched on with
      *                       {@code adb shell setprop debug.moonlight.pacer_trace 1}, or null
      */
@@ -77,14 +79,15 @@ public class VulkanRendererBridge {
                                               int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                               boolean fullRange, boolean tenBit, boolean pyrowave,
                                               boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
-                                              float displayRefreshHz, String traceDirectory) {
+                                              float displayRefreshHz, String codec, String decoderName,
+                                              String traceDirectory) {
         if (!isSupported() || (pyrowave && !isPyrowaveSupported())) {
             return null;
         }
 
         long handle = nativeCreate(output, streamWidth, streamHeight, streamFps, framePacing, jitterBuffer, ditherMode,
                 colorspace, fullRange, tenBit, pyrowave, pyrowaveCenterChroma, pyrowaveLateFrames, displayRefreshHz,
-                traceDirectory);
+                codec, decoderName, traceDirectory);
         if (handle == 0) {
             return null;
         }
@@ -208,7 +211,8 @@ public class VulkanRendererBridge {
                                             int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                             boolean fullRange, boolean tenBit, boolean pyrowave,
                                             boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
-                                            float displayRefreshHz, String traceDirectory);
+                                            float displayRefreshHz, String codec, String decoderName,
+                                            String traceDirectory);
     private static native boolean nativeSubmitPyrowaveFrame(long handle, byte[] frame, int length, long hostPtsUs,
                                                             long lastPacketUs, int[] missingRanges,
                                                             int[] recordStarts, int partialKind);
