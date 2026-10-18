@@ -1046,7 +1046,7 @@ std::string VulkanRenderer::pacingText() {
     std::string details;
     char text[96];
     if (instant_) {
-        // No buffer: frames are shown as they arrive
+        // No buffer: frames go to the next vsync they can make
         snprintf(text, sizeof(text), "instant, %.2f Hz", 1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));
         headline = text;
     }
@@ -1246,14 +1246,7 @@ void VulkanRenderer::enqueueFrame(FramePtr frame) {
         }
     }
 
-    if (instant_ && !presentOnArrival_) {
-        // From this thread too, as below
-        std::lock_guard<std::mutex> renderLock(renderMutex_);
-        if (!renderStopped_) {
-            presentNewest();
-        }
-    }
-    else if (presentAhead_ && !presentOnArrival_) {
+    if (presentAhead_ && !presentOnArrival_) {
         // Presented from this thread rather than waking the render thread for it: on a
         // Pixel 10 Pro, the render thread took 1 ms to wake at the median and over 3 ms one
         // time in ten, time the compositor then didn't have
@@ -1445,13 +1438,10 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
     FramePtr frame;
     uint64_t presentId = 0;
     std::deque<FramePtr> skipped;
-    const bool instant = instant_;
     if (!presentOnArrival_) {
         std::lock_guard<std::mutex> lock(mutex_);
         FrameTiming timings[FramePacer::kMaxQueuedFrames];
-        // With the Instant jitter buffer, frames are shown as they arrive, and the pacer only
-        // follows the vsyncs (for switching back)
-        const size_t count = instant ? 0 : std::min(pending_.size(), FramePacer::kMaxQueuedFrames);
+        const size_t count = std::min(pending_.size(), FramePacer::kMaxQueuedFrames);
         for (size_t i = 0; i < count; i++) {
             timings[i] = pending_[i]->timing;
         }
@@ -1483,7 +1473,7 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
         // Keep the picture up across a swapchain rebuild
         renderFrame(current_);
     }
-    if (presentAhead_ && !instant) {
+    if (presentAhead_) {
         presentAhead();
     }
     if (!frame) {
@@ -1817,8 +1807,10 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     // Ask for the vsync the image should reach the screen at (see PresentScheduler), and tag the
     // present so we find out when it did. A frame shown on arrival is left out of
     // PresentScheduler. With the mailbox swapchain it asks for no time (0, as soon as possible);
-    // with the Instant jitter buffer, for now, which is as soon as possible too, but lets the
-    // compositor drop it for a newer frame (see instant_).
+    // otherwise (a keep-alive present), for now, which is as soon as possible too, but lets the
+    // compositor drop it for a newer frame: it only drops a waiting frame that has a time of its
+    // own. Without one, frames queued behind each other: on an iPlay 70 mini Ultra at 144 fps
+    // shown on arrival, 44% reached the screen a vsync later than they could have.
     VkPresentTimeGOOGLE presentTime {static_cast<uint32_t>(presentId), 0};
     VkPresentTimesInfoGOOGLE presentTimes {VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE};
     if (presentId != 0 && hasDisplayTimingExt_ && (onArrival || currentPeriodNs_ > 0)) {

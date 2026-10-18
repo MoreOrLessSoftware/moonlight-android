@@ -35,9 +35,10 @@ enum class JitterBuffer : int {
     Smooth = 2,
     LowestLatency = 3,  // Less buffer than LowLatency, which like it only evens out the host's
                         // timing when frames span more than one vsync
-    Instant = 4,        // No pacing: the renderer shows each frame as it's decoded and the
-                        // compositor takes the newest at each vsync (VulkanRenderer). The host
-                        // timeline goes on learning as for LowestLatency, for switching back.
+    Instant = 4,        // No buffer: each frame goes to the next vsync it can make, keeping
+                        // to one frame per slot (frameVsyncNs()), and a newer frame for the
+                        // same vsync replaces it. The host timeline goes on learning as for
+                        // LowestLatency, for switching back.
 };
 
 // Maps host frame timestamps onto the local clock.
@@ -305,6 +306,9 @@ private:
     // index is slotParity_ more than a multiple of slotVsyncs_
     int64_t slotVsyncs_ = 1;
     int64_t slotParity_ = 0;
+    // Instant: consecutive frames that could have been shown a vsync before their slot
+    int instantEarlyFrames_ = 0;
+    static constexpr int kInstantEarlyFrames = 4;
     std::deque<int64_t> ptsDeltas_;
     int64_t lastPtsNs_ = 0;
 

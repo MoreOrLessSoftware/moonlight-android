@@ -480,6 +480,32 @@ void FramePacer::updatePhase(FrameTiming& frame) {
         return;
     }
 
+    // Instant: no buffer and no schedule. Each frame is due when it arrives, and goes to the
+    // next vsync it can make (frameVsyncNs()). The timeline goes on learning, for switching back.
+    if (timeline_.jitterBuffer() == JitterBuffer::Instant) {
+        phaseSamples_.clear();
+        phaseLocked_ = false;
+        shiftNs_ = 0;
+        slotParity_ = 0;
+        lateNs_ = 0;
+        scheduleFrom(frame, frame.hostPtsNs, false, frame.hostPtsNs);
+        frame.targetNs = frame.arrivalNs;
+
+        // With a frame every few vsyncs, frames keep to the slot after the last one shown
+        // (see frameVsyncNs()). Frames that could all have gone a vsync sooner move the slots
+        // that way: the host drifting fast, or a late frame that moved them later.
+        if (slotVsyncs_ > 1 && lastPresentVsyncNs_ != 0) {
+            const int64_t vsyncBeforeSlot = lastPresentVsyncNs_ + (slotVsyncs_ - 1) * periodNs_;
+            if (frame.arrivalNs + presentGuardNs() <= vsyncBeforeSlot - periodNs_ / 4) {
+                instantEarlyFrames_++;
+            }
+            else {
+                instantEarlyFrames_ = 0;
+            }
+        }
+        return;
+    }
+
     const int64_t slotPeriod = slotPeriodNs();
 
     // At a frame a vsync, locking only evens out the host's own timing, which on a Pixel 10 Pro
@@ -786,6 +812,12 @@ int FramePacer::onVsync(int64_t vsyncNs, const FrameTiming* frames, size_t count
                     choice = 0;
                 }
             }
+            else if (timeline_.jitterBuffer() == JitterBuffer::Instant) {
+                // The newest frame, at the slot after the last one shown (see frameVsyncNs())
+                if (slotVsyncs_ == 1 || lastPresentVsyncNs_ == 0 || frameExpected) {
+                    choice = newestDue;
+                }
+            }
             else {
                 choice = newestDue;
 
@@ -834,11 +866,29 @@ int64_t FramePacer::frameVsyncNs(const FrameTiming& frame, bool committable) con
         }
     }
 
+    const bool instant = timeline_.jitterBuffer() == JitterBuffer::Instant;
+    if (instant) {
+        // Instant, with a frame every few vsyncs: the slot after the last frame shown, as the
+        // stream's cadence has it, rather than whichever vsync the frame could make (Nightjar's
+        // balanced pacing, and Moonlight's before it, show the newest frame at each such vsync).
+        // Shown as soon as they could be, frames whose arrival sits near a vsync swap between
+        // that vsync and the next, holding one for a vsync and the next for three. A frame
+        // later than the slot goes to the vsync it can make, and frames that could all have
+        // made the vsync before the slot go there (instantEarlyFrames_), so the slots follow
+        // the frames a vsync at a time. With a frame a vsync, a frame for the same vsync as the
+        // last replaces it: the newest is shown.
+        if (slotVsyncs_ > 1 && lastPresentVsyncNs_ != 0) {
+            const int64_t nextSlotIndex = vsyncIndexAt(lastPresentVsyncNs_ + slotVsyncs_ * periodNs_);
+            const int64_t earliest = nextSlotIndex - (instantEarlyFrames_ >= kInstantEarlyFrames ? 1 : 0);
+            index = std::max(index, earliest);
+        }
+    }
+
     // Unless the frames are locked to slots (whose schedule is already smooth), a frame whose
     // due time is right at a vsync would flip between that vsync and the next with the
     // slightest jitter: one frame replacing another at a vsync, then a vsync without a new frame.
     // Keep one frame per slot through that jitter; only a frame well off the slot moves.
-    if (lastPresentVsyncNs_ != 0 && !(phaseLocked_ && slotVsyncs_ > 1)) {
+    if (lastPresentVsyncNs_ != 0 && !instant && !(phaseLocked_ && slotVsyncs_ > 1)) {
         const int64_t tolerance = periodNs_ / 4;
         const int64_t planned = lastVsyncNs_ + (index - vsyncIndex_) * periodNs_;
         // The slot after the last frame committed, if it hasn't passed
@@ -879,6 +929,10 @@ void FramePacer::onPresentedAhead(int64_t vsyncNs) {
     // shows only this one
     if (lastPresentVsyncNs_ != 0 && vsyncNs <= lastPresentVsyncNs_ + periodNs_ / 2) {
         framesSkipped_++;
+    }
+    // Instant: the slots moved a vsync sooner (frameVsyncNs()), so frames start counting again
+    if (lastPresentVsyncNs_ != 0 && vsyncNs < lastPresentVsyncNs_ + slotVsyncs_ * periodNs_ - periodNs_ / 2) {
+        instantEarlyFrames_ = 0;
     }
     lastPresentVsyncNs_ = vsyncNs;
 }

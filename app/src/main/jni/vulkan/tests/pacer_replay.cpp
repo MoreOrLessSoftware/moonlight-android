@@ -341,7 +341,7 @@ struct DeviceTiming {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer low|balanced|smooth]"
+        fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer instant|lowest|low|balanced|smooth]"
                         " [--present-ahead on|off] [--present-guard ms]\n", argv[0]);
         return 2;
     }
@@ -368,8 +368,8 @@ int main(int argc, char** argv) {
         // Replay with a different jitter buffer than the session used
         if (strcmp(argv[i], "--jitter-buffer") == 0) {
             const char* value = argv[i + 1];
-            jitterBufferOverride = strcmp(value, "lowest") == 0 ? 3 : strcmp(value, "low") == 0 ? 0 :
-                                   strcmp(value, "smooth") == 0 ? 2 : 1;
+            jitterBufferOverride = strcmp(value, "instant") == 0 ? 4 : strcmp(value, "lowest") == 0 ? 3 :
+                                   strcmp(value, "low") == 0 ? 0 : strcmp(value, "smooth") == 0 ? 2 : 1;
         }
     }
 
