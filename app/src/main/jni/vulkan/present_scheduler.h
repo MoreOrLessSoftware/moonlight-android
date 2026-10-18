@@ -116,7 +116,8 @@ public:
     static constexpr uint32_t kSettlingPresents = 60;
 
     // A shorter delay is taken with a longer guard only if the guard grows by less than this
-    // share of the vsync saved, since the pacer can't always place frames to absorb all of it
+    // share of the vsync saved, since the pacer can't always place frames to absorb all of it.
+    // Growth from kInitialGuardNs, or the current guard if more (considerLowering()).
     static constexpr double kLowerMaxGuardCost = 0.75;
     // The guard for a shorter delay covers this percentile of what frames needed, plus a bucket
     static constexpr double kLowerNeedPercentile = 99.0;

@@ -181,8 +181,14 @@ void PresentScheduler::considerLowering(int64_t vsyncNs, int64_t periodNs) {
     }
     const int64_t guard = std::max(static_cast<int64_t>(bucket + 2) * kGuardBucketNs, kMinGuardNs);
     const int64_t windowNs = aheadWindowNs_ > 0 ? aheadWindowNs_ : periodNs;
+    // The guard's growth is counted from the initial guard, or the current one if that's grown
+    // past it. Counted from the current guard alone, the decision rested on how far it had come
+    // down by the time this was learned: on an iPlay 70 mini Ultra at 144 fps, needing a 6 ms
+    // guard, sessions whose guard was still at 2 ms lowered and ones where it had reached 0.5 ms
+    // within the first seconds didn't, for the whole session.
+    const int64_t baseGuardNs = std::max(guardNs_, kInitialGuardNs);
     if (guard > windowNs - kLowerGuardHeadroomNs ||
-            static_cast<double>(guard - guardNs_) >= kLowerMaxGuardCost * static_cast<double>(periodNs)) {
+            static_cast<double>(guard - baseGuardNs) >= kLowerMaxGuardCost * static_cast<double>(periodNs)) {
         return;
     }
 

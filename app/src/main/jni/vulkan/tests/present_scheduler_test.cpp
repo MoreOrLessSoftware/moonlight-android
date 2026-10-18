@@ -194,6 +194,23 @@ int main() {
         check(wrongAtEnd == 0, "just over the edge", "a wrong lowering should be undone");
     }
     {
+        // The iPlay at 144 fps, needing about a 6 ms guard for one vsync: every session should
+        // decide the same, however far the guard has come down by then (it once lowered only in
+        // sessions whose guard was still near 2 ms)
+        int lowered = 0;
+        const int runs = 20;
+        for (int i = 0; i < runs; i++) {
+            Scenario s {"144 Hz at 144 fps, compositor needs 5.4 ms", 144.0, 5.4};
+            s.needJitterMs = 0.2;
+            s.seed = 2000 + i;
+            Result r = run(s, false);
+            lowered += r.finalDelay == 1 ? 1 : 0;
+        }
+        printf("144 Hz at 144 fps, compositor needs 5.4 ms, %d runs\n", runs);
+        printf("  at one vsync at the end in %d\n", lowered);
+        check(lowered == runs, "144 fps, 5.4 ms", "every session should lower to one vsync");
+    }
+    {
         // The iPlay at 60 fps on 120 Hz: every so often the compositor shows a few frames a vsync
         // late within a couple of seconds, at any delay. That's no reason to raise the delay.
         Scenario s {"120 Hz at 60 fps, 7.1 ms, compositor hiccups every 30 s", 120.0, 7.1};
@@ -249,6 +266,7 @@ int main() {
         s.needJitterMs = 0.2;
         s.needMsAfter = 7.5;
         Result r = runAndReport(s);
+        check(r.firstChangeS > 0 && r.firstChangeS <= 10, s.name, "should lower within 10 s");
         check(r.finalDelay == 2, s.name, "should go back to two vsyncs");
         check(r.finalGuardMs <= 3.5, s.name, "should go back to the guard from before lowering");
     }
