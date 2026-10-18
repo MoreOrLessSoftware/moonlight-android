@@ -3199,7 +3199,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         final String[] names = getResources().getStringArray(R.array.perf_overlay_mode_names);
         final String[] values = getResources().getStringArray(R.array.perf_overlay_mode_values);
 
-        String current = !prefConfig.enablePerfOverlay ? "off" : prefConfig.perfOverlayCompact ? "compact" : "detailed";
+        String current = !prefConfig.enablePerfOverlay ? "off" :
+                prefConfig.perfOverlayMinimal ? "minimal" :
+                prefConfig.perfOverlayCompact ? "compact" : "detailed";
         int checked = -1;
         for (int i = 0; i < values.length; i++) {
             if (values[i].equals(current)) {
@@ -3215,7 +3217,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     public void onClick(DialogInterface dialog, int which) {
                         // The renderer reads these from prefConfig as it builds each update
                         prefConfig.enablePerfOverlay = !values[which].equals("off");
-                        prefConfig.perfOverlayCompact = values[which].equals("compact");
+                        prefConfig.perfOverlayMinimal = values[which].equals("minimal");
+                        prefConfig.perfOverlayCompact = values[which].equals("compact") || prefConfig.perfOverlayMinimal;
 
                         updatePerfOverlayLayout();
                         performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay ? View.VISIBLE : View.GONE);

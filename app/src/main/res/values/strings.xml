@@ -128,6 +128,10 @@
     <string name="perf_overlay_compact_hostlatency">Host: %1$.1f</string>
     <string name="perf_overlay_compact_dectime">%1$s: %2$.2f</string>
     <string name="perf_overlay_compact_pacing">Frame pacing: %1$s</string>
+    <!-- The minimal stats, a shorter compact line -->
+    <string name="perf_overlay_minimal_fps">%1$.2f FPS</string>
+    <string name="perf_overlay_minimal_capture_to_present">Capture to present: %1$.1f</string>
+    <string name="perf_overlay_minimal_capture_to_decoded">Capture to decoded: %1$.1f</string>
 
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
@@ -295,6 +299,7 @@
     <string name="title_enable_perf_overlay">Show performance stats while streaming</string>
     <string name="summary_enable_perf_overlay">Display real-time stream performance information while streaming. Compact shows the main numbers in one line along the top, and detailed shows all of them in the corner.</string>
     <string name="perf_overlay_off">Off</string>
+    <string name="perf_overlay_minimal">Minimal</string>
     <string name="perf_overlay_compact">Compact</string>
     <string name="perf_overlay_detailed">Detailed</string>
     <string name="title_enable_post_stream_toast">Show latency message after streaming</string>

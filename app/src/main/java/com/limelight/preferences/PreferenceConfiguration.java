@@ -194,6 +194,8 @@ public class PreferenceConfiguration {
     public boolean enablePerfOverlay;
     // The stats in one line along the top, rather than all of them in the corner
     public boolean perfOverlayCompact;
+    // Fewer stats in that line (perfOverlayCompact is set too)
+    public boolean perfOverlayMinimal;
     public boolean enableLatencyToast;
     public boolean bindAllUsb;
     public boolean mouseEmulation;
@@ -730,7 +732,8 @@ public class PreferenceConfiguration {
         }
         String perfOverlay = prefs.getString(PERF_OVERLAY_PREF_STRING, DEFAULT_PERF_OVERLAY);
         config.enablePerfOverlay = !perfOverlay.equals("off");
-        config.perfOverlayCompact = perfOverlay.equals("compact");
+        config.perfOverlayMinimal = perfOverlay.equals("minimal");
+        config.perfOverlayCompact = perfOverlay.equals("compact") || config.perfOverlayMinimal;
         config.bindAllUsb = prefs.getBoolean(BIND_ALL_USB_STRING, DEFAULT_BIND_ALL_USB);
         config.mouseEmulation = prefs.getBoolean(MOUSE_EMULATION_STRING, DEFAULT_MOUSE_EMULATION);
         config.mouseNavButtons = prefs.getBoolean(MOUSE_NAV_BUTTONS_STRING, DEFAULT_MOUSE_NAV_BUTTONS);

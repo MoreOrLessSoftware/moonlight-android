@@ -1610,6 +1610,28 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
     }
 
+    // Fewer of the compact stats: the stream, the frame rate shown, the bitrate and the latency,
+    // which is capture to present where it's measured, or else capture to decoded
+    private void appendMinimalPerfText(StringBuilder sb, VideoStatsFps fps, VideoStats lastTwo,
+                                       long rttInfo, float bandwidthMbps) {
+        final String separator = " • ";
+        sb.append(context.getString(R.string.perf_overlay_compact_stream, initialWidth + "x" + initialHeight, fps.totalFps));
+        sb.append(separator).append(context.getString(R.string.perf_overlay_minimal_fps, fps.renderedFps));
+        if (bandwidthMbps >= 0) {
+            sb.append(separator).append(context.getString(R.string.perf_overlay_compact_bandwidth, bandwidthMbps));
+        }
+        if (lastTwo.framesWithCaptureToPresent > 0) {
+            sb.append(separator).append(context.getString(R.string.perf_overlay_minimal_capture_to_present,
+                    averageCaptureLatencyMs(lastTwo.totalCaptureToPresentUs, lastTwo.framesWithCaptureToPresent,
+                            lastTwo.presentedWithoutNetworkTransit, rttInfo)));
+        }
+        else if (lastTwo.framesWithCaptureToDecoded > 0) {
+            sb.append(separator).append(context.getString(R.string.perf_overlay_minimal_capture_to_decoded,
+                    averageCaptureLatencyMs(lastTwo.totalCaptureToDecodedUs, lastTwo.framesWithCaptureToDecoded,
+                            lastTwo.decodedWithoutNetworkTransit, rttInfo)));
+        }
+    }
+
     // The main stats in one line without units, for the compact performance overlay along the top
     private void appendCompactPerfText(StringBuilder sb, VideoStatsFps fps, VideoStats lastTwo,
                                      long rttInfo, float decodeTimeMs, float bandwidthMbps,
@@ -1743,7 +1765,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 lastNetDataNum = netData;
 
                 StringBuilder sb = new StringBuilder();
-                if (prefs.perfOverlayCompact) {
+                if (prefs.perfOverlayMinimal) {
+                    appendMinimalPerfText(sb, fps, lastTwo, rttInfo, realtimeNetData);
+                }
+                else if (prefs.perfOverlayCompact) {
                     appendCompactPerfText(sb, fps, lastTwo, rttInfo, decodeTimeMs, realtimeNetData, pacingText);
                 }
                 else {

@@ -273,14 +273,21 @@ public class AppPreferences {
             }
 
             // Apply global performance overlay override
-            // 0 = use default (no override), 1 = force detailed, 2 = force off, 3 = force compact
+            // 0 = use default (no override), 1 = force detailed, 2 = force off, 3 = force compact,
+            // 4 = force minimal
             int perfOverlayOverride = defaultPrefs.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
             if (perfOverlayOverride == 1) {
                 config.enablePerfOverlay = true;
                 config.perfOverlayCompact = false;
+                config.perfOverlayMinimal = false;
             } else if (perfOverlayOverride == 3) {
                 config.enablePerfOverlay = true;
                 config.perfOverlayCompact = true;
+                config.perfOverlayMinimal = false;
+            } else if (perfOverlayOverride == 4) {
+                config.enablePerfOverlay = true;
+                config.perfOverlayCompact = true;
+                config.perfOverlayMinimal = true;
             } else if (perfOverlayOverride == 2) {
                 config.enablePerfOverlay = false;
             }
