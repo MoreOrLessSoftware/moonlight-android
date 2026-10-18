@@ -1593,10 +1593,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     // The main stats in one line without units, for the compact performance overlay along the top
     private void appendCompactPerfText(StringBuilder sb, VideoStatsFps fps, VideoStats lastTwo,
-                                     long rttInfo, float decodeTimeMs, String pacingText) {
+                                     long rttInfo, float decodeTimeMs, float bandwidthMbps,
+                                     String pacingText) {
         final String separator = " \u2022 ";
         sb.append(context.getString(R.string.perf_overlay_compact_stream, initialWidth + "x" + initialHeight, fps.totalFps));
         sb.append(separator).append(context.getString(R.string.perf_overlay_compact_fps, fps.receivedFps, fps.renderedFps));
+        if (bandwidthMbps >= 0) {
+            sb.append(separator).append(context.getString(R.string.perf_overlay_compact_bandwidth, bandwidthMbps));
+        }
         float droppedPercent = (float)lastTwo.framesLost / lastTwo.totalFrames * 100;
         if (pyrowave) {
             // Only PyroWave delivers frames with gaps in them
@@ -1703,9 +1707,16 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 String rendererText = vulkan != null ? vulkan.getRendererText() : null;
                 String pacingText = vulkan != null ? vulkan.getPacingText() : null;
 
+                // Calculate bandwidth, sampled in both modes so a switch between them mid-stream
+                // doesn't measure from a stale count
+                long netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) + TrafficStatsHelper.getPackageTxBytes(Process.myUid());
+                // Convert bytes per second to megabits per second (Mbps)
+                float realtimeNetData = lastNetDataNum != 0 ? (netData - lastNetDataNum) * 8 / 1000000f : -1;
+                lastNetDataNum = netData;
+
                 StringBuilder sb = new StringBuilder();
                 if (prefs.perfOverlayCompact) {
-                    appendCompactPerfText(sb, fps, lastTwo, rttInfo, decodeTimeMs, pacingText);
+                    appendCompactPerfText(sb, fps, lastTwo, rttInfo, decodeTimeMs, realtimeNetData, pacingText);
                 }
                 else {
                     sb.append(context.getString(R.string.perf_overlay_decoder, decoder));
@@ -1728,14 +1739,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     sb.append(context.getString(R.string.perf_overlay_netlatency,
                             (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
 
-                    // Calculate and display bandwidth
-                    long netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) + TrafficStatsHelper.getPackageTxBytes(Process.myUid());
-                    if(lastNetDataNum != 0){
-                        // Convert bytes per second to megabits per second (Mbps)
-                        float realtimeNetData = (netData - lastNetDataNum) * 8 / 1000000f;
+                    if (realtimeNetData >= 0) {
                         sb.append(context.getString(R.string.perf_overlay_bandwidth, realtimeNetData)).append('\n');
                     }
-                    lastNetDataNum = netData;
 
                     if (lastTwo.framesWithHostProcessingLatency > 0) {
                         sb.append(context.getString(R.string.perf_overlay_hostprocessinglatency,
@@ -1762,6 +1768,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     }
                 }
                 perfListener.onPerfUpdate(sb.toString());
+            }
+            else {
+                // Measured afresh when the overlay is turned back on
+                lastNetDataNum = 0;
             }
 
             globalVideoStats.add(activeWindowVideoStats);
