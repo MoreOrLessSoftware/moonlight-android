@@ -3119,16 +3119,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             @Override
-            public void onToggleStats() {
-                // On in the mode set for the stream, which is detailed if it was set off
-                prefConfig.enablePerfOverlay = !prefConfig.enablePerfOverlay;
-
-                // Toggle performance overlay visibility
-                if (performanceOverlayView.getVisibility() == View.VISIBLE) {
-                    performanceOverlayView.setVisibility(View.GONE);
-                } else {
-                    performanceOverlayView.setVisibility(View.VISIBLE);
-                }
+            public void onChangeStats() {
+                showStatsDialog();
             }
 
             @Override
@@ -3195,6 +3187,38 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         // session (as on a new surface) is set up from
                         prefConfig.jitterBuffer = jitterBuffer;
                         decoderRenderer.setJitterBuffer(jitterBuffer);
+                        dialog.dismiss();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    // Picks the performance stats mode for the rest of this session only; the settings are left alone
+    private void showStatsDialog() {
+        final String[] names = getResources().getStringArray(R.array.perf_overlay_mode_names);
+        final String[] values = getResources().getStringArray(R.array.perf_overlay_mode_values);
+
+        String current = !prefConfig.enablePerfOverlay ? "off" : prefConfig.perfOverlayCompact ? "compact" : "detailed";
+        int checked = -1;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i].equals(current)) {
+                checked = i;
+                break;
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.overlay_menu_stats_title)
+                .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        // The renderer reads these from prefConfig as it builds each update
+                        prefConfig.enablePerfOverlay = !values[which].equals("off");
+                        prefConfig.perfOverlayCompact = values[which].equals("compact");
+
+                        updatePerfOverlayLayout();
+                        performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay ? View.VISIBLE : View.GONE);
                         dialog.dismiss();
                     }
                 })

@@ -23,7 +23,7 @@ public class OverlayMenuView extends LinearLayout {
     public interface MenuActionListener {
         void onDisconnect();
         void onQuitSession();
-        void onToggleStats();
+        void onChangeStats();
         void onToggleMouseEmulation();
         void onShowKeyboard();
         void onSendGuideButton();
@@ -51,7 +51,7 @@ public class OverlayMenuView extends LinearLayout {
 
     private static final int ACTION_DISCONNECT = 0;
     private static final int ACTION_QUIT = 1;
-    private static final int ACTION_TOGGLE_STATS = 2;
+    private static final int ACTION_STATS = 2;
     private static final int ACTION_CLOSE = 3;
     private static final int ACTION_SHOW_KEYBOARD = 4;
     private static final int ACTION_TOGGLE_MOUSE_EMULATION = 5;
@@ -154,7 +154,7 @@ public class OverlayMenuView extends LinearLayout {
         addVerticalButton(R.drawable.ic_overlay_keyboard_toggle,
             getContext().getString(R.string.overlay_menu_keyboard), ACTION_SHOW_KEYBOARD, spacing);
         addVerticalButton(R.drawable.ic_overlay_perf,
-                getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_TOGGLE_STATS, spacing);
+                getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_STATS, spacing);
         if (showJitterBuffer) {
             addVerticalButton(R.drawable.ic_overlay_jitter_buffer,
                     getContext().getString(R.string.overlay_menu_jitter_buffer), ACTION_JITTER_BUFFER, spacing);
@@ -308,7 +308,7 @@ public class OverlayMenuView extends LinearLayout {
 
                 case KeyEvent.KEYCODE_BUTTON_R1:
                     if (event.getRepeatCount() == 0) {
-                        activateToggleStats();
+                        activateStats();
                     }
                     return true;
             }
@@ -533,9 +533,9 @@ public class OverlayMenuView extends LinearLayout {
             } else if (action == ACTION_QUIT) {
                 actionListener.onQuitSession();
                 shouldCloseMenu = true;
-            } else if (action == ACTION_TOGGLE_STATS) {
-                actionListener.onToggleStats();
-                // Keep menu open
+            } else if (action == ACTION_STATS) {
+                activateStats();
+                return;
             } else if (action == ACTION_TOGGLE_MOUSE_EMULATION) {
                 actionListener.onToggleMouseEmulation();
                 shouldCloseMenu = true;
@@ -610,11 +610,12 @@ public class OverlayMenuView extends LinearLayout {
         closeMenu();
     }
 
-    private void activateToggleStats() {
-        if (actionListener != null) {
-            actionListener.onToggleStats();
-        }
+    private void activateStats() {
+        // Closed first, so the dialog gets the controller and keyboard input
         closeMenu();
+        if (actionListener != null) {
+            actionListener.onChangeStats();
+        }
     }
 
     public void show() {

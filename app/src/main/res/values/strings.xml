@@ -414,6 +414,7 @@
     <string name="overlay_menu_jitter_buffer">Jitter Buffer</string>
     <string name="overlay_menu_jitter_buffer_title">Jitter buffer for this session</string>
     <string name="overlay_menu_toggle_stats">Stats (RB)</string>
+    <string name="overlay_menu_stats_title">Performance stats for this session</string>
     <string name="overlay_menu_mouse_emulation">Mouse (X)</string>
     <string name="overlay_menu_keyboard">Keyboard (Y)</string>
     <string name="overlay_menu_guide">Guide (▶)</string>
