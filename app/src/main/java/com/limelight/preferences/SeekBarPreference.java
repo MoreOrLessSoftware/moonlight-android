@@ -3,6 +3,7 @@ package com.limelight.preferences;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.res.TypedArray;
 import android.os.Bundle;
 import android.preference.DialogPreference;
 import android.util.AttributeSet;
@@ -86,7 +87,8 @@ public class SeekBarPreference extends DialogPreference
         }
 
         // Get default, min, and max seekbar values
-        defaultValue = attrs.getAttributeIntValue(ANDROID_SCHEMA_URL, "defaultValue", PreferenceConfiguration.getDefaultBitrate(context));
+        // The bitrate has no fixed default; 0 means the recommendation for the current settings
+        defaultValue = attrs.getAttributeIntValue(ANDROID_SCHEMA_URL, "defaultValue", 0);
         maxValue = attrs.getAttributeIntValue(ANDROID_SCHEMA_URL, "max", 100);
         minValue = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "min", 1);
         stepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "step", 1);
@@ -193,7 +195,7 @@ public class SeekBarPreference extends DialogPreference
         }
 
         // An unset value starts the slider at the recommendation
-        dialogStartValue = currentValue == 0 && unsetName != null && showRecommendedBitrate ?
+        dialogStartValue = currentValue == 0 && showRecommendedBitrate ?
                 getRecommendedBitrate() : currentValue;
 
         seekBar.setMax(maxValue);
@@ -256,6 +258,14 @@ public class SeekBarPreference extends DialogPreference
         seekBar.setProgress(dialogStartValue);
     }
 
+    // Without this, the default from XML is never passed to onSetInitialValue(), so a value
+    // that was never saved shows as 0. This runs in the superclass constructor, before
+    // this class's fields are set.
+    @Override
+    protected Object onGetDefaultValue(TypedArray a, int index) {
+        return a.getInt(index, 0);
+    }
+
     @Override
     protected void onSetInitialValue(boolean restore, Object defaultValue)
     {
@@ -284,6 +294,10 @@ public class SeekBarPreference extends DialogPreference
     public CharSequence getSummary() {
         if (currentValue == 0 && unsetName != null) {
             return unsetName;
+        }
+        // An unset bitrate streams at the recommendation, which follows the other settings
+        if (currentValue == 0 && showRecommendedBitrate) {
+            return formatValue(getRecommendedBitrate());
         }
         return formatValue(currentValue);
     }
