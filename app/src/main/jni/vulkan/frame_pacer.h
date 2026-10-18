@@ -248,6 +248,11 @@ public:
     // What's kept of it when the frames stop fitting a line: enough to see a 71.82 fps game's
     // timestamps step by a 143.64 Hz host refresh (every 2.8 s) before locking again
     static constexpr int64_t kRelockWindowNs = 4'000'000'000;
+    // While locked, frames from before the last kRelockWindowNs are dropped when the whole
+    // window packs looser than kTrimSpread slots around its line and those last seconds alone
+    // pack tighter than kTightSpread (updatePhase())
+    static constexpr double kTrimSpread = 0.25;
+    static constexpr double kTightSpread = 0.1;
 
 private:
     // plannedVsyncNs(), or with committable false, the vsync even if it's too far off to
@@ -255,6 +260,12 @@ private:
     int64_t frameVsyncNs(const FrameTiming& frame, bool committable) const;
     void trackVsync(int64_t vsyncNs);
     void updateSlot(const FrameTiming& frame);
+    struct PhaseFit {
+        double interval = 0;  // The game's frame interval
+        double latest = 0;    // The latest sample against the line
+        double spread = 0;    // From the earliest sample against it to the latest
+    };
+    bool fitPhase(size_t from, PhaseFit* out) const;
     void updatePhase(FrameTiming& frame);
     void scheduleFrom(FrameTiming& frame, int64_t measuredPtsNs, bool onLine, int64_t scheduledPtsNs);
     void resetPhase();

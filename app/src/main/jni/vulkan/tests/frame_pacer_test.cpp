@@ -43,6 +43,10 @@ struct Scenario {
     JitterBuffer switchTo = JitterBuffer::LowLatency;
     // Where the counted part of the run starts, after the warm-up
     double measureFromS = 3.0;
+    // From stepAtS on, the game's frames come stepMs later than before: its timing moved
+    // across a hitch (on the host's desktop before a game, or as the game itself stalls)
+    double stepAtS = 0;
+    double stepMs = 0;
 };
 
 struct Result {
@@ -98,6 +102,12 @@ std::vector<int64_t> hostFrames(const Scenario& s) {
         }
         pts.push_back(static_cast<int64_t>(present));
         theoretical = std::max(theoretical, present) + minInterval;
+    }
+
+    if (s.stepAtS > 0) {
+        for (int64_t& p : pts) {
+            if (p >= s.stepAtS * 1e9) p += static_cast<int64_t>(s.stepMs * 1e6);
+        }
     }
     return pts;
 }
@@ -431,6 +441,30 @@ int main() {
             printf("  minimum uneven frames for the rate difference: %.1f, got %d\n", driftVsyncs, events);
             check(events <= driftVsyncs * 1.3 + 4, c.name, "more uneven frames than the rate difference needs");
         }
+    }
+    {
+        // A 60 fps game on a 120 Hz display whose frames move half a frame later across a hitch:
+        // the timing changed going from the host's desktop into a game on an iPlay 70 mini Ultra.
+        // A few seconds on, it should be paced as if it had always had the new timing. The frames
+        // from before, which fit another line, lingered in the window the schedule is fitted
+        // over, and frames were scheduled up to 20 ms late for 16 s.
+        Scenario base {"", 59.92, 60, 120.0};
+        base.jitterBuffer = JitterBuffer::LowestLatency;
+        base.durationS = 30.0;
+        base.measureFromS = 16.0;
+        Scenario stepped = base;
+        stepped.name = "60 fps game's timing steps 8 ms at 10 s (120 Hz)";
+        stepped.stepAtS = 10.0;
+        stepped.stepMs = 8.0;
+        Scenario steady = base;
+        steady.name = "  without the step";
+        const Result rs = run(stepped);
+        const Result rf = run(steady);
+        report(stepped, rs);
+        report(steady, rf);
+        check(rs.meanLatencyMs < rf.meanLatencyMs + 1.5, stepped.name, "frames from before the step still delay the rest");
+        check(rs.skipped + rs.heldShort + rs.heldLong <= rf.skipped + rf.heldShort + rf.heldLong + 2, stepped.name,
+              "more uneven frames than without the step");
     }
     {
         // Switching the jitter buffer mid-stream, as the overlay menu does: once it settles, the

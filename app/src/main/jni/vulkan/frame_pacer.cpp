@@ -383,6 +383,67 @@ void FramePacer::updateSlot(const FrameTiming& frame) {
     }
 }
 
+// Fits a line to the phase samples from index `from` on: the game's frame interval, which with
+// host and client clocks only parts per million apart is the same on our clock, and how far the
+// samples sit from it. Two estimates, since host timestamps come in two shapes:
+// - a least squares fit, for timestamps scattered around the line (a 71.82 fps game on a 165 Hz
+//   host, alternating two and three refreshes)
+// - the median spacing, for timestamps that march exactly with the host display and step by a
+//   refresh now and then (a 71.82 fps game on a 143.64 Hz host), which would tilt a least squares
+//   line whenever a step is in the window
+// Whichever leaves the frames packed tighter around its line wins. Residuals are measured from
+// the sample at `from`.
+bool FramePacer::fitPhase(size_t from, PhaseFit* out) const {
+    if (from >= phaseSamples_.size()) {
+        return false;
+    }
+    const PhaseSample& first = phaseSamples_[from];
+    double sx = 0, sy = 0, sxx = 0, sxy = 0;
+    std::vector<double> spacings;
+    spacings.reserve(phaseSamples_.size() - from);
+    const PhaseSample* previous = nullptr;
+    for (size_t i = from; i < phaseSamples_.size(); i++) {
+        const PhaseSample& s = phaseSamples_[i];
+        const double x = static_cast<double>(s.frameIndex - first.frameIndex);
+        const double y = static_cast<double>(s.hostPtsNs - first.hostPtsNs);
+        sx += x;
+        sy += y;
+        sxx += x * x;
+        sxy += x * y;
+        if (previous) {
+            spacings.push_back(static_cast<double>(s.hostPtsNs - previous->hostPtsNs) /
+                               static_cast<double>(s.frameIndex - previous->frameIndex));
+        }
+        previous = &s;
+    }
+    const double n = static_cast<double>(phaseSamples_.size() - from);
+    const double denominator = n * sxx - sx * sx;
+    if (denominator <= 0 || spacings.empty()) {
+        return false;
+    }
+    std::nth_element(spacings.begin(), spacings.begin() + spacings.size() / 2, spacings.end());
+    const double candidates[] = {(n * sxy - sx * sy) / denominator, spacings[spacings.size() / 2]};
+
+    out->spread = 1e18;
+    for (double candidate : candidates) {
+        double high = -1e18;
+        double low = 1e18;
+        for (size_t i = from; i < phaseSamples_.size(); i++) {
+            const PhaseSample& s = phaseSamples_[i];
+            const double residual = static_cast<double>(s.hostPtsNs - first.hostPtsNs) -
+                                    candidate * static_cast<double>(s.frameIndex - first.frameIndex);
+            high = std::max(high, residual);
+            low = std::min(low, residual);
+        }
+        if (high - low < out->spread) {
+            out->spread = high - low;
+            out->interval = candidate;
+            out->latest = high;
+        }
+    }
+    return true;
+}
+
 // Frames are due at the first vsync at or after their target time.
 //
 // Host timestamps vary even when the game's own pacing is perfect. With a fixed refresh host
@@ -467,59 +528,36 @@ void FramePacer::updatePhase(FrameTiming& frame) {
         return;
     }
 
-    // The game's frame interval, which with host and client clocks only parts per million
-    // apart is the same on our clock. Two estimates, since host timestamps come in two shapes:
-    // - a least squares fit, for timestamps scattered around the line (a 71.82 fps game on a
-    //   165 Hz host, alternating two and three refreshes)
-    // - the median spacing, for timestamps that march exactly with the host display and step
-    //   by a refresh now and then (a 71.82 fps game on a 143.64 Hz host), which would tilt a
-    //   least squares line whenever a step is in the window
-    // Whichever leaves the frames packed tighter around its line wins.
-    const PhaseSample& first = phaseSamples_.front();
-    double sx = 0, sy = 0, sxx = 0, sxy = 0;
-    std::vector<double> spacings;
-    spacings.reserve(phaseSamples_.size());
-    const PhaseSample* previous = nullptr;
-    for (const PhaseSample& s : phaseSamples_) {
-        const double x = static_cast<double>(s.frameIndex - first.frameIndex);
-        const double y = static_cast<double>(s.hostPtsNs - first.hostPtsNs);
-        sx += x;
-        sy += y;
-        sxx += x * x;
-        sxy += x * y;
-        if (previous) {
-            spacings.push_back(static_cast<double>(s.hostPtsNs - previous->hostPtsNs) /
-                               static_cast<double>(s.frameIndex - previous->frameIndex));
-        }
-        previous = &s;
-    }
-    const double n = static_cast<double>(phaseSamples_.size());
-    const double denominator = n * sxx - sx * sx;
-    if (denominator <= 0 || spacings.empty()) {
+    PhaseFit fit;
+    if (!fitPhase(0, &fit)) {
         unlock();
         return;
     }
-    std::nth_element(spacings.begin(), spacings.begin() + spacings.size() / 2, spacings.end());
-    const double candidates[] = {(n * sxy - sx * sy) / denominator, spacings[spacings.size() / 2]};
 
-    double interval = 0;
-    double latest = 0;
-    double spread = 1e18;
-    for (double candidate : candidates) {
-        double high = -1e18;
-        double low = 1e18;
-        for (const PhaseSample& s : phaseSamples_) {
-            const double residual = static_cast<double>(s.hostPtsNs - first.hostPtsNs) -
-                                    candidate * static_cast<double>(s.frameIndex - first.frameIndex);
-            high = std::max(high, residual);
-            low = std::min(low, residual);
+    // Frames that fitted another line linger in the window: the host's desktop before a game
+    // started, whose timestamps sit apart from the game's. Packed loosely around a line that
+    // tries to fit both, frames were scheduled as late as the latest of them against it, up to
+    // 20 ms on an iPlay 70 mini Ultra going from the desktop into a 60 fps game, until they left
+    // the window 16 s later. When the last few seconds fit a line tightly by themselves, the
+    // frames before them are dropped and the schedule starts from that line.
+    bool refitted = false;
+    if (fit.spread > kTrimSpread * static_cast<double>(slotPeriod) &&
+            frame.arrivalNs - phaseSamples_.front().timeNs > kRelockWindowNs + kMinPhaseSpanNs) {
+        size_t recentStart = 0;
+        while (phaseSamples_[recentStart].timeNs < frame.arrivalNs - kRelockWindowNs) {
+            recentStart++;
         }
-        if (high - low < spread) {
-            spread = high - low;
-            interval = candidate;
-            latest = high;
+        PhaseFit recent;
+        if (fitPhase(recentStart, &recent) && recent.spread < kTightSpread * static_cast<double>(slotPeriod)) {
+            phaseSamples_.erase(phaseSamples_.begin(), phaseSamples_.begin() + static_cast<std::ptrdiff_t>(recentStart));
+            fit = recent;
+            refitted = true;
         }
     }
+    const PhaseSample& first = phaseSamples_.front();
+    const double interval = fit.interval;
+    const double latest = fit.latest;
+    const double spread = fit.spread;
 
     driftPerFrame_ = (interval - static_cast<double>(slotPeriod)) / static_cast<double>(slotPeriod);
     if (std::fabs(driftPerFrame_) > kMaxDriftPerFrame ||
@@ -551,13 +589,13 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     const double x = static_cast<double>(frameIndex_ - first.frameIndex);
     const double line = static_cast<double>(first.hostPtsNs) + interval * x;
     double scheduled = againstLine ? line : line + latest;
-    if (phaseLocked_) {
+    if (phaseLocked_ && !refitted) {
         const double carried = scheduledPtsNs_ + interval * static_cast<double>(frameIndex_ - scheduledIndex_);
         if (scheduled < carried) {
             scheduled = std::max(scheduled, carried - static_cast<double>(slotPeriod) * kLateDecayPerFrame);
         }
     }
-    else {
+    else if (!phaseLocked_) {
         lockedSinceNs_ = frame.arrivalNs;
     }
     scheduledPtsNs_ = scheduled;
