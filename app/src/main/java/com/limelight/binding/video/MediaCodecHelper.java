@@ -539,13 +539,30 @@ public class MediaCodecHelper {
                 }
                 // We cap operating rate at realistic bounds rather than Short.MAX_VALUE
                 // to avoid Android 17 Codec2 implementations clamping buffer sizes down
-                // and causing decoder starvation/network UDP drops.
-                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, Math.max(120, fps), tryNumber, true);
+                // and causing decoder starvation/network UDP drops. The decoder clocks itself
+                // to just meet this rate, so asking for the stream's frame rate makes each frame
+                // take most of a frame interval (about 8 ms at 120 FPS on Pixel 10). Ask for the
+                // most this decoder can do at the stream's size instead.
+                int operatingRate = Math.max(120, fps);
+                try {
+                    MediaCodecInfo.VideoCapabilities caps = decoderInfo
+                            .getCapabilitiesForType(videoFormat.getString(MediaFormat.KEY_MIME))
+                            .getVideoCapabilities();
+                    int width = videoFormat.getInteger(MediaFormat.KEY_WIDTH);
+                    int height = videoFormat.getInteger(MediaFormat.KEY_HEIGHT);
+                    if (caps != null && caps.isSizeSupported(width, height)) {
+                        double maxFps = caps.getSupportedFrameRatesFor(width, height).getUpper();
+                        operatingRate = Math.max(operatingRate, (int) Math.min(maxFps, 960));
+                    }
+                } catch (Exception e) {
+                    // Keep the stream-based rate
+                }
+                setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, operatingRate, tryNumber, true);
                 setNewOption |= safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, true);
-                
+
                 // For Android 17+ (API 36+), additionally use the newly exposed vendor.google.frame-rate.value
                 if (Build.VERSION.SDK_INT >= 36) {
-                    setNewOption |= safeSet(videoFormat, "vendor.google.frame-rate.value", Math.max(120, fps), tryNumber, true);
+                    setNewOption |= safeSet(videoFormat, "vendor.google.frame-rate.value", operatingRate, tryNumber, true);
                 }
             }
 
