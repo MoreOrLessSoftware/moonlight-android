@@ -112,8 +112,9 @@ void PacerTrace::ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, ui
     countShown(pacer.vsyncIndexAt(showVsyncNs), 0, pacer);
 }
 
-void PacerTrace::immediate(int64_t nowNs) {
-    write("I,%lld\n", static_cast<long long>(nowNs));
+void PacerTrace::immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId) {
+    write("I,%lld,%lld,%llu\n", static_cast<long long>(nowNs), static_cast<long long>(hostPtsNs),
+          static_cast<unsigned long long>(presentId));
 }
 
 void PacerTrace::rendered(uint64_t presentId, int64_t startNs, int64_t fencedNs, int64_t acquiredNs,

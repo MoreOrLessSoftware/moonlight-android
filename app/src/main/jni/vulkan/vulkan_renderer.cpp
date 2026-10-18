@@ -1281,6 +1281,7 @@ void VulkanRenderer::onWake() {
         // Lowest latency with a mailbox swapchain: show the newest frame right away and let
         // the display take whichever was presented last before each vsync
         FramePtr frame;
+        uint64_t presentId = 0;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (!pending_.empty()) {
@@ -1288,10 +1289,16 @@ void VulkanRenderer::onWake() {
                 pending_.clear();
                 const int64_t now = nowNs();
                 pacer_.onPresentedImmediately(now);
-                trace_.immediate(now);
+
+                // Tagged only to find out when it reached the screen, for traces and the
+                // capture to present statistic; it asks for no particular time
+                if (hasDisplayTimingExt_) {
+                    presentId = nextPresentId_++;
+                }
+                trace_.immediate(now, frame->timing.hostPtsNs, presentId);
             }
         }
-        if (frame && renderFrame(frame)) {
+        if (frame && renderFrame(frame, presentId)) {
             presentedFrames_++;
         }
     }
@@ -1675,13 +1682,16 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     present.pImageIndices = &imageIndex;
 
     // Ask for the vsync the image should reach the screen at (see PresentScheduler), and tag the
-    // present so we find out when it did
+    // present so we find out when it did. A frame shown on arrival asks for no time (0, as soon
+    // as possible) and is left out of PresentScheduler: it's only tagged for its report.
     VkPresentTimeGOOGLE presentTime {static_cast<uint32_t>(presentId), 0};
     VkPresentTimesInfoGOOGLE presentTimes {VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE};
-    if (presentId != 0 && hasDisplayTimingExt_ && currentPeriodNs_ > 0) {
+    if (presentId != 0 && hasDisplayTimingExt_ && (presentOnArrival_ || currentPeriodNs_ > 0)) {
         const int64_t vsyncNs = showVsyncNs != 0 ? showVsyncNs : currentVsyncNs_;
-        presentTime.desiredPresentTime =
-                static_cast<uint64_t>(presentScheduler_.desiredPresentNs(vsyncNs, currentPeriodNs_));
+        if (!presentOnArrival_) {
+            presentTime.desiredPresentTime =
+                    static_cast<uint64_t>(presentScheduler_.desiredPresentNs(vsyncNs, currentPeriodNs_));
+        }
         presentTimes.swapchainCount = 1;
         presentTimes.pTimes = &presentTime;
         present.pNext = &presentTimes;
@@ -1693,6 +1703,7 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         PendingPresent& pending = pendingPresents_[presentId];
         pending = {vsyncNs, presentScheduler_.delayVsyncs(), ahead,
                    ahead ? vsyncNs - (commitNs != 0 ? commitNs : nowNs()) : 0};
+        pending.onArrival = presentOnArrival_;
         if (!frame->presentCounted) {
             // Counted when the present is reported, at the time it reached the screen
             pending.originNs = frame->originNs;
@@ -1794,7 +1805,7 @@ void VulkanRenderer::collectPresentTimings() {
         // and so was presented at its vsync or with less time than the guard, may miss; that
         // frame is late on screen whatever the delay, and it shouldn't raise the delay for all
         // the others.
-        const bool counts = pending != pendingPresents_.end() &&
+        const bool counts = pending != pendingPresents_.end() && !pending->second.onArrival &&
                 (!presentAhead_ || (pending->second.ahead && pending->second.slackNs >= presentScheduler_.guardNs()));
         if (counts) {
             presentScheduler_.onPresented(pending->second.vsyncNs, pending->second.delayVsyncs, currentPeriodNs_,

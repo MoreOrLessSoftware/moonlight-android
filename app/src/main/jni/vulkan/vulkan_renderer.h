@@ -295,6 +295,7 @@ private:
         bool replaced = false;  // Another frame was presented for the same vsync
         int64_t originNs = 0;   // For the capture to present statistic, if it's counted at this present
         bool originSynced = false;
+        bool onArrival = false;  // Shown on arrival (mailbox), tagged only for its report
     };
 
     // Host frame timing with display timing: present frames as they arrive, asking for the

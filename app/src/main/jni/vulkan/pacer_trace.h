@@ -34,7 +34,10 @@ namespace vkr {
 //                                    callback ran, presentId identifies the present (0 if none)
 //                                    and presentDelayVsyncs is the vsync after this one it asked
 //                                    to reach the screen at (PresentScheduler)
-//   I,nowNs                          frame shown on arrival (lowest latency mode, mailbox)
+//   I,nowNs,hostPtsNs,presentId      frame shown on arrival (lowest latency mode, mailbox), and
+//                                    the present that identifies it in Q, G and P lines (0
+//                                    without display timing). Traces from before these were
+//                                    added have only nowNs.
 //   A,nowNs,showVsyncNs,hostPtsNs,presentId,presentDelayVsyncs,presentGuardNs
 //                                    frame presented as it arrived, asking for the vsync
 //                                    presentDelayVsyncs after showVsyncNs (host frame timing
@@ -118,7 +121,7 @@ public:
     void frame(const FrameTiming& timing, size_t queued, uint64_t queueDrops);
     void vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shownPtsNs, const FramePacer& pacer,
                int64_t callbackLateNs, uint64_t presentId, int presentDelayVsyncs);
-    void immediate(int64_t nowNs);
+    void immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId);
     void ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, uint64_t presentId, int presentDelayVsyncs,
                const FramePacer& pacer);
     void presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs);
