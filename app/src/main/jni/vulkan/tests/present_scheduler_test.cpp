@@ -44,6 +44,10 @@ struct Scenario {
     double slowEveryS = 0;      // If set: this often, the compositor needs slowNeedMs for slowForS
     double slowForS = 0;
     double slowNeedMs = 0;
+    double startNeedMs = 0;     // If set: the compositor needs this for the first startForS
+    double startForS = 0;
+    bool presentAtEdge = false; // Frames presented as early as the window allows, as in steady
+                                // play (on the device, nearly all within a millisecond of it)
     unsigned seed = 12345;
 };
 
@@ -78,6 +82,9 @@ Result run(const Scenario& s, bool verbose = true) {
         if (s.slowEveryS > 0 && std::fmod((vsync - startNs) / 1e9, s.slowEveryS) >= s.slowEveryS - s.slowForS) {
             needMs = s.slowNeedMs;
         }
+        if (s.startForS > 0 && (vsync - startNs) / 1e9 < s.startForS) {
+            needMs = s.startNeedMs;
+        }
 
         // Frames can be committed up to a slot ahead (FramePacer::presentAheadVsyncs())
         const int64_t window = period * slotVsyncs;
@@ -89,7 +96,8 @@ Result run(const Scenario& s, bool verbose = true) {
         // vsync) that brings its vsync within the window: from the guard to the window before
         // its vsync. Frames that arrive late get whatever slack is left.
         const int64_t latest = window - 300'000 + static_cast<int64_t>(commit(rng));
-        int64_t slack = guard + static_cast<int64_t>(uniform(rng) * static_cast<double>(std::max<int64_t>(latest - guard, 0)));
+        int64_t slack = s.presentAtEdge ? std::max(latest, guard)
+                : guard + static_cast<int64_t>(uniform(rng) * static_cast<double>(std::max<int64_t>(latest - guard, 0)));
         if (uniform(rng) < s.lateShare) {
             slack = static_cast<int64_t>(uniform(rng) * static_cast<double>(window));
         }
@@ -240,6 +248,23 @@ int main() {
         Result r = runAndReport(s);
         check(r.changes >= 9, s.name, "should go back to one vsync after every slowdown");
         check(r.finalDelay == 1, s.name, "should end at one vsync");
+    }
+    {
+        // PyroWave on the iPlay at 144 fps: frames need 5.6 ms for one vsync at the median but
+        // 9.5 ms at the 99th percentile, so two vsyncs it is. A slow start (the host idling on
+        // its desktop) raises the guard; then nearly every frame is presented a vsync ahead, and
+        // none with little slack show a lower guard is safe. It should still come down to what
+        // two vsyncs need (about 2.6 ms at the 99th percentile), not stay where the start left it.
+        Scenario s {"144 Hz at 144 fps, 6.5 +/- 1.2 ms after a 20 s start needing 10 ms", 144.0, 6.5};
+        s.needJitterMs = 1.2;
+        s.startNeedMs = 10.0;
+        s.startForS = 20;
+        s.presentAtEdge = true;
+        s.frames = 144 * 120;
+        Result r = runAndReport(s);
+        check(r.finalDelay == 2, s.name, "should stay at two vsyncs");
+        check(r.finalGuardMs >= 2.0 && r.finalGuardMs <= 3.75, s.name, "guard should come down to what two vsyncs need");
+        check(r.missedShare < 0.004, s.name, "frames with the guard to spare should all but never miss");
     }
     {
         // Lowered at 72 fps, then the game runs at 144 fps: the guard no longer fits a frame's

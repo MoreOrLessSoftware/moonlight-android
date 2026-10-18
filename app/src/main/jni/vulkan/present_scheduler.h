@@ -84,6 +84,14 @@ public:
     // frames all but never fail (kGuardMaxFailPercent), found by working down from the frames
     // presented with the most time to spare. It rises as soon as frames fail above it, and falls
     // a step at a time. At most half a vsync, unless a shorter delay needed more.
+    //
+    // Frames presented with less slack are the only ones that show a lower guard is safe, and
+    // with the guard doing its job they're rare: in steady play nearly every frame is presented
+    // with most of a vsync to spare. So it also falls, a step at a time, to what nearly all
+    // recent frames needed for the current delay (kNeedWindow reports), the way the guard for a
+    // shorter delay is chosen. On an iPlay 70 mini Ultra streaming PyroWave at 144 fps, a 4.5 ms
+    // guard raised while the host idled on its desktop stayed for the rest of the session, where
+    // frames needed under 3 ms.
     int64_t guardNs() const { return guardNs_; }
 
     // How a frame presented ahead did: slackNs before vsyncNs, the vsync it was presented for,
@@ -137,6 +145,9 @@ public:
     // the extra bucket on the guard covers the percentile's error with this few.
     static constexpr int64_t kLowerLearnNs = 5'000'000'000;
     static constexpr uint32_t kLowerMinNeedSamples = 256;
+    // Reports the guard for the current delay is judged from (guardNs()): about 14 s at 144 fps.
+    // A fixed window rather than a fading history, so a slow stretch passes out of it.
+    static constexpr int kNeedWindow = 2048;
 
 private:
     void resetWindows();
@@ -173,6 +184,15 @@ private:
     double needTotal_ = 0;
     uint32_t needCount_ = 0;     // Since the delay last changed
     int64_t needStartNs_ = 0;    // The vsync of the first of those
+
+    // What the last kNeedWindow reports needed for the current delay, by bucket, and the ring of
+    // their buckets that ages them out
+    uint32_t delayNeedSamples_[kNeedBuckets] = {};
+    uint8_t delayNeedRing_[kNeedWindow] = {};
+    uint32_t delayNeedCount_ = 0;
+    uint32_t delayNeedNext_ = 0;
+    // The guard that covers nearly all of those, or -1 with too few
+    int64_t delayNeedGuardNs() const;
 
     // The guard before the delay was last lowered, put back if it's raised again, and the most
     // the guard may be raised to while lowered

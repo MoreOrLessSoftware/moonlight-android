@@ -26,6 +26,24 @@ void PresentScheduler::resetGuardHistory() {
     guardRaiseHold_ = 0;
     needCount_ = 0;
     needStartNs_ = 0;
+    std::fill(std::begin(delayNeedSamples_), std::end(delayNeedSamples_), 0u);
+    delayNeedCount_ = 0;
+    delayNeedNext_ = 0;
+}
+
+int64_t PresentScheduler::delayNeedGuardNs() const {
+    if (delayNeedCount_ < kLowerMinNeedSamples) {
+        return -1;
+    }
+    uint32_t below = 0;
+    int bucket = 0;
+    for (; bucket < kNeedBuckets; bucket++) {
+        below += delayNeedSamples_[bucket];
+        if (below * 100.0 >= delayNeedCount_ * kLowerNeedPercentile) {
+            break;
+        }
+    }
+    return std::max(static_cast<int64_t>(bucket + 2) * kGuardBucketNs, kMinGuardNs);
 }
 
 void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int delayUsed, bool reached,
@@ -37,11 +55,24 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
     }
     aheadSeen_ = true;
 
-    // How long before its vsync it needed presenting to reach the screen a vsync sooner than the
-    // delay: what it needed for the vsync it could have made at the earliest, moved by the
+    // How long before its vsync it needed presenting to reach the screen at the delay, and a
+    // vsync sooner: what it needed for the vsync it could have made at the earliest, moved by the
     // vsyncs between that one and the one wanted. Reports without a margin say nothing about it.
+    const int64_t earliestVsyncs = (earliestNs - vsyncNs + periodNs / 2) / periodNs;
+    if (reached && marginNs > 0) {
+        const int64_t delayNeedNs = slackNs - marginNs + (earliestVsyncs - delay_) * periodNs;
+        const auto bucket = static_cast<uint8_t>(std::clamp<int64_t>(delayNeedNs / kGuardBucketNs, 0, kNeedBuckets - 1));
+        if (delayNeedCount_ == kNeedWindow) {
+            delayNeedSamples_[delayNeedRing_[delayNeedNext_]]--;
+        }
+        else {
+            delayNeedCount_++;
+        }
+        delayNeedRing_[delayNeedNext_] = bucket;
+        delayNeedSamples_[bucket]++;
+        delayNeedNext_ = (delayNeedNext_ + 1) % kNeedWindow;
+    }
     if (reached && marginNs > 0 && delay_ > kMinDelay) {
-        const int64_t earliestVsyncs = (earliestNs - vsyncNs + periodNs / 2) / periodNs;
         const int64_t needNs = slackNs - marginNs + (earliestVsyncs - (delay_ - 1)) * periodNs;
         const int bucket = static_cast<int>(
                 std::clamp<int64_t>(needNs / kGuardBucketNs, 0, kNeedBuckets - 1));
@@ -95,6 +126,7 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
     const int64_t maxGuardNs = std::max(periodNs / 2, loweredGuardCapNs_);
     int lowest = -1;
     bool failing = false;
+    bool stoppedAtFails = false;  // Rather than for want of frames
     double aboveSamples = 0, aboveFails = 0;
     for (int start = kGuardBuckets - kGuardBandBuckets; start >= 0; start--) {
         if (start + kGuardBandBuckets < kGuardBuckets) {
@@ -117,6 +149,7 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
             // to be sure of, and clearly more than with more slack.
             failing = fails >= kGuardMinBandFails && aboveSamples >= kGuardMinBandSamples &&
                       fails * aboveSamples > 2 * aboveFails * samples;
+            stoppedAtFails = true;
             break;
         }
         lowest = start;
@@ -154,12 +187,25 @@ void PresentScheduler::onAheadOutcome(int64_t slackNs, int64_t vsyncNs, int dela
             guardRaiseHold_ = kGuardRaiseHoldSamples;
         }
     }
-    else if (target < guardNs_ && !loweredLast_) {
-        // Held where it was set for a shorter delay: that was from what nearly all frames needed
-        // (considerLowering()), and lowered from there a step at a time, frames presented just
-        // over it missed until the delay went back up (in present_scheduler_test, at 72 fps on
-        // 144 Hz, within 20-30 s). A compositor that gets slower is caught by the misses.
-        guardNs_ = std::max(target, guardNs_ - kGuardBucketNs);
+    else {
+        // Held where it was set for a shorter delay by the failure rates: that was from what
+        // nearly all frames needed (considerLowering()), and lowered from there by the failure
+        // rates, frames presented just over it missed until the delay went back up (in
+        // present_scheduler_test, at 72 fps on 144 Hz, within 20-30 s). A compositor that gets
+        // slower is caught by the misses.
+        int64_t lowerTo = loweredLast_ ? guardNs_ : std::min(target, guardNs_);
+        // Stopped for want of frames with less slack, not at a band that fails: down to what
+        // recent frames needed (see guardNs()). Not below a band that fails. This is how a guard
+        // for a shorter delay was chosen, so it applies to one too: chosen from a slow stretch
+        // (the delay lowered from three vsyncs to two as the host's desktop went quiet), it's
+        // otherwise kept for the session.
+        const int64_t needGuardNs = delayNeedGuardNs();
+        if (!stoppedAtFails && !failing && needGuardNs >= 0) {
+            lowerTo = std::min(lowerTo, needGuardNs);
+        }
+        if (lowerTo < guardNs_) {
+            guardNs_ = std::max(lowerTo, guardNs_ - kGuardBucketNs);
+        }
     }
 }
 
