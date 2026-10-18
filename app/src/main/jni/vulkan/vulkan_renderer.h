@@ -17,6 +17,7 @@
 #include "frame_pacer.h"
 #include "ndk_api.h"
 #include "pacer_trace.h"
+#include "perf_hint.h"
 #include "present_scheduler.h"
 #include "pyrowave_decoder.h"
 #include "vk_api.h"
@@ -198,6 +199,8 @@ private:
         VkPhysicalDeviceSamplerYcbcrConversionFeatures ycbcr {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES};
         PyrowaveDeviceFeatures pyrowave;
         VkDeviceCreateInfo info {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+        // Chained to `queue` when the queues are created at a higher global priority
+        VkDeviceQueueGlobalPriorityCreateInfoKHR globalPriority {VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_KHR};
     };
 
     static VkInstance createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup);
@@ -285,6 +288,10 @@ private:
     bool hasColorspaceExt_ = false;
     bool hasHdrMetadataExt_ = false;
     bool hasDisplayTimingExt_ = false;
+    // VK_KHR_global_priority or VK_EXT_global_priority if the device has either, and whether
+    // our queues got high priority with it (createDevice())
+    const char* globalPriorityExt_ = nullptr;
+    bool highPriorityQueue_ = false;
     uint64_t nextPresentId_ = 1;
 
     // Render thread: which vsync each present should reach the screen at
@@ -470,6 +477,13 @@ private:
 
     // Whether trace_ is recording, read without mutex_. Writes are still made under it.
     std::atomic<bool> traceRecording_ {false};
+
+    // The threads that render, present and pass frames on, which renders report to (perf_hint.h).
+    // The image reader and PyroWave decode threads join on their first frame, checked by thread id
+    // since the decode thread can outlive a renderer.
+    PerfHint perfHint_;
+    std::atomic<pid_t> imageReaderTid_ {0};
+    std::atomic<pid_t> pyrowaveDecodeTid_ {0};
 };
 
 }  // namespace vkr

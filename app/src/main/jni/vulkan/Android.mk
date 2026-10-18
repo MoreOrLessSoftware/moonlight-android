@@ -7,6 +7,7 @@ LOCAL_SRC_FILES := \
     frame_pacer.cpp \
     ndk_api.cpp \
     pacer_trace.cpp \
+    perf_hint.cpp \
     present_scheduler.cpp \
     pyrowave_decoder.cpp \
     vk_api.cpp \

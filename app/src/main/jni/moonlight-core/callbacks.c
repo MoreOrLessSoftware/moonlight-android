@@ -1,8 +1,13 @@
 #include <jni.h>
 
+#include <dirent.h>
 #include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/system_properties.h>
 
 #include <Limelight.h>
 
@@ -74,8 +79,15 @@ JNIEnv* GetThreadEnv(void) {
     if (env)
         return env;
 
-    // This is the thread's first JNI call, so attach now
-    (*JVM)->AttachCurrentThread(JVM, &env, NULL);
+    // This is the thread's first JNI call, so attach now. Attached without a name, the VM
+    // renames the thread "Thread-N", losing the name moonlight-common-c gave it (which
+    // RaiseVideoThreadPriorities() looks for).
+    char name[17] = "";
+    JavaVMAttachArgs args = {JNI_VERSION_1_6, NULL, NULL};
+    if (prctl(PR_GET_NAME, name) == 0 && name[0] != 0) {
+        args.name = name;
+    }
+    (*JVM)->AttachCurrentThread(JVM, &env, &args);
 
     // Write our JNIEnv to TLS, so we detach before dying
     pthread_setspecific(JniEnvKey, env);
@@ -110,9 +122,67 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeClSetControllerLEDMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetControllerLED", "(SBBB)V");
 }
 
+// Whether this stream's video threads have been raised yet (RaiseVideoThreadPriorities())
+static volatile int VideoThreadsRaised;
+
+// moonlight-common-c's threads that receive video and feed it to the decoder run at normal
+// priority, where a busy device can hold them up for milliseconds: frames then arrive later
+// and less evenly, and the jitter buffer grows to cover it. They get the renderer's priority
+// (ANDROID_PRIORITY_URGENT_DISPLAY, or ANDROID_PRIORITY_DISPLAY if that's refused). They're
+// found by the names moonlight-common-c gives them, once the first frame shows they're running.
+// To compare without it: adb shell setprop debug.moonlight.video_thread_priority default
+static void RaiseVideoThreadPriorities(void) {
+    char mode[PROP_VALUE_MAX] = "";
+    __system_property_get("debug.moonlight.video_thread_priority", mode);
+    if (strcmp(mode, "default") == 0) {
+        __android_log_print(ANDROID_LOG_INFO, "moonlight-core", "Video threads left at their priority");
+        return;
+    }
+
+    DIR* tasks = opendir("/proc/self/task");
+    if (!tasks) {
+        return;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(tasks)) != NULL) {
+        int tid = atoi(entry->d_name);
+        if (tid <= 0) {
+            continue;
+        }
+
+        char path[64];
+        char name[32] = "";
+        snprintf(path, sizeof(path), "/proc/self/task/%d/comm", tid);
+        FILE* comm = fopen(path, "r");
+        if (!comm) {
+            continue;
+        }
+        if (!fgets(name, sizeof(name), comm)) {
+            name[0] = 0;
+        }
+        fclose(comm);
+        name[strcspn(name, "\n")] = 0;
+
+        if (strcmp(name, "VideoRecv") != 0 && strcmp(name, "VideoDec") != 0) {
+            continue;
+        }
+        if (setpriority(PRIO_PROCESS, tid, -8) != 0 && setpriority(PRIO_PROCESS, tid, -4) != 0) {
+            __android_log_print(ANDROID_LOG_WARN, "moonlight-core", "Could not raise the %s thread's priority", name);
+        }
+        else {
+            __android_log_print(ANDROID_LOG_INFO, "moonlight-core", "%s thread priority %d", name,
+                                getpriority(PRIO_PROCESS, tid));
+        }
+    }
+    closedir(tasks);
+}
+
 int BridgeDrSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
     JNIEnv* env = GetThreadEnv();
     int err;
+
+    VideoThreadsRaised = 0;
 
     err = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSetupMethod, videoFormat, width, height, redrawRate);
     if ((*env)->ExceptionCheck(env)) {
@@ -152,6 +222,11 @@ void BridgeDrCleanup(void) {
 int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     JNIEnv* env = GetThreadEnv();
     int ret;
+
+    if (!VideoThreadsRaised) {
+        VideoThreadsRaised = 1;
+        RaiseVideoThreadPriorities();
+    }
 
     // Increase the size of our frame data buffer if our frame won't fit
     if ((*env)->GetArrayLength(env, DecodedFrameBuffer) < decodeUnit->fullLength) {

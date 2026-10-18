@@ -472,6 +472,23 @@ bool VulkanRenderer::init(ANativeWindow* output) {
             !createFrameResources() || !createShaderModules()) {
         return false;
     }
+
+    // Performance hints for the render threads (PerfHint), set up before any of them start. On
+    // unless turned off with adb shell setprop debug.moonlight.perf_hint 0; the target each
+    // render's CPU time is held to can be changed with
+    // adb shell setprop debug.moonlight.perf_hint_target_us 2000.
+    int64_t perfHintTargetNs = PerfHint::kDefaultTargetNs;
+    {
+        char value[PROP_VALUE_MAX] = {};
+        if (__system_property_get("debug.moonlight.perf_hint", value) > 0 && atoi(value) == 0) {
+            perfHintTargetNs = 0;
+        }
+        else if (__system_property_get("debug.moonlight.perf_hint_target_us", value) > 0 && atoi(value) > 0) {
+            perfHintTargetNs = static_cast<int64_t>(std::clamp(atoi(value), 100, 100000)) * 1000;
+        }
+    }
+    perfHint_.start(ndk_, perfHintTargetNs);
+
     if (config_.pyrowave ? !createPyrowaveDecoder() : !createImageReader()) {
         return false;
     }
@@ -504,10 +521,11 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     char configuration[384];
     snprintf(configuration, sizeof(configuration),
              "mode=%d,jitterBuffer=%d,presentAhead=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d,"
-             "codec=%s,decoder=%s",
+             "perfHintUs=%lld,gpuPriority=%s,codec=%s,decoder=%s",
              config_.framePacing, config_.jitterBuffer, presentAhead_ ? 1 : 0, config_.streamFps, config_.streamWidth, config_.streamHeight,
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
-             config_.ditherMode, config_.codec.c_str(), config_.decoderName.c_str());
+             config_.ditherMode, static_cast<long long>(perfHintTargetNs / 1000), highPriorityQueue_ ? "high" : "default",
+             config_.codec.c_str(), config_.decoderName.c_str());
     trace_.start(config_.traceDirectory, configuration);
     traceRecording_ = trace_.recording();
 
@@ -579,6 +597,10 @@ bool VulkanRenderer::pickDevice() {
                 vk_.vkEnumerateDeviceExtensionProperties(device, nullptr, &extCount, extensions.data());
                 hasHdrMetadataExt_ = hasExtension(extensions, VK_EXT_HDR_METADATA_EXTENSION_NAME);
                 hasDisplayTimingExt_ = hasExtension(extensions, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+                globalPriorityExt_ = hasExtension(extensions, VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME)
+                        ? VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME
+                        : hasExtension(extensions, VK_EXT_GLOBAL_PRIORITY_EXTENSION_NAME)
+                        ? VK_EXT_GLOBAL_PRIORITY_EXTENSION_NAME : nullptr;
 
                 VkPhysicalDeviceProperties props;
                 vk_.vkGetPhysicalDeviceProperties(device, &props);
@@ -602,8 +624,35 @@ bool VulkanRenderer::createDevice() {
         return false;
     }
 
+    // Our queues at high global priority, so the GPU runs a render (one small draw, due at a
+    // vsync) ahead of other apps' work, and can preempt it. Android only lets some apps have
+    // it, and a driver refuses the device when it won't, so it's tried and dropped if refused.
+    // To compare without it: adb shell setprop debug.moonlight.gpu_priority default
+    char priorityMode[PROP_VALUE_MAX] = {};
+    __system_property_get("debug.moonlight.gpu_priority", priorityMode);
+    const bool tryHighPriority = globalPriorityExt_ && strcmp(priorityMode, "default") != 0;
+    if (tryHighPriority) {
+        deviceSetup_.globalPriority.globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR;
+        deviceSetup_.queue.pNext = &deviceSetup_.globalPriority;
+        deviceSetup_.extensions.push_back(globalPriorityExt_);
+        deviceSetup_.info.enabledExtensionCount = static_cast<uint32_t>(deviceSetup_.extensions.size());
+        deviceSetup_.info.ppEnabledExtensionNames = deviceSetup_.extensions.data();
+    }
+
     VkDevice device = VK_NULL_HANDLE;
     VkResult result = vk_.vkCreateDevice(physicalDevice_, &deviceSetup_.info, nullptr, &device);
+    highPriorityQueue_ = tryHighPriority && result == VK_SUCCESS;
+    if (tryHighPriority && result != VK_SUCCESS) {
+        ALOGI("High priority GPU queue refused (%d), using the default", result);
+        deviceSetup_.queue.pNext = nullptr;
+        deviceSetup_.extensions.pop_back();
+        deviceSetup_.info.enabledExtensionCount = static_cast<uint32_t>(deviceSetup_.extensions.size());
+        deviceSetup_.info.ppEnabledExtensionNames = deviceSetup_.extensions.data();
+        result = vk_.vkCreateDevice(physicalDevice_, &deviceSetup_.info, nullptr, &device);
+    }
+    else if (highPriorityQueue_) {
+        ALOGI("High priority GPU queue (%s)", globalPriorityExt_);
+    }
     if (result != VK_SUCCESS) {
         ALOGE("vkCreateDevice failed: %d", result);
         return false;
@@ -729,6 +778,7 @@ bool VulkanRenderer::createPyrowaveDecoder() {
 void VulkanRenderer::pyrowaveWaiterMain() {
     // Frames are timed from here, as they are on the image reader's thread
     raiseThreadPriority("PyroWave wait");
+    perfHint_.addThread();
 
     for (;;) {
         FramePtr frame;
@@ -1038,6 +1088,9 @@ void VulkanRenderer::onImageAvailable() {
         prioritized = true;
         raiseThreadPriority("image reader");
     }
+    if (imageReaderTid_.exchange(gettid()) != gettid()) {
+        perfHint_.addThread();
+    }
     for (;;) {
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -1102,6 +1155,9 @@ bool VulkanRenderer::submitPyrowaveFrame(const uint8_t* data, size_t size, const
     if (!prioritized) {
         prioritized = true;
         raiseThreadPriority("PyroWave decode");
+    }
+    if (pyrowaveDecodeTid_.exchange(gettid()) != gettid()) {
+        perfHint_.addThread();
     }
     const int64_t startNs = nowNs();
     if (!pyrowave_) {
@@ -1227,6 +1283,7 @@ void VulkanRenderer::renderThreadMain() {
     // A vsync callback that runs late can miss the compositor's deadline, and the frame reaches
     // the screen a vsync late. Android runs its own render threads at display priority.
     raiseThreadPriority("render");
+    perfHint_.addThread();
 
     ALooper* looper = ALooper_prepare(0);
     ALooper_addFd(looper, wakeFd_, kLooperIdWake, ALOOPER_EVENT_INPUT, &VulkanRenderer::onWakeThunk, this);
@@ -1490,6 +1547,7 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     // The fence is nearly always done by now, so ask before waiting on it
     VkResult result = vk_.vkGetFenceStatus ? vk_.vkGetFenceStatus(device_, fences_[slot]) : VK_NOT_READY;
     const bool fenceWaited = result != VK_SUCCESS;
+    const int64_t fenceWaitNs = fenceWaited ? nowNs() : 0;
     if (fenceWaited) {
         result = vk_.vkWaitForFences(device_, 1, &fences_[slot], VK_TRUE, kFenceTimeoutNs);
     }
@@ -1748,6 +1806,10 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         std::lock_guard<std::mutex> lock(queueMutex_);
         result = vk_.vkQueuePresentKHR(queue_, &present);
     }
+    // The render's CPU time for the performance hint session, without waiting for the GPU or a
+    // swapchain image
+    perfHint_.reportWork(nowNs() - startNs - (acquiredNs - releasedNs) - (fenceWaited ? fencedNs - fenceWaitNs : 0));
+
     if (!frame->presentCounted && frame->originNs != 0 && (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)) {
         // Without a report of when it reached the screen, until the present was queued. A frame
         // drawn again (across a swapchain rebuild) is only counted the first time.

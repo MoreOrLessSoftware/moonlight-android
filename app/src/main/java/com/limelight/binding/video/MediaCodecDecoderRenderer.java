@@ -1207,6 +1207,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             @Override
             public void run() {
                 BufferInfo info = new BufferInfo();
+                // Each decoded frame waits for this thread to pass it on, so it gets the
+                // renderer's priority rather than the -4 of Thread.setPriority() below
+                try {
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY);
+                } catch (SecurityException e) {
+                    LimeLog.warning("Could not raise the MediaCodec output thread's priority: " + e);
+                }
+
                 while (!stopping) {
                     try {
                         // Try to output a frame
