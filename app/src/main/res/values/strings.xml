@@ -307,6 +307,9 @@
     <string name="perf_overlay_detailed">Detailed</string>
     <string name="title_enable_post_stream_toast">Show latency message after streaming</string>
     <string name="summary_enable_post_stream_toast">Display a latency information message after the stream ends</string>
+    <string name="title_checkbox_latency_test_marker">Latency test marker</string>
+    <string name="summary_checkbox_latency_test_marker">Show a square that flips between black and white on every key or mouse press sent to the host, for timing against the latency-test app on the host with a camera. Start on a gamepad runs an automatic test.</string>
+    <string name="toast_latency_test_marker">Latency test marker is on. Press Start on a gamepad to run the test sequence.</string>
 
     <string name="category_help">Help</string>
     <string name="title_setup_guide">Setup guide</string>

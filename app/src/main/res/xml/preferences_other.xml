@@ -27,6 +27,11 @@
             android:summary="@string/summary_enable_post_stream_toast"
             android:defaultValue="false"/>
         <CheckBoxPreference
+            android:key="checkbox_latency_test_marker"
+            android:title="@string/title_checkbox_latency_test_marker"
+            android:summary="@string/summary_checkbox_latency_test_marker"
+            android:defaultValue="false" />
+        <CheckBoxPreference
             android:key="checkbox_disable_warnings"
             android:title="@string/title_checkbox_disable_warnings"
             android:summary="@string/summary_checkbox_disable_warnings"

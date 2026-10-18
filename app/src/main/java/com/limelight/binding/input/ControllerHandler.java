@@ -2534,6 +2534,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
     }
 
+    private boolean isLatencyTestKey(int keyCode) {
+        return prefConfig.latencyTestMarker &&
+                (keyCode == KeyEvent.KEYCODE_BUTTON_START || keyCode == KeyEvent.KEYCODE_MENU);
+    }
+
     public boolean handleButtonUp(KeyEvent event) {
         InputDeviceContext context = getContextForEvent(event);
         if (context == null) {
@@ -2547,6 +2552,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         if (prefConfig.flipFaceButtons) {
             keyCode = handleFlipFaceButtons(keyCode);
+        }
+
+        if (isLatencyTestKey(keyCode)) {
+            return true;
         }
 
         // REMOVED: Thread.sleep() workaround for OUYA virtual menu button (OUYA discontinued 2015)
@@ -2822,6 +2831,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         if (prefConfig.flipFaceButtons) {
             keyCode = handleFlipFaceButtons(keyCode);
+        }
+
+        // With the latency test marker on, Start runs the automatic test instead of going to
+        // the host (its release is swallowed too)
+        if (isLatencyTestKey(keyCode)) {
+            if (event.getRepeatCount() == 0) {
+                gestures.toggleLatencyTest();
+            }
+            return true;
         }
 
         boolean isPendingTriggerButton = false;
@@ -3172,6 +3190,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         context.leftTrigger = (byte)(leftTrigger * 0xFF);
         context.rightTrigger = (byte)(rightTrigger * 0xFF);
 
+        // Start runs the latency test here too, as in handleButtonDown()
+        if (prefConfig.latencyTestMarker) {
+            if ((buttonFlags & ControllerPacket.PLAY_FLAG) != 0 && !context.latencyTestKeyDown) {
+                gestures.toggleLatencyTest();
+            }
+            context.latencyTestKeyDown = (buttonFlags & ControllerPacket.PLAY_FLAG) != 0;
+            buttonFlags &= ~ControllerPacket.PLAY_FLAG;
+        }
+
         context.inputMap = buttonFlags;
 
         sendControllerInputPacket(context);
@@ -3220,6 +3247,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         public short rightStickY = 0x0000;
         public short leftStickX = 0x0000;
         public short leftStickY = 0x0000;
+
+        // Start is held, for the latency test toggle on USB driver controllers
+        public boolean latencyTestKeyDown;
 
         public boolean mouseEmulationActive;
         public int mouseEmulationLastInputMap;

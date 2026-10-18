@@ -37,6 +37,7 @@ import com.limelight.nvstream.http.LimelightCryptoProvider;
 import com.limelight.nvstream.http.NvApp;
 import com.limelight.nvstream.http.NvHTTP;
 import com.limelight.nvstream.http.PairingManager;
+import com.limelight.nvstream.input.KeyboardPacket;
 import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.nvstream.jni.MoonBridge;
 
@@ -48,6 +49,9 @@ public class NvConnection {
     private static Semaphore connectionAllowed = new Semaphore(1);
     private final boolean isMonkey;
     private final Context appContext;
+
+    // Told about every key and mouse button press sent to the host, for the latency test marker
+    private volatile Runnable pressListener;
 
     public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert)
     {
@@ -485,6 +489,7 @@ public class NvConnection {
     {
         if (!isMonkey) {
             MoonBridge.sendMouseButton(MouseButtonPacket.PRESS_EVENT, mouseButton);
+            notifyPress();
         }
     }
     
@@ -510,6 +515,25 @@ public class NvConnection {
     public void sendKeyboardInput(final short keyMap, final byte keyDirection, final byte modifier, final byte flags) {
         if (!isMonkey) {
             MoonBridge.sendKeyboardInput(keyMap, keyDirection, modifier, flags);
+            if (keyDirection == KeyboardPacket.KEY_DOWN) {
+                notifyPress();
+            }
+        }
+    }
+
+    /**
+     * Sets a listener run (on the sending thread) after each key or mouse button press is sent
+     * to the host, or null for none.
+     */
+    public void setPressListener(Runnable listener) {
+        pressListener = listener;
+    }
+
+    // Called after sending, so the listener never delays the input itself
+    private void notifyPress() {
+        Runnable listener = pressListener;
+        if (listener != null) {
+            listener.run();
         }
     }
     

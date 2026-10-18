@@ -33,6 +33,7 @@ import com.limelight.preferences.GlPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.BrightnessSliderView;
 import com.limelight.ui.GameGestures;
+import com.limelight.ui.LatencyMarkerView;
 import com.limelight.ui.StreamView;
 import com.limelight.ui.overlay.CustomCommand;
 import com.limelight.ui.overlay.OverlayMenuView;
@@ -70,6 +71,7 @@ import android.os.PowerManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.text.Html;
 import android.util.Rational;
 import android.view.Display;
@@ -100,6 +102,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Locale;
+import java.util.Random;
 
 
 public class Game extends Activity implements SurfaceHolder.Callback,
@@ -169,6 +172,21 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private BrightnessSliderView brightnessSliderView;
     private OverlayMenuView overlayMenuView;
     private boolean isImeVisible = false;
+
+    // Automatic latency test, run with Start while the latency test marker is on: presses of
+    // F24 (which does nothing on the host) at random gaps, each flipping the marker
+    private static final int LATENCY_TEST_PRESSES = 30;
+    private static final int LATENCY_TEST_START_DELAY_MS = 1000;
+    private static final int LATENCY_TEST_HOLD_MS = 40;
+    private static final int LATENCY_TEST_MIN_GAP_MS = 300;
+    private static final int LATENCY_TEST_MAX_GAP_MS = 700;
+    private static final short LATENCY_TEST_KEY = (short) 0x8087; // VK_F24
+    private LatencyMarkerView latencyMarkerView;
+    private final Handler latencyTestHandler = new Handler(Looper.getMainLooper());
+    private final Random latencyTestRandom = new Random();
+    private boolean latencyTestRunning;
+    private boolean latencyTestKeyDown;
+    private int latencyTestPressesDone;
     private boolean isAndroidTV = false;
 
     private MediaCodecDecoderRenderer decoderRenderer;
@@ -612,6 +630,15 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 PlatformBinding.getCryptoProvider(this), serverCert);
         controllerHandler = new ControllerHandler(this, conn, this, prefConfig);
         keyboardTranslator = new KeyboardTranslator();
+
+        // The latency test marker stays up for the whole stream and flips on every key or
+        // mouse press sent to the host
+        latencyMarkerView = findViewById(R.id.latencyMarker);
+        if (prefConfig.latencyTestMarker) {
+            latencyMarkerView.setStreamView(streamView, findViewById(R.id.latencyMarkerSurface));
+            latencyMarkerView.setVisibility(View.VISIBLE);
+            conn.setPressListener(latencyMarkerView::flip);
+        }
 
         // Setup overlay menu now that controllerHandler is initialized
         setupOverlayMenu();
@@ -1714,6 +1741,76 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     @Override
+    public void toggleLatencyTest() {
+        // USB driver controllers report from their own thread
+        runOnUiThread(() -> {
+            if (!connected) {
+                return;
+            }
+
+            if (latencyTestRunning) {
+                LimeLog.info("Latency test stopped");
+                stopLatencyTest();
+                return;
+            }
+
+            LimeLog.info("Latency test started: " + LATENCY_TEST_PRESSES + " presses of F24");
+            latencyTestRunning = true;
+            latencyTestKeyDown = false;
+            latencyTestPressesDone = 0;
+            latencyMarkerView.setTestProgress(0, LATENCY_TEST_PRESSES);
+            latencyTestHandler.postDelayed(latencyTestStep, LATENCY_TEST_START_DELAY_MS);
+        });
+    }
+
+    private void stopLatencyTest() {
+        latencyTestHandler.removeCallbacks(latencyTestStep);
+        latencyTestRunning = false;
+
+        // Don't leave the key held on the host
+        if (latencyTestKeyDown) {
+            conn.sendKeyboardInput(LATENCY_TEST_KEY, KeyboardPacket.KEY_UP, (byte) 0, (byte) 0);
+            latencyTestKeyDown = false;
+        }
+        if (latencyMarkerView != null) {
+            latencyMarkerView.setTestProgress(0, 0);
+        }
+    }
+
+    private final Runnable latencyTestStep = new Runnable() {
+        @Override
+        public void run() {
+            if (latencyTestKeyDown) {
+                conn.sendKeyboardInput(LATENCY_TEST_KEY, KeyboardPacket.KEY_UP, (byte) 0, (byte) 0);
+                latencyTestKeyDown = false;
+
+                if (latencyTestPressesDone >= LATENCY_TEST_PRESSES) {
+                    LimeLog.info("Latency test finished");
+                    latencyTestRunning = false;
+                    latencyMarkerView.setTestProgress(0, 0);
+                    return;
+                }
+
+                int gapMs = LATENCY_TEST_MIN_GAP_MS +
+                        latencyTestRandom.nextInt(LATENCY_TEST_MAX_GAP_MS - LATENCY_TEST_MIN_GAP_MS + 1);
+                latencyTestHandler.postDelayed(this, gapMs - LATENCY_TEST_HOLD_MS);
+                return;
+            }
+
+            if (!latencyTestRunning) {
+                return;
+            }
+
+            // Sending the press flips the marker, through the connection's press listener
+            conn.sendKeyboardInput(LATENCY_TEST_KEY, KeyboardPacket.KEY_DOWN, (byte) 0, (byte) 0);
+            latencyTestKeyDown = true;
+            latencyTestPressesDone++;
+            latencyMarkerView.setTestProgress(latencyTestPressesDone, LATENCY_TEST_PRESSES);
+            latencyTestHandler.postDelayed(this, LATENCY_TEST_HOLD_MS);
+        }
+    };
+
+    @Override
     public void onTextCommitted(String text) {
         if (conn != null && text != null) {
             conn.sendUtf8Text(text);
@@ -2484,6 +2581,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             updatePipAutoEnter();
 
             controllerHandler.stop();
+            stopLatencyTest();
 
             // Update GameManager state to indicate we're no longer in game
             UiHelper.notifyStreamEnded(this);
@@ -2702,6 +2800,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 // Show overlay menu hint toast
                 showOverlayMenuHint();
+
+                if (prefConfig.latencyTestMarker) {
+                    Toast.makeText(Game.this, R.string.toast_latency_test_marker, Toast.LENGTH_LONG).show();
+                }
             }
         });
 
