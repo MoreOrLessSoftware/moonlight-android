@@ -1573,6 +1573,60 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     @SuppressWarnings("deprecation")
+    public static String getCodecName(int videoFormat) {
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
+            return "H.264";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H265) != 0) {
+            return "HEVC";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
+            return "AV1";
+        }
+        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            return "PyroWave";
+        }
+        else {
+            return "UNKNOWN";
+        }
+    }
+
+    // The main stats in one line without units, for the compact performance overlay along the top
+    private void appendCompactPerfText(StringBuilder sb, VideoStatsFps fps, VideoStats lastTwo,
+                                     long rttInfo, float decodeTimeMs, String pacingText) {
+        final String separator = " \u2022 ";
+        sb.append(context.getString(R.string.perf_overlay_compact_stream, initialWidth + "x" + initialHeight, fps.totalFps));
+        sb.append(separator).append(context.getString(R.string.perf_overlay_compact_fps, fps.receivedFps, fps.renderedFps));
+        float droppedPercent = (float)lastTwo.framesLost / lastTwo.totalFrames * 100;
+        if (pyrowave) {
+            // Only PyroWave delivers frames with gaps in them
+            sb.append(separator).append(context.getString(R.string.perf_overlay_compact_netdrops_partial,
+                    droppedPercent, (float)lastTwo.framesPartial / lastTwo.totalFrames * 100));
+        }
+        else {
+            sb.append(separator).append(context.getString(R.string.perf_overlay_compact_netdrops, droppedPercent));
+        }
+        sb.append(separator).append(context.getString(R.string.perf_overlay_compact_netlatency,
+                (int)(rttInfo >> 32), (int)rttInfo));
+        if (lastTwo.framesWithHostProcessingLatency > 0) {
+            sb.append(separator).append(context.getString(R.string.perf_overlay_compact_hostlatency,
+                    (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency));
+        }
+        sb.append(separator).append(context.getString(R.string.perf_overlay_compact_dectime,
+                getCodecName(videoFormat), decodeTimeMs));
+
+        // Just the buffer from the renderer's pacing headline, "<ms> ms buffer, <Hz> Hz",
+        // which only host-timed pacing has
+        if (pacingText != null) {
+            int bufferEnd = pacingText.indexOf(" ms buffer");
+            int split = pacingText.indexOf('\n');
+            if (bufferEnd > 0 && (split < 0 || bufferEnd < split)) {
+                sb.append(separator).append(context.getString(R.string.perf_overlay_compact_pacing,
+                        pacingText.substring(0, bufferEnd)));
+            }
+        }
+    }
+
     @Override
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
@@ -1650,56 +1704,61 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 String pacingText = vulkan != null ? vulkan.getPacingText() : null;
 
                 StringBuilder sb = new StringBuilder();
-                sb.append(context.getString(R.string.perf_overlay_decoder, decoder));
-                if (rendererText != null && !rendererText.isEmpty()) {
-                    sb.append(" \u00b7 ").append(rendererText);
-                }
-                sb.append('\n');
-                sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_fps, fps.receivedFps, fps.renderedFps, smoothedFpsVariance)).append('\n');
-                float droppedPercent = (float)lastTwo.framesLost / lastTwo.totalFrames * 100;
-                if (pyrowave) {
-                    // Only PyroWave delivers frames with gaps in them
-                    sb.append(context.getString(R.string.perf_overlay_netdrops_partial,
-                            droppedPercent,
-                            (float)lastTwo.framesPartial / lastTwo.totalFrames * 100)).append('\n');
+                if (prefs.perfOverlayCompact) {
+                    appendCompactPerfText(sb, fps, lastTwo, rttInfo, decodeTimeMs, pacingText);
                 }
                 else {
-                    sb.append(context.getString(R.string.perf_overlay_netdrops, droppedPercent)).append('\n');
-                }
-                sb.append(context.getString(R.string.perf_overlay_netlatency,
-                        (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
-
-                // Calculate and display bandwidth
-                long netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) + TrafficStatsHelper.getPackageTxBytes(Process.myUid());
-                if(lastNetDataNum != 0){
-                    // Convert bytes per second to megabits per second (Mbps)
-                    float realtimeNetData = (netData - lastNetDataNum) * 8 / 1000000f;
-                    sb.append(context.getString(R.string.perf_overlay_bandwidth, realtimeNetData)).append('\n');
-                }
-                lastNetDataNum = netData;
-
-                if (lastTwo.framesWithHostProcessingLatency > 0) {
-                    sb.append(context.getString(R.string.perf_overlay_hostprocessinglatency,
-                            (float)lastTwo.minHostProcessingLatency / 10,
-                            (float)lastTwo.maxHostProcessingLatency / 10,
-                            (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency)).append('\n');
-                }
-                sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
-                if (pacingText != null) {
-                    // The buffer on the pacing line, and the lock state and skipped frames below
-                    // it, like the stream details below the decoder
-                    int split = pacingText.indexOf('\n');
-                    String headline = split >= 0 ? pacingText.substring(0, split) : pacingText;
-                    String details = split >= 0 ? pacingText.substring(split + 1) : "";
-                    if (!headline.isEmpty()) {
-                        sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, headline));
-                        if (!details.isEmpty()) {
-                            sb.append('\n').append(context.getString(R.string.perf_overlay_pacing_details, details));
-                        }
+                    sb.append(context.getString(R.string.perf_overlay_decoder, decoder));
+                    if (rendererText != null && !rendererText.isEmpty()) {
+                        sb.append(" \u00b7 ").append(rendererText);
                     }
-                    else if (!details.isEmpty()) {
-                        sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, details));
+                    sb.append('\n');
+                    sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
+                    sb.append(context.getString(R.string.perf_overlay_fps, fps.receivedFps, fps.renderedFps, smoothedFpsVariance)).append('\n');
+                    float droppedPercent = (float)lastTwo.framesLost / lastTwo.totalFrames * 100;
+                    if (pyrowave) {
+                        // Only PyroWave delivers frames with gaps in them
+                        sb.append(context.getString(R.string.perf_overlay_netdrops_partial,
+                                droppedPercent,
+                                (float)lastTwo.framesPartial / lastTwo.totalFrames * 100)).append('\n');
+                    }
+                    else {
+                        sb.append(context.getString(R.string.perf_overlay_netdrops, droppedPercent)).append('\n');
+                    }
+                    sb.append(context.getString(R.string.perf_overlay_netlatency,
+                            (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
+
+                    // Calculate and display bandwidth
+                    long netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) + TrafficStatsHelper.getPackageTxBytes(Process.myUid());
+                    if(lastNetDataNum != 0){
+                        // Convert bytes per second to megabits per second (Mbps)
+                        float realtimeNetData = (netData - lastNetDataNum) * 8 / 1000000f;
+                        sb.append(context.getString(R.string.perf_overlay_bandwidth, realtimeNetData)).append('\n');
+                    }
+                    lastNetDataNum = netData;
+
+                    if (lastTwo.framesWithHostProcessingLatency > 0) {
+                        sb.append(context.getString(R.string.perf_overlay_hostprocessinglatency,
+                                (float)lastTwo.minHostProcessingLatency / 10,
+                                (float)lastTwo.maxHostProcessingLatency / 10,
+                                (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency)).append('\n');
+                    }
+                    sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
+                    if (pacingText != null) {
+                        // The buffer on the pacing line, and the lock state and skipped frames below
+                        // it, like the stream details below the decoder
+                        int split = pacingText.indexOf('\n');
+                        String headline = split >= 0 ? pacingText.substring(0, split) : pacingText;
+                        String details = split >= 0 ? pacingText.substring(split + 1) : "";
+                        if (!headline.isEmpty()) {
+                            sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, headline));
+                            if (!details.isEmpty()) {
+                                sb.append('\n').append(context.getString(R.string.perf_overlay_pacing_details, details));
+                            }
+                        }
+                        else if (!details.isEmpty()) {
+                            sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, details));
+                        }
                     }
                 }
                 perfListener.onPerfUpdate(sb.toString());

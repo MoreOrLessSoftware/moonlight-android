@@ -73,6 +73,7 @@ import android.os.IBinder;
 import android.text.Html;
 import android.util.Rational;
 import android.view.Display;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -460,6 +461,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         // Check if the user has enabled performance stats overlay
+        updatePerfOverlayLayout();
         if (prefConfig.enablePerfOverlay) {
             performanceOverlayView.setVisibility(View.VISIBLE);
         }
@@ -2812,23 +2814,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     private static String describeVideoFormat(int videoFormat) {
-        String codec;
-        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
-            codec = "H.264";
-        }
-        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H265) != 0) {
-            codec = "HEVC";
-        }
-        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
-            codec = "AV1";
-        }
-        else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
-            codec = "PyroWave";
-        }
-        else {
-            codec = "UNKNOWN";
-        }
-
+        String codec = MediaCodecDecoderRenderer.getCodecName(videoFormat);
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
             codec += " HDR";
         }
@@ -2852,6 +2838,15 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 describeVideoFormat(decoderRenderer.getActiveVideoFormat()),
                 prefConfig.bitrate / 1000,
                 decoderRenderer.getRendererName());
+    }
+
+    // The compact performance stats go in one line along the top, and the detailed ones in the
+    // top left corner
+    private void updatePerfOverlayLayout() {
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) performanceOverlayView.getLayoutParams();
+        params.gravity = prefConfig.perfOverlayCompact ? Gravity.TOP | Gravity.CENTER_HORIZONTAL : Gravity.LEFT;
+        performanceOverlayView.setLayoutParams(params);
+        performanceOverlayView.setGravity(prefConfig.perfOverlayCompact ? Gravity.CENTER_HORIZONTAL : Gravity.LEFT);
     }
 
     // Frame pacing for the stream start toast, with the jitter buffer when the mode has one.
@@ -3125,6 +3120,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onToggleStats() {
+                // On in the mode set for the stream, which is detailed if it was set off
                 prefConfig.enablePerfOverlay = !prefConfig.enablePerfOverlay;
 
                 // Toggle performance overlay visibility

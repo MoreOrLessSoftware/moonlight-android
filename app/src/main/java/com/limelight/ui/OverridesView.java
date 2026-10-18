@@ -349,9 +349,25 @@ public class OverridesView {
     }
 
     private void togglePerfOverlay() {
-        // Performance overlay override cycles through: 0 (default) -> 1 (force on) -> 2 (force off) -> 0 (default)
+        // Performance overlay override cycles through: 0 (default) -> 3 (compact) -> 1 (detailed)
+        // -> 2 (force off) -> 0 (default). Detailed keeps 1, which was force on when there were
+        // only detailed stats.
         int currentOverride = preferences.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
-        int newOverride = (currentOverride + 1) % 3;
+        int newOverride;
+        switch (currentOverride) {
+            case 0:
+                newOverride = 3;
+                break;
+            case 3:
+                newOverride = 1;
+                break;
+            case 1:
+                newOverride = 2;
+                break;
+            default:
+                newOverride = 0;
+                break;
+        }
 
         preferences.edit()
             .putInt(PREF_PERF_OVERLAY_OVERRIDE, newOverride)
@@ -367,10 +383,14 @@ public class OverridesView {
 
         int override = preferences.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
 
-        if (override == 1) {
-            // Force enabled - green icon
+        if (override == 3) {
+            // Force compact - green icon
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
-            perfOverlayLabel.setText("Stats overlay: Enabled");
+            perfOverlayLabel.setText("Stats overlay: Compact");
+        } else if (override == 1) {
+            // Force detailed - green icon
+            perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
+            perfOverlayLabel.setText("Stats overlay: Detailed");
         } else if (override == 2) {
             // Force disabled - white icon with red slash
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay);

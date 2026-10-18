@@ -273,10 +273,14 @@ public class AppPreferences {
             }
 
             // Apply global performance overlay override
-            // 0 = use default (no override), 1 = force on, 2 = force off
+            // 0 = use default (no override), 1 = force detailed, 2 = force off, 3 = force compact
             int perfOverlayOverride = defaultPrefs.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
             if (perfOverlayOverride == 1) {
                 config.enablePerfOverlay = true;
+                config.perfOverlayCompact = false;
+            } else if (perfOverlayOverride == 3) {
+                config.enablePerfOverlay = true;
+                config.perfOverlayCompact = true;
             } else if (perfOverlayOverride == 2) {
                 config.enablePerfOverlay = false;
             }

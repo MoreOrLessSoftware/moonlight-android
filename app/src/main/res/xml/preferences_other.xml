@@ -14,6 +14,13 @@
             android:title="@string/title_checkbox_enable_sops"
             android:summary="@string/summary_checkbox_enable_sops"
             android:defaultValue="true" />
+        <com.limelight.preferences.HelpListPreference
+            android:key="list_perf_overlay"
+            android:title="@string/title_enable_perf_overlay"
+            android:entries="@array/perf_overlay_mode_names"
+            android:entryValues="@array/perf_overlay_mode_values"
+            android:summary="@string/summary_enable_perf_overlay"
+            android:defaultValue="off" />
         <CheckBoxPreference
             android:key="checkbox_enable_post_stream_toast"
             android:title="@string/title_enable_post_stream_toast"
