@@ -35,7 +35,7 @@
         android:textColor="#BFFFFFFF"
         android:typeface="monospace"
         android:gravity="left"
-        android:background="#60000000"
+        android:background="@drawable/stats_overlay_background"
         android:preferKeepClear="true"
         android:visibility="gone"
         android:text="..." />
