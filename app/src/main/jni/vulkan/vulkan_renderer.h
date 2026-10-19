@@ -38,6 +38,7 @@ struct RendererConfig {
     bool pyrowave = false;     // The stream is PyroWave, decoded by the renderer rather than MediaCodec
     bool pyrowaveCenterChroma = false;  // From the nonary host: 4:2:0 chroma sited at the center
     int pyrowaveLateFrames = 2;  // PreferenceConfiguration.PYROWAVE_LATE_FRAMES_*
+    bool frontBuffer = false;    // A front buffer aligned to the scan, where the device has one
     std::string codec;           // h264, hevc, av1 or pyrowave, for pacer traces
     std::string decoderName;     // The MediaCodec decoder, empty for PyroWave, for pacer traces
     std::string traceDirectory;  // Where pacer traces go when enabled (see PacerTrace)
@@ -129,6 +130,8 @@ public:
 
     // Frames presented since the last call
     uint32_t takePresentedFrames() { return presentedFrames_.exchange(0); }
+    // A front buffer was asked for but the swapchain couldn't have one, so the normal one is used
+    bool frontBufferUnavailable() const { return frontBufferUnavailable_; }
 
     // Total PyroWave decode time since the last call, leaving out waits: each frame's CPU work,
     // then its run on the GPU. Where the GPU can't time it, from handing the frame to the renderer
@@ -308,6 +311,7 @@ private:
     bool frontBufferAligned_ = false;
     bool hasSharedPresentExt_ = false;
     std::atomic<bool> frontBuffer_ {false};
+    std::atomic<bool> frontBufferUnavailable_ {false};
     VkImageLayout renderPassFinalLayout_ = VK_IMAGE_LAYOUT_UNDEFINED;
     // VK_KHR_global_priority or VK_EXT_global_priority if the device has either, and whether
     // our queues got high priority with it (createDevice())

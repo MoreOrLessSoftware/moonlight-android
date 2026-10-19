@@ -28,7 +28,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
         JNIEnv* env, jclass, jobject outputSurface, jint streamWidth, jint streamHeight, jint streamFps,
         jint framePacing, jint jitterBuffer, jint ditherMode, jint colorspace, jboolean fullRange, jboolean tenBit,
         jboolean pyrowave, jboolean pyrowaveCenterChroma, jint pyrowaveLateFrames, jfloat displayRefreshHz,
-        jstring codec, jstring decoderName, jstring traceDirectory) {
+        jstring codec, jstring decoderName, jstring traceDirectory, jboolean frontBuffer) {
     ANativeWindow* output = ANativeWindow_fromSurface(env, outputSurface);
     if (!output) {
         return 0;
@@ -48,6 +48,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
     config.pyrowaveCenterChroma = pyrowaveCenterChroma;
     config.pyrowaveLateFrames = pyrowaveLateFrames;
     config.displayRefreshHz = displayRefreshHz;
+    config.frontBuffer = frontBuffer;
     auto toString = [env](jstring string) {
         std::string value;
         if (string) {
@@ -171,6 +172,12 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeTakePresentedFrames(JNIEnv*, jclass, jlong handle) {
     VulkanRenderer* renderer = fromHandle(handle);
     return renderer ? static_cast<jint>(renderer->takePresentedFrames()) : 0;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeIsFrontBufferUnavailable(JNIEnv*, jclass, jlong handle) {
+    VulkanRenderer* renderer = fromHandle(handle);
+    return renderer && renderer->frontBufferUnavailable() ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL

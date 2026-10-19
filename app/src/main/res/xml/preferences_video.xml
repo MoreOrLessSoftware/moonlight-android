@@ -98,6 +98,11 @@
             android:summary="@string/summary_spatial_dithering"
             android:defaultValue="off" />
         <CheckBoxPreference
+            android:key="checkbox_front_buffer"
+            android:title="@string/title_front_buffer"
+            android:summary="@string/summary_front_buffer"
+            android:defaultValue="true" />
+        <CheckBoxPreference
             android:defaultValue="true"
             android:key="checkbox_ultra_low_latency"
             android:summary="@string/summary_checkbox_ultra_low_latency"

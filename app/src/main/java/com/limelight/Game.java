@@ -3162,6 +3162,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     @Override
+    public void onFrontBufferUnavailable() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(Game.this, R.string.toast_front_buffer_unavailable, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    @Override
     public void onUsbPermissionPromptStarting() {
         // Disable PiP auto-enter while the USB permission prompt is on-screen. This prevents
         // us from entering PiP while the user is interacting with the OS permission dialog.

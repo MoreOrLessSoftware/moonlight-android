@@ -463,6 +463,10 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
     if (__system_property_get("debug.moonlight.partial_lost_pct", value) > 0) {
         lostFrameMinPercent_ = std::clamp(atoi(value), 0, 100);
     }
+    // The setting asks for a front buffer aligned to the scan; to force a mode either way,
+    // adb shell setprop debug.moonlight.front_buffer 0 (off), 1 (drawn on arrival, tearing) or 2
+    frontBufferRequested_ = config.frontBuffer;
+    frontBufferAligned_ = config.frontBuffer;
     if (__system_property_get("debug.moonlight.front_buffer", value) > 0) {
         frontBufferRequested_ = atoi(value) != 0;
         frontBufferAligned_ = atoi(value) == 2;
@@ -2367,6 +2371,12 @@ bool VulkanRenderer::createSwapchain() {
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkResult result = vk_.vkCreateSwapchainKHR(device_, &info, nullptr, &swapchain);
     destroySwapchain();
+    if (result != VK_SUCCESS && shared) {
+        // The driver offered the mode but refused it: the normal swapchain from now on
+        ALOGW("Front buffer swapchain refused (%d); using the normal swapchain", result);
+        hasSharedPresentExt_ = false;
+        return createSwapchain();
+    }
     if (result != VK_SUCCESS) {
         ALOGE("vkCreateSwapchainKHR failed: %d", result);
         return false;
@@ -2379,6 +2389,7 @@ bool VulkanRenderer::createSwapchain() {
     outputPq_ = pq;
     outputBits_ = chosen.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ? 10 : 8;
     frontBuffer_ = shared;
+    frontBufferUnavailable_ = frontBufferRequested_ && !shared;
     frontBufferPaced_ = shared && frontBufferAligned_ && presentAhead_;
     presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR || (shared && !frontBufferPaced_);
     presentScheduler_.onSwapchainCreated();

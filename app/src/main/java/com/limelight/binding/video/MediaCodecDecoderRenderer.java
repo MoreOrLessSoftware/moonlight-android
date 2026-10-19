@@ -156,6 +156,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     // Vulkan renderer, when selected and it started on this device
     private boolean wantVulkan;
     private volatile VulkanRendererBridge vulkanRenderer;
+    private boolean frontBufferUnavailableReported;
 
     // A PyroWave stream: no MediaCodec, the Vulkan renderer decodes it
     private boolean pyrowave;
@@ -615,7 +616,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
                 pyrowave, pyrowaveCenterChroma, prefs.pyrowaveLateFrames, getDisplayRefreshRate(),
                 getCodecName(), pyrowave || videoDecoder == null ? null : videoDecoder.getName(),
-                getPacerTraceDirectory());
+                getPacerTraceDirectory(), prefs.frontBuffer);
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");
             if (currentHdrMetadata != null) {
@@ -1740,6 +1741,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 activeWindowVideoStats.totalCaptureToPresentUs += captureLatency[3] / 1000;
                 activeWindowVideoStats.framesWithCaptureToPresent += (int)captureLatency[4];
                 activeWindowVideoStats.presentedWithoutNetworkTransit += (int)captureLatency[5];
+
+                if (!frontBufferUnavailableReported && vulkanRenderer.isFrontBufferUnavailable()) {
+                    frontBufferUnavailableReported = true;
+                    perfListener.onFrontBufferUnavailable();
+                }
             }
 
             if (prefs.enablePerfOverlay) {

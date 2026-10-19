@@ -73,20 +73,22 @@ public class VulkanRendererBridge {
      *              PyroWave), both recorded in pacer traces
      * @param traceDirectory where frame pacing traces are written when switched on with
      *                       {@code adb shell setprop debug.moonlight.pacer_trace 1}, or null
+     * @param frontBuffer draw into a front buffer the display reads directly, timed to each scan,
+     *                    where the device has one
      */
     public static VulkanRendererBridge create(Surface output, int streamWidth, int streamHeight, int streamFps,
                                               int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                               boolean fullRange, boolean tenBit, boolean pyrowave,
                                               boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
                                               float displayRefreshHz, String codec, String decoderName,
-                                              String traceDirectory) {
+                                              String traceDirectory, boolean frontBuffer) {
         if (!isSupported() || (pyrowave && !isPyrowaveSupported())) {
             return null;
         }
 
         long handle = nativeCreate(output, streamWidth, streamHeight, streamFps, framePacing, jitterBuffer, ditherMode,
                 colorspace, fullRange, tenBit, pyrowave, pyrowaveCenterChroma, pyrowaveLateFrames, displayRefreshHz,
-                codec, decoderName, traceDirectory);
+                codec, decoderName, traceDirectory, frontBuffer);
         if (handle == 0) {
             return null;
         }
@@ -160,6 +162,14 @@ public class VulkanRendererBridge {
     }
 
     /**
+     * Whether a front buffer was asked for but the device couldn't give one, so frames go
+     * through the compositor's queue as usual. Known once the first frame is drawn.
+     */
+    public boolean isFrontBufferUnavailable() {
+        return handle != 0 && nativeIsFrontBufferUnavailable(handle);
+    }
+
+    /**
      * Total PyroWave decode time since the last call, in nanoseconds, leaving out waits: each
      * frame's CPU work, then its run on the GPU. Where the GPU can't time it, from handing the
      * frame to the renderer until the GPU was done with it.
@@ -222,7 +232,7 @@ public class VulkanRendererBridge {
                                             boolean fullRange, boolean tenBit, boolean pyrowave,
                                             boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
                                             float displayRefreshHz, String codec, String decoderName,
-                                            String traceDirectory);
+                                            String traceDirectory, boolean frontBuffer);
     private static native boolean nativeSubmitPyrowaveFrame(long handle, byte[] frame, int length, long hostPtsUs,
                                                             long lastPacketUs, int[] missingRanges,
                                                             int[] recordStarts, int partialKind);
@@ -232,6 +242,7 @@ public class VulkanRendererBridge {
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] hdrMetadata);
     private static native void nativeSetJitterBuffer(long handle, int jitterBuffer);
     private static native int nativeTakePresentedFrames(long handle);
+    private static native boolean nativeIsFrontBufferUnavailable(long handle);
     private static native long nativeTakeDecodedNs(long handle);
     private static native void nativeTakeCaptureLatency(long handle, long[] out);
     private static native String nativeGetRendererText(long handle);

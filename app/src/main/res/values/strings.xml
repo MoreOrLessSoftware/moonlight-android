@@ -311,6 +311,7 @@
     <string name="summary_checkbox_latency_test_marker">Show a square that flips between black and white on every key or mouse press sent to the host, for timing against the latency-test app on the host with a camera. Start on a gamepad runs an automatic test.</string>
     <string name="toast_latency_test_marker">Latency test marker is on. Press Start on a gamepad to run the test sequence.</string>
     <string name="toast_vulkan_fallback">The Vulkan renderer failed to start, so the direct renderer is being used</string>
+    <string name="toast_front_buffer_unavailable">Front buffer rendering isn\'t supported on this device, so frames go through the system\'s compositor as usual</string>
 
     <string name="category_help">Help</string>
     <string name="title_setup_guide">Setup guide</string>
@@ -360,6 +361,8 @@
 
     <string name="title_spatial_dithering">Spatial Dithering (Vulkan)</string>
     <string name="summary_spatial_dithering">Adds fine moving noise that hides color banding, most visible in HDR gradients (Vulkan renderer only)</string>
+    <string name="title_front_buffer">Front buffer rendering (Vulkan)</string>
+    <string name="summary_front_buffer">Draws each frame straight into the image the display is showing, skipping the system\'s compositor queue for lower latency. Turn off if you see tearing, flickering or corrupted video. (Vulkan renderer only)</string>
 
     <string name="title_frame_pacing">Video frame pacing</string>
     <string name="summary_frame_pacing">Specify how to balance video latency and smoothness</string>
