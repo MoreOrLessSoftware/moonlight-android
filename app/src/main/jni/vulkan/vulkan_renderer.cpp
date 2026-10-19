@@ -540,7 +540,10 @@ bool VulkanRenderer::init(ANativeWindow* output) {
         }
     }
 
-    presentAhead_ = hasDisplayTimingExt_ && pacer_.mode() == PacingMode::HostTimed;
+    // An aligned front buffer draws frames presented ahead at their scan, which needs no
+    // display timing
+    presentAhead_ = (hasDisplayTimingExt_ || (frontBufferAligned_ && hasSharedPresentExt_)) &&
+            pacer_.mode() == PacingMode::HostTimed;
     instant_ = pacer_.mode() == PacingMode::HostTimed && pacer_.timeline().jitterBuffer() == JitterBuffer::Instant;
     pacer_.setPresentAhead(presentAhead_);
     pacer_.setPresentGuardNs(presentScheduler_.guardNs());
@@ -985,6 +988,7 @@ void VulkanRenderer::stop() {
     // The image reader may be presenting a frame: wait for it, and keep it from starting another
     std::lock_guard<std::mutex> renderLock(renderMutex_);
     renderStopped_ = true;
+    alignedDraws_.clear();
     if (device_) {
         waitIdle();
         destroySwapchain();
@@ -1474,7 +1478,12 @@ int VulkanRenderer::onAlignedTimerThunk(int fd, int, void* data) {
     if (!self->quit_) {
         std::lock_guard<std::mutex> renderLock(self->renderMutex_);
         self->alignedTimerSet_ = false;
-        self->presentNewest(self->alignedVsyncNs_);
+        if (self->frontBufferPaced_) {
+            self->drawDueAligned();
+        }
+        else {
+            self->presentNewest(self->alignedVsyncNs_);
+        }
     }
     return 1;
 }
@@ -1547,6 +1556,12 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
     const int64_t callbackLateNs = nowNs() - frameTimeNanos;
     std::unique_lock<std::mutex> renderLock(renderMutex_);
     trackVsyncPeriod(frameTimeNanos);
+    if (frontBufferPaced_) {
+        // A frame is committed to a scan only if it can be drawn in time for it
+        const int64_t leadNs = alignedLeadNs();
+        std::lock_guard<std::mutex> lock(mutex_);
+        pacer_.setPresentGuardNs(leadNs);
+    }
 
     FramePtr frame;
     uint64_t presentId = 0;
@@ -1578,6 +1593,11 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
     }
 
     if (frame) {
+        if (frontBufferPaced_ && !alignedDraws_.empty()) {
+            // Older frames waiting for later scans would be drawn over this one
+            alignedDraws_.clear();
+            setAlignedTimer();
+        }
         if (renderFrame(frame, presentId)) {
             presentedFrames_++;
         }
@@ -1670,10 +1690,55 @@ void VulkanRenderer::presentAhead() {
             trace_.ahead(commitNs, showVsyncNs, frame->timing.hostPtsNs, presentId, presentScheduler_.delayVsyncs(),
                          pacer_);
         }
-        if (renderFrame(frame, presentId, showVsyncNs, true, commitNs)) {
+        if (frontBufferPaced_) {
+            queueAlignedDraw({std::move(frame), presentId, showVsyncNs, commitNs});
+        }
+        else if (renderFrame(frame, presentId, showVsyncNs, true, commitNs)) {
             presentedFrames_++;
         }
     }
+}
+
+void VulkanRenderer::queueAlignedDraw(AlignedDraw draw) {
+    // Replacing the frame committed to the same scan, which the pacer counted as skipped
+    const int64_t periodNs = currentPeriodNs_;
+    while (!alignedDraws_.empty() && alignedDraws_.back().vsyncNs >= draw.vsyncNs - periodNs / 2) {
+        alignedDraws_.pop_back();
+    }
+    alignedDraws_.push_back(std::move(draw));
+    setAlignedTimer();
+}
+
+void VulkanRenderer::drawDueAligned() {
+    // The newest draw whose time has come; any before it (the timer ran late) would only be
+    // drawn over
+    const int64_t dueNs = nowNs() + kAlignedTimerSlackNs + alignedLeadNs();
+    bool found = false;
+    AlignedDraw draw;
+    while (!alignedDraws_.empty() && alignedDraws_.front().vsyncNs <= dueNs) {
+        draw = std::move(alignedDraws_.front());
+        alignedDraws_.pop_front();
+        found = true;
+    }
+    if (found && renderFrame(draw.frame, draw.presentId, draw.vsyncNs, true, draw.commitNs)) {
+        presentedFrames_++;
+    }
+    setAlignedTimer();
+}
+
+void VulkanRenderer::setAlignedTimer() {
+    if (alignedTimerFd_ < 0) {
+        return;
+    }
+    itimerspec spec {};
+    if (!alignedDraws_.empty()) {
+        // A time already past fires at once
+        const int64_t startNs = std::max<int64_t>(alignedDraws_.front().vsyncNs - alignedLeadNs(), 1);
+        spec.it_value.tv_sec = static_cast<time_t>(startNs / 1'000'000'000);
+        spec.it_value.tv_nsec = static_cast<long>(startNs % 1'000'000'000);
+    }
+    timerfd_settime(alignedTimerFd_, TFD_TIMER_ABSTIME, &spec, nullptr);
+    alignedTimerSet_ = !alignedDraws_.empty();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1934,7 +1999,9 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     // shown on arrival, 44% reached the screen a vsync later than they could have.
     VkPresentTimeGOOGLE presentTime {static_cast<uint32_t>(presentId), 0};
     VkPresentTimesInfoGOOGLE presentTimes {VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE};
-    if (presentId != 0 && hasDisplayTimingExt_ && (onArrival || currentPeriodNs_ > 0)) {
+    // A front buffer is drawn at its time and never presented as a new image, so it has no
+    // time to ask for, and its capture to present is counted up to the present
+    if (presentId != 0 && hasDisplayTimingExt_ && !frontBuffer_ && (onArrival || currentPeriodNs_ > 0)) {
         const int64_t vsyncNs = showVsyncNs != 0 ? showVsyncNs : currentVsyncNs_;
         if (!onArrival) {
             presentTime.desiredPresentTime =
@@ -2087,7 +2154,9 @@ void VulkanRenderer::collectPresentTimings() {
 
     std::lock_guard<std::mutex> lock(mutex_);
     presentScheduler_.setAheadWindowNs(pacer_.presentAheadVsyncs() * pacer_.vsyncPeriodNs());
-    pacer_.setPresentGuardNs(presentScheduler_.guardNs());
+    if (!frontBufferPaced_) {
+        pacer_.setPresentGuardNs(presentScheduler_.guardNs());
+    }
     for (uint32_t i = 0; i < count; i++) {
         const VkPastPresentationTimingGOOGLE& t = timings[i];
         if (t.presentID != 0) {
@@ -2310,7 +2379,8 @@ bool VulkanRenderer::createSwapchain() {
     outputPq_ = pq;
     outputBits_ = chosen.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ? 10 : 8;
     frontBuffer_ = shared;
-    presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR || shared;
+    frontBufferPaced_ = shared && frontBufferAligned_ && presentAhead_;
+    presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR || (shared && !frontBufferPaced_);
     presentScheduler_.onSwapchainCreated();
     {
         std::lock_guard<std::mutex> lock(mutex_);

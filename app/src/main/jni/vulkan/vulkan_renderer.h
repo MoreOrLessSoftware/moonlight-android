@@ -442,18 +442,38 @@ private:
     int alignedTimerFd_ = -1;
     bool alignedTimerSet_ = false;
     int64_t alignedVsyncNs_ = 0;
+    // With host frame timing pacing, the pacer still chooses each frame's scan, as when frames
+    // are presented ahead; the frame is then drawn at that scan less the lead, in place of
+    // presenting it with a time. Under renderMutex_, in scan order.
+    std::atomic<bool> frontBufferPaced_ {false};
+    struct AlignedDraw {
+        FramePtr frame;
+        uint64_t presentId;
+        int64_t vsyncNs;
+        int64_t commitNs;
+    };
+    std::deque<AlignedDraw> alignedDraws_;
+    // Paced: queues a frame the pacer committed to a scan, draws the ones whose time has come,
+    // and sets the timer for the next
+    void queueAlignedDraw(AlignedDraw draw);
+    void drawDueAligned();
+    void setAlignedTimer();
     std::deque<int64_t> drawSubmitNs_;
     // How long before the scan to start drawing, if fixed with
     // adb shell setprop debug.moonlight.front_buffer_lead_us <us>; otherwise learned
     int64_t fixedAlignedLeadNs_ = -1;
     // Learned, the lead is the 90th percentile of recent draws' time to submit plus this, for
-    // the GPU to start on it and a little to spare. The GPU writes the screen top to bottom in
-    // about 1 ms, the way the display reads it but several times faster, so a draw starting a
-    // little early only writes rows the last scan has passed, and one starting a little late
-    // still overtakes the scan within the first rows.
-    static constexpr int64_t kAlignedGpuStartNs = 500'000;
+    // the GPU to start on it and a little to spare. The GPU writes the screen in scan order
+    // several times faster than the display reads it, so a draw starting a little early only
+    // writes rows the last scan has passed, and one starting a little late still overtakes the
+    // scan within the first rows. On an iPlay 70 mini Ultra at 144 Hz (draws taking 1.43 ms on
+    // the GPU and 0.3 ms to submit), 0.5 ms here (a lead of 0.8 ms) tore at the edge where the
+    // scan starts, and a lead of 1.3 ms didn't tear.
+    static constexpr int64_t kAlignedGpuStartNs = 1'000'000;
     static constexpr int64_t kAlignedDefaultLeadNs = 1'500'000;
     static constexpr size_t kAlignedLeadSamples = 64;
+    // A draw this close to its time when the timer runs is drawn then rather than waited for
+    static constexpr int64_t kAlignedTimerSlackNs = 200'000;
 
     // Shared between the image reader callback and the render thread
     std::mutex mutex_;
