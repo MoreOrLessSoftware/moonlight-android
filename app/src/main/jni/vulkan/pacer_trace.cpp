@@ -112,9 +112,18 @@ void PacerTrace::ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, ui
     countShown(pacer.vsyncIndexAt(showVsyncNs), 0, pacer);
 }
 
-void PacerTrace::immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId) {
-    write("I,%lld,%lld,%llu\n", static_cast<long long>(nowNs), static_cast<long long>(hostPtsNs),
-          static_cast<unsigned long long>(presentId));
+void PacerTrace::immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId, int64_t targetVsyncNs) {
+    write("I,%lld,%lld,%llu,%lld\n", static_cast<long long>(nowNs), static_cast<long long>(hostPtsNs),
+          static_cast<unsigned long long>(presentId), static_cast<long long>(targetVsyncNs));
+    // Frames shown on arrival skip the pacer, so there are no vsync lines to flush with
+    flushPeriodically(nowNs);
+}
+
+void PacerTrace::flushPeriodically(int64_t nowNs) {
+    if (file_ && nowNs - lastFlushNs_ >= kFlushIntervalNs) {
+        fflush(file_);
+        lastFlushNs_ = nowNs;
+    }
 }
 
 void PacerTrace::keepAlive(int64_t nowNs, uint64_t presentId) {
@@ -196,10 +205,7 @@ void PacerTrace::vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shown
     }
     screenSlotNs_ = pacer.vsyncPeriodNs() * pacer.slotVsyncs();
 
-    if (file_ && vsyncNs - lastFlushNs_ >= kFlushIntervalNs) {
-        fflush(file_);
-        lastFlushNs_ = vsyncNs;
-    }
+    flushPeriodically(vsyncNs);
 
     // Summary counters. A frame held for more or fewer vsyncs than its slot is a visible
     // hitch; the pacer should only produce them as often as the rate difference demands.

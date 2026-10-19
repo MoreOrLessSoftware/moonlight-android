@@ -10,6 +10,7 @@
 #include <poll.h>
 #include <sys/eventfd.h>
 #include <sys/resource.h>
+#include <sys/timerfd.h>
 #include <unistd.h>
 #include <android/log.h>
 #include <android/looper.h>
@@ -78,6 +79,7 @@ namespace {
     constexpr uint32_t kWakeQuit = 4;
 
     constexpr int kLooperIdWake = 1;
+    constexpr int kLooperIdAlignedTimer = 2;
 
     // Window for the overlay's count of skipped frames
     constexpr int64_t kRecentSkipsNs = 10'000'000'000;
@@ -172,7 +174,8 @@ bool VulkanRenderer::ConversionKey::operator==(const ConversionKey& other) const
            filter == other.filter;
 }
 
-VkInstance VulkanRenderer::createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup) {
+VkInstance VulkanRenderer::createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup,
+                                            bool frontBuffer) {
     // PyroWave's Vulkan backend needs 1.3
     const uint32_t apiVersion = pyrowave ? VK_API_VERSION_1_3 : VK_API_VERSION_1_1;
     uint32_t version = 0;
@@ -201,6 +204,10 @@ VkInstance VulkanRenderer::createVkInstance(VkApi& vk, bool pyrowave, bool* hasC
     *hasColorspaceExt = hasExtension(available, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
     if (*hasColorspaceExt) {
         setup.extensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+    }
+    // VK_KHR_shared_presentable_image, for a front buffer, depends on it
+    if (frontBuffer && hasExtension(available, VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME)) {
+        setup.extensions.push_back(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);
     }
 
     setup.app.pApplicationName = "Moonlight";
@@ -456,6 +463,16 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
     if (__system_property_get("debug.moonlight.partial_lost_pct", value) > 0) {
         lostFrameMinPercent_ = std::clamp(atoi(value), 0, 100);
     }
+    if (__system_property_get("debug.moonlight.front_buffer", value) > 0) {
+        frontBufferRequested_ = atoi(value) != 0;
+        frontBufferAligned_ = atoi(value) == 2;
+    }
+    if (frontBufferAligned_ && __system_property_get("debug.moonlight.front_buffer_lead_us", value) > 0) {
+        fixedAlignedLeadNs_ = static_cast<int64_t>(std::clamp(atoi(value), 0, 20000)) * 1000;
+    }
+    if (frontBufferRequested_) {
+        ALOGI("Front buffer asked for%s", frontBufferAligned_ ? ", aligned to the scan" : "");
+    }
     ALOGI("PyroWave frames that lost packets shown with at least %d%% of their blocks", lostFrameMinPercent_);
     ALOGI("Late PyroWave frames cut short: %s", partialEnabled_ ? "on" : "off");
     if (partialEnabled_) {
@@ -558,7 +575,7 @@ bool VulkanRenderer::init(ANativeWindow* output) {
 }
 
 bool VulkanRenderer::createInstance() {
-    instance_ = createVkInstance(vk_, config_.pyrowave, &hasColorspaceExt_, instanceSetup_);
+    instance_ = createVkInstance(vk_, config_.pyrowave, &hasColorspaceExt_, instanceSetup_, frontBufferRequested_);
     if (instance_ == VK_NULL_HANDLE || !vk_.loadInstance(instance_)) {
         return false;
     }
@@ -607,6 +624,11 @@ bool VulkanRenderer::pickDevice() {
                 vk_.vkEnumerateDeviceExtensionProperties(device, nullptr, &extCount, extensions.data());
                 hasHdrMetadataExt_ = hasExtension(extensions, VK_EXT_HDR_METADATA_EXTENSION_NAME);
                 hasDisplayTimingExt_ = hasExtension(extensions, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+                hasSharedPresentExt_ = frontBufferRequested_ &&
+                        hasExtension(extensions, VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME) &&
+                        std::any_of(instanceSetup_.extensions.begin(), instanceSetup_.extensions.end(), [](const char* name) {
+                            return strcmp(name, VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME) == 0;
+                        });
                 globalPriorityExt_ = hasExtension(extensions, VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME)
                         ? VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME
                         : hasExtension(extensions, VK_EXT_GLOBAL_PRIORITY_EXTENSION_NAME)
@@ -632,6 +654,15 @@ bool VulkanRenderer::createDevice() {
     if (!prepareDevice(vk_, physicalDevice_, queueFamily_, config_.pyrowave, hasHdrMetadataExt_, hasDisplayTimingExt_,
                        deviceSetup_)) {
         return false;
+    }
+    // Before the global priority extension, which is taken off the end if refused
+    if (hasSharedPresentExt_) {
+        deviceSetup_.extensions.push_back(VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME);
+        deviceSetup_.info.enabledExtensionCount = static_cast<uint32_t>(deviceSetup_.extensions.size());
+        deviceSetup_.info.ppEnabledExtensionNames = deviceSetup_.extensions.data();
+    }
+    else if (frontBufferRequested_) {
+        ALOGW("Front buffer asked for, but the device has no shared presentable images");
     }
 
     // Our queues at high global priority, so the GPU runs a render (one small draw, due at a
@@ -1309,6 +1340,17 @@ void VulkanRenderer::renderThreadMain() {
     }
     ndk_->AChoreographer_postFrameCallback64(choreographer_, &VulkanRenderer::onVsyncThunk, this);
 
+    if (frontBufferAligned_) {
+        alignedTimerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+        if (alignedTimerFd_ >= 0) {
+            ALooper_addFd(looper, alignedTimerFd_, kLooperIdAlignedTimer, ALOOPER_EVENT_INPUT,
+                          &VulkanRenderer::onAlignedTimerThunk, this);
+        }
+        else {
+            ALOGW("timerfd_create failed; the front buffer won't be aligned to the scan");
+        }
+    }
+
     while (!quit_) {
         ALooper_pollOnce(-1, nullptr, nullptr, nullptr);
     }
@@ -1317,6 +1359,11 @@ void VulkanRenderer::renderThreadMain() {
         ndk_->AChoreographer_unregisterRefreshRateCallback(choreographer_, &VulkanRenderer::onRefreshRateThunk, this);
     }
     ALooper_removeFd(looper, wakeFd_);
+    if (alignedTimerFd_ >= 0) {
+        ALooper_removeFd(looper, alignedTimerFd_);
+        close(alignedTimerFd_);
+        alignedTimerFd_ = -1;
+    }
 }
 
 void VulkanRenderer::onVsyncThunk(int64_t frameTimeNanos, void* data) {
@@ -1357,6 +1404,9 @@ void VulkanRenderer::onWake() {
     if ((flags & kWakeFrame) && presentAhead_ && !presentOnArrival_) {
         presentAhead();
     }
+    else if ((flags & kWakeFrame) && frontBuffer_ && frontBufferAligned_) {
+        scheduleAlignedDraw();
+    }
     else if (flags & kWakeFrame) {
         // Lowest latency with a mailbox swapchain: show the newest frame right away and let
         // the display take whichever was presented last before each vsync
@@ -1367,7 +1417,69 @@ void VulkanRenderer::onWake() {
     }
 }
 
-void VulkanRenderer::presentNewest() {
+void VulkanRenderer::scheduleAlignedDraw() {
+    if (alignedTimerSet_) {
+        // The draw already set takes the newest frame when it runs
+        return;
+    }
+    if (lastVsyncNs_ == 0 || alignedTimerFd_ < 0) {
+        presentNewest();
+        return;
+    }
+    int64_t periodNs;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        periodNs = pacer_.vsyncPeriodNs();
+    }
+
+    // The first scan after now that there's still time to start drawing for, counted on from
+    // the last vsync callback (Choreographer's vsync times match when the display shows a
+    // frame to within 0.2 ms on an iPlay 70 mini Ultra)
+    const int64_t leadNs = alignedLeadNs();
+    const int64_t now = nowNs();
+    int64_t vsyncNs = lastVsyncNs_ + periodNs;
+    if (vsyncNs - leadNs <= now) {
+        vsyncNs += ((now - (vsyncNs - leadNs)) / periodNs + 1) * periodNs;
+    }
+    const int64_t startNs = vsyncNs - leadNs;
+
+    itimerspec spec {};
+    spec.it_value.tv_sec = static_cast<time_t>(startNs / 1'000'000'000);
+    spec.it_value.tv_nsec = static_cast<long>(startNs % 1'000'000'000);
+    if (timerfd_settime(alignedTimerFd_, TFD_TIMER_ABSTIME, &spec, nullptr) != 0) {
+        presentNewest();
+        return;
+    }
+    alignedTimerSet_ = true;
+    alignedVsyncNs_ = vsyncNs;
+}
+
+int64_t VulkanRenderer::alignedLeadNs() const {
+    if (fixedAlignedLeadNs_ >= 0) {
+        return fixedAlignedLeadNs_;
+    }
+    if (drawSubmitNs_.size() < 8) {
+        return kAlignedDefaultLeadNs;
+    }
+    std::vector<int64_t> sorted(drawSubmitNs_.begin(), drawSubmitNs_.end());
+    const auto p90 = sorted.begin() + (sorted.size() - 1) * 9 / 10;
+    std::nth_element(sorted.begin(), p90, sorted.end());
+    return *p90 + kAlignedGpuStartNs;
+}
+
+int VulkanRenderer::onAlignedTimerThunk(int fd, int, void* data) {
+    uint64_t expirations;
+    (void) !read(fd, &expirations, sizeof(expirations));
+    auto* self = static_cast<VulkanRenderer*>(data);
+    if (!self->quit_) {
+        std::lock_guard<std::mutex> renderLock(self->renderMutex_);
+        self->alignedTimerSet_ = false;
+        self->presentNewest(self->alignedVsyncNs_);
+    }
+    return 1;
+}
+
+void VulkanRenderer::presentNewest(int64_t targetVsyncNs) {
     FramePtr frame;
     uint64_t presentId = 0;
     {
@@ -1381,11 +1493,12 @@ void VulkanRenderer::presentNewest() {
         pacer_.onPresentedImmediately(now);
 
         // Tagged to find out when it reached the screen, for traces and the capture to present
-        // statistic
-        if (hasDisplayTimingExt_) {
+        // statistic. A front buffer is never presented as a new image, so it gets no reports;
+        // its capture to present is counted up to the present.
+        if (hasDisplayTimingExt_ && !frontBuffer_) {
             presentId = nextPresentId_++;
         }
-        trace_.immediate(now, frame->timing.hostPtsNs, presentId);
+        trace_.immediate(now, frame->timing.hostPtsNs, presentId, targetVsyncNs);
     }
     if (renderFrame(frame, presentId, 0, false, 0, true)) {
         presentedFrames_++;
@@ -1473,7 +1586,7 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
         // Keep the picture up across a swapchain rebuild
         renderFrame(current_);
     }
-    if (presentAhead_) {
+    if (presentAhead_ && !presentOnArrival_) {
         presentAhead();
     }
     if (!frame) {
@@ -1495,7 +1608,9 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
 void VulkanRenderer::keepAlive() {
     // Without a time to present it at, a FIFO swapchain would show it ahead of the next new frame
     // presented for the same vsync, a vsync late
-    if (keepAliveNs_ <= 0 || !current_ || swapchainDirty_ || !(hasDisplayTimingExt_ || presentOnArrival_)) {
+    // A front buffer is taken again at every vsync anyway
+    if (keepAliveNs_ <= 0 || !current_ || swapchainDirty_ || frontBuffer_ ||
+            !(hasDisplayTimingExt_ || presentOnArrival_)) {
         return;
     }
     const int64_t now = nowNs();
@@ -1792,6 +1907,12 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     if (result != VK_SUCCESS) {
         ALOGE("vkQueueSubmit failed: %d", result);
         return false;
+    }
+    if (frontBufferAligned_ && frontBuffer_) {
+        drawSubmitNs_.push_back(nowNs() - startNs);
+        if (drawSubmitNs_.size() > kAlignedLeadSamples) {
+            drawSubmitNs_.pop_front();
+        }
     }
     if (timed) {
         slotPresentIds_[slot] = presentId;
@@ -2122,16 +2243,29 @@ bool VulkanRenderer::createSwapchain() {
     std::vector<VkPresentModeKHR> modes(modeCount);
     vk_.vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice_, surface_, &modeCount, modes.data());
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if (pacer_.mode() == PacingMode::MinLatency &&
+    const bool shared = hasSharedPresentExt_ &&
+            std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) != modes.end();
+    if (shared) {
+        // The compositor takes the image again at every vsync, so whatever was last drawn into
+        // it is shown without presenting a new buffer
+        presentMode = VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR;
+    }
+    else if (pacer_.mode() == PacingMode::MinLatency &&
             std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != modes.end()) {
         presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
     }
+    if (hasSharedPresentExt_ && !shared) {
+        ALOGW("Front buffer asked for, but the surface has no shared present mode");
+    }
 
     // Frames presented ahead wait in the swapchain until their vsync: up to the jitter buffer
-    // plus the present delay's worth of them at once
+    // plus the present delay's worth of them at once. A shared image is the only one.
     uint32_t imageCount = std::max(caps.minImageCount, presentAhead_ ? 6u : 3u);
     if (caps.maxImageCount != 0) {
         imageCount = std::min(imageCount, caps.maxImageCount);
+    }
+    if (shared) {
+        imageCount = 1;
     }
 
     VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
@@ -2175,7 +2309,8 @@ bool VulkanRenderer::createSwapchain() {
     preTransform_ = transform;
     outputPq_ = pq;
     outputBits_ = chosen.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ? 10 : 8;
-    presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR;
+    frontBuffer_ = shared;
+    presentOnArrival_ = presentMode == VK_PRESENT_MODE_MAILBOX_KHR || shared;
     presentScheduler_.onSwapchainCreated();
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -2183,7 +2318,9 @@ bool VulkanRenderer::createSwapchain() {
                          presentMode);
     }
 
-    if (renderPass_ && renderPassFormat_ != chosen.format) {
+    // A shared image stays in its own layout, in which the display reads it
+    const VkImageLayout finalLayout = shared ? VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    if (renderPass_ && (renderPassFormat_ != chosen.format || renderPassFinalLayout_ != finalLayout)) {
         destroyPipelines();
         vk_.vkDestroyRenderPass(device_, renderPass_, nullptr);
         renderPass_ = VK_NULL_HANDLE;
@@ -2197,7 +2334,7 @@ bool VulkanRenderer::createSwapchain() {
         color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        color.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        color.finalLayout = finalLayout;
 
         VkAttachmentReference ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
         VkSubpassDescription subpass {};
@@ -2211,7 +2348,9 @@ bool VulkanRenderer::createSwapchain() {
         dependency.dstSubpass = 0;
         dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
+        // A shared image is acquired with nothing to wait for, so it also waits for the last
+        // frame drawn into it
+        dependency.srcAccessMask = shared ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0;
         dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
         VkRenderPassCreateInfo rpInfo {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
@@ -2226,6 +2365,7 @@ bool VulkanRenderer::createSwapchain() {
             return false;
         }
         renderPassFormat_ = chosen.format;
+        renderPassFinalLayout_ = finalLayout;
     }
 
     uint32_t count = 0;
@@ -2282,7 +2422,8 @@ bool VulkanRenderer::createSwapchain() {
 
     ALOGI("Swapchain %ux%u, format %d, color space %d, %u images, %s, pre-rotated %d degrees", extent.width,
           extent.height, chosen.format, chosen.colorSpace, count,
-          presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox" : "FIFO", quarterTurns(transform) * 90);
+          shared ? "front buffer" : presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox" : "FIFO",
+          quarterTurns(transform) * 90);
     return true;
 }
 

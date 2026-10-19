@@ -203,7 +203,8 @@ private:
         VkDeviceQueueGlobalPriorityCreateInfoKHR globalPriority {VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_KHR};
     };
 
-    static VkInstance createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup);
+    static VkInstance createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup,
+                                       bool frontBuffer = false);
     static bool prepareDevice(VkApi& vk, VkPhysicalDevice device, uint32_t queueFamily, bool pyrowave,
                               bool hdrMetadata, bool displayTiming, DeviceSetup& setup);
 
@@ -228,8 +229,13 @@ private:
     static void onVsyncThunk(int64_t frameTimeNanos, void* data);
     static void onRefreshRateThunk(int64_t vsyncPeriodNanos, void* data);
     static int onWakeThunk(int fd, int events, void* data);
+    static int onAlignedTimerThunk(int fd, int events, void* data);
     void onVsync(int64_t frameTimeNanos);
     void onWake();
+    // Front buffer aligned to the scan (debug.moonlight.front_buffer 2): sets the timer for the
+    // draw that finishes as the next scan it can make starts
+    void scheduleAlignedDraw();
+    int64_t alignedLeadNs() const;
     void trackVsyncPeriod(int64_t frameTimeNanos);
 
     static void onImageAvailableThunk(void* context, AImageReader* reader);
@@ -247,8 +253,9 @@ private:
                      int64_t commitNs = 0, bool onArrival = false);
     void presentAhead();
     // Shows the newest waiting frame now, dropping any older ones: lowest latency mode with a
-    // mailbox swapchain
-    void presentNewest();
+    // mailbox swapchain, or a front buffer. targetVsyncNs is the scan an aligned front buffer
+    // drew it for, for the trace.
+    void presentNewest(int64_t targetVsyncNs = 0);
     void collectPresentTimings();
     bool ensureSwapchain();
     bool createSwapchain();
@@ -288,6 +295,20 @@ private:
     bool hasColorspaceExt_ = false;
     bool hasHdrMetadataExt_ = false;
     bool hasDisplayTimingExt_ = false;
+    // Front-buffer rendering, asked for with adb shell setprop debug.moonlight.front_buffer 1: a
+    // single swapchain image the display reads from as we draw into it
+    // (VK_KHR_shared_presentable_image), shown on arrival without waiting for the compositor to
+    // take a new buffer. Frames tear where the display is reading as they're drawn. Requested is
+    // read once at creation; frontBuffer_ is whether the swapchain got it.
+    //
+    // With 2, aligned to the scan: each frame is drawn to finish as the display starts a new
+    // scan, so the draw stays ahead of it and any tear is in the first rows. Frames wait for the
+    // next scan they can make, and the newest is drawn then (scheduleAlignedDraw()).
+    bool frontBufferRequested_ = false;
+    bool frontBufferAligned_ = false;
+    bool hasSharedPresentExt_ = false;
+    std::atomic<bool> frontBuffer_ {false};
+    VkImageLayout renderPassFinalLayout_ = VK_IMAGE_LAYOUT_UNDEFINED;
     // VK_KHR_global_priority or VK_EXT_global_priority if the device has either, and whether
     // our queues got high priority with it (createDevice())
     const char* globalPriorityExt_ = nullptr;
@@ -404,7 +425,7 @@ private:
     std::mutex stopMutex_;
     AChoreographer* choreographer_ = nullptr;
     bool refreshRateCallbackRegistered_ = false;
-    std::atomic<bool> presentOnArrival_ {false};  // Mailbox swapchain in lowest latency mode
+    std::atomic<bool> presentOnArrival_ {false};  // Mailbox swapchain in lowest latency mode, or a front buffer
 
     // The Instant jitter buffer, with host frame timing pacing: no buffer, each frame presented
     // ahead for the next vsync it can make (FramePacer::frameVsyncNs()). For the overlay's text.
@@ -415,6 +436,24 @@ private:
     bool renderStopped_ = false;  // Under renderMutex_: the swapchain and window are gone
     int64_t lastVsyncNs_ = 0;
     std::deque<int64_t> vsyncDeltas_;
+
+    // Render thread, aligned front buffer: the timer for the next draw, the scan it's for, and
+    // how long recent draws took from starting to being submitted to the GPU
+    int alignedTimerFd_ = -1;
+    bool alignedTimerSet_ = false;
+    int64_t alignedVsyncNs_ = 0;
+    std::deque<int64_t> drawSubmitNs_;
+    // How long before the scan to start drawing, if fixed with
+    // adb shell setprop debug.moonlight.front_buffer_lead_us <us>; otherwise learned
+    int64_t fixedAlignedLeadNs_ = -1;
+    // Learned, the lead is the 90th percentile of recent draws' time to submit plus this, for
+    // the GPU to start on it and a little to spare. The GPU writes the screen top to bottom in
+    // about 1 ms, the way the display reads it but several times faster, so a draw starting a
+    // little early only writes rows the last scan has passed, and one starting a little late
+    // still overtakes the scan within the first rows.
+    static constexpr int64_t kAlignedGpuStartNs = 500'000;
+    static constexpr int64_t kAlignedDefaultLeadNs = 1'500'000;
+    static constexpr size_t kAlignedLeadSamples = 64;
 
     // Shared between the image reader callback and the render thread
     std::mutex mutex_;

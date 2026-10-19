@@ -34,10 +34,14 @@ namespace vkr {
 //                                    callback ran, presentId identifies the present (0 if none)
 //                                    and presentDelayVsyncs is the vsync after this one it asked
 //                                    to reach the screen at (PresentScheduler)
-//   I,nowNs,hostPtsNs,presentId      frame shown on arrival (lowest latency mode, mailbox), and
-//                                    the present that identifies it in Q, G and P lines (0
-//                                    without display timing). Traces from before these were
-//                                    added have only nowNs.
+//   I,nowNs,hostPtsNs,presentId,targetVsyncNs
+//                                    frame shown on arrival (lowest latency mode, mailbox, or a
+//                                    front buffer), and the present that identifies it in Q, G
+//                                    and P lines (0 without display timing, as with a front
+//                                    buffer). targetVsyncNs is the scan a front buffer aligned to
+//                                    the scan drew it to finish by (0 otherwise). Traces from
+//                                    before these were added have only nowNs, or no
+//                                    targetVsyncNs.
 //   W,nowNs,presentId                the frame on screen presented again to keep the compositor
 //                                    awake while the host sends nothing (keep-alive), with the
 //                                    present that identifies it in Q, G and P lines
@@ -124,7 +128,7 @@ public:
     void frame(const FrameTiming& timing, size_t queued, uint64_t queueDrops);
     void vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shownPtsNs, const FramePacer& pacer,
                int64_t callbackLateNs, uint64_t presentId, int presentDelayVsyncs);
-    void immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId);
+    void immediate(int64_t nowNs, int64_t hostPtsNs, uint64_t presentId, int64_t targetVsyncNs);
     void keepAlive(int64_t nowNs, uint64_t presentId);
     void ahead(int64_t nowNs, int64_t showVsyncNs, int64_t hostPtsNs, uint64_t presentId, int presentDelayVsyncs,
                const FramePacer& pacer);
@@ -146,6 +150,8 @@ private:
     void summarize(int64_t vsyncNs, const FramePacer& pacer);
     void countShown(int64_t index, int skipped, const FramePacer& pacer);
     void write(const char* format, ...) __attribute__((format(printf, 2, 3)));
+    // Writes out what's buffered if it's been kFlushIntervalNs since the last time
+    void flushPeriodically(int64_t nowNs);
 
     FILE* file_ = nullptr;
     uint64_t bytes_ = 0;
