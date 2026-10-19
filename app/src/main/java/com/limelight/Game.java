@@ -75,7 +75,6 @@ import android.os.Looper;
 import android.text.Html;
 import android.util.Rational;
 import android.view.Display;
-import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -144,6 +143,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean autoEnterPip = false;
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
+    // The renderer shown while connecting, so a fallback can be warned about once connected
+    private String announcedRendererName;
     private int suppressPipRefCount = 0;
     private String pcName;
     private String appName;
@@ -479,7 +480,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         // Check if the user has enabled performance stats overlay
-        updatePerfOverlayLayout();
         if (prefConfig.enablePerfOverlay) {
             performanceOverlayView.setVisibility(View.VISIBLE);
         }
@@ -2794,9 +2794,15 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 hideSystemUi(1000);
 
-                // The stream's settings, now that the codec the host chose is known (the frame
-                // pacing was shown while connecting)
+                // The stream's settings, now that the codec the host chose is known (the renderer
+                // and frame pacing were shown while connecting)
                 Toast.makeText(Game.this, describeStream(), Toast.LENGTH_LONG).show();
+
+                // The decoder is set up by now, so a Vulkan renderer that failed to start
+                // has fallen back to the direct one since the renderer was shown
+                if (!decoderRenderer.getRendererName().equals(announcedRendererName)) {
+                    Toast.makeText(Game.this, R.string.toast_vulkan_fallback, Toast.LENGTH_LONG).show();
+                }
 
                 // Show overlay menu hint toast
                 showOverlayMenuHint();
@@ -2904,9 +2910,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
 
-            // The frame pacing is known from the settings, so it shows while connecting; the
-            // stream's details follow once the host has chosen its codec
-            Toast.makeText(Game.this, "Pacing: " + describeFramePacing(), Toast.LENGTH_LONG).show();
+            // The renderer and frame pacing are known from the settings, so they show while
+            // connecting; the stream's details follow once the host has chosen its codec
+            announcedRendererName = decoderRenderer.getRendererName();
+            Toast.makeText(Game.this, announcedRendererName + " Renderer \u2022 Pacing: " +
+                    describeFramePacing(), Toast.LENGTH_LONG).show();
 
             // Measure the display's actual refresh rate first, now that its mode is set, so the
             // host can be asked for a frame rate that lines up with our vsyncs
@@ -2926,8 +2934,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         return codec;
     }
 
-    // The stream's format and renderer for the toast shown once it's connected, when the
-    // codec the host chose is known
+    // The stream's format for the toast shown once it's connected, when the codec the host
+    // chose is known
     private String describeStream() {
         // The exact rate the host was asked for
         String hostRateText = "";
@@ -2935,23 +2943,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             hostRateText = String.format(Locale.getDefault(), " (%.2f Hz)", streamConfig.getClientRefreshRateX100() / 100.0);
         }
         return String.format(Locale.getDefault(),
-                "%dx%d @ %d FPS%s \u2022 %s \u2022 %d Mbps \u2022 %s",
+                "%dx%d @ %d FPS%s \u2022 %s \u2022 %d Mbps",
                 prefConfig.width,
                 prefConfig.height,
                 prefConfig.fps,
                 hostRateText,
                 describeVideoFormat(decoderRenderer.getActiveVideoFormat()),
-                prefConfig.bitrate / 1000,
-                decoderRenderer.getRendererName());
-    }
-
-    // The compact performance stats go in one line along the top, and the detailed ones in the
-    // top left corner
-    private void updatePerfOverlayLayout() {
-        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) performanceOverlayView.getLayoutParams();
-        params.gravity = prefConfig.perfOverlayCompact ? Gravity.TOP | Gravity.CENTER_HORIZONTAL : Gravity.LEFT;
-        performanceOverlayView.setLayoutParams(params);
-        performanceOverlayView.setGravity(prefConfig.perfOverlayCompact ? Gravity.CENTER_HORIZONTAL : Gravity.LEFT);
+                prefConfig.bitrate / 1000);
     }
 
     // Frame pacing for the stream start toast, with the jitter buffer when the mode has one.
@@ -3329,7 +3327,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         prefConfig.perfOverlayCompact = values[which].equals("compact") || prefConfig.perfOverlayMinimal;
                         prefConfig.perfOverlayBasic = values[which].equals("basic");
 
-                        updatePerfOverlayLayout();
                         performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay ? View.VISIBLE : View.GONE);
                         dialog.dismiss();
                     }

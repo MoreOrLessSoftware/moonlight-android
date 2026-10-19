@@ -132,8 +132,8 @@
     <string name="perf_overlay_compact_pacing">Frame pacing: %1$s</string>
     <!-- The minimal stats, a shorter compact line -->
     <string name="perf_overlay_minimal_fps">%1$.2f FPS</string>
-    <string name="perf_overlay_minimal_capture_to_present">Capture to present: %1$.0f</string>
-    <string name="perf_overlay_minimal_capture_to_decoded">Capture to decoded: %1$.0f</string>
+    <string name="perf_overlay_minimal_capture_to_present">Capture to present: %1$.0f ms</string>
+    <string name="perf_overlay_minimal_capture_to_decoded">Capture to decoded: %1$.0f ms</string>
 
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
@@ -310,6 +310,7 @@
     <string name="title_checkbox_latency_test_marker">Latency test marker</string>
     <string name="summary_checkbox_latency_test_marker">Show a square that flips between black and white on every key or mouse press sent to the host, for timing against the latency-test app on the host with a camera. Start on a gamepad runs an automatic test.</string>
     <string name="toast_latency_test_marker">Latency test marker is on. Press Start on a gamepad to run the test sequence.</string>
+    <string name="toast_vulkan_fallback">The Vulkan renderer failed to start, so the direct renderer is being used</string>
 
     <string name="category_help">Help</string>
     <string name="title_setup_guide">Setup guide</string>
