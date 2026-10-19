@@ -107,7 +107,8 @@
     X(vkDestroyQueryPool) \
     X(vkGetQueryPoolResults) \
     X(vkCmdResetQueryPool) \
-    X(vkCmdWriteTimestamp)
+    X(vkCmdWriteTimestamp) \
+    X(vkGetMemoryFdKHR)
 
 #define VK_DECLARE_FUNCTION(name) PFN_##name name = nullptr;
 

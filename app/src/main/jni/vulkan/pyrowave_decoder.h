@@ -37,7 +37,12 @@ struct PyrowavePlanes {
     VkImage images[3] {};
     VkDeviceMemory memory[3] {};
     VkImageView views[3] {};
-    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+    // With a decode device of its own (DeviceInfo::renderDevice), the same memory imported into
+    // the render device, which samples these
+    VkImage renderImages[3] {};
+    VkDeviceMemory renderMemory[3] {};
+    VkImageView renderViews[3] {};
+    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;  // On the render device
     bool inUse = false;
 };
 
@@ -65,6 +70,14 @@ public:
         // For timing decodes on the GPU; no timing if timestampValidBits is 0
         uint32_t timestampValidBits = 0;
         float timestampPeriodNs = 0.0f;
+        // Set when the decodes have a device of their own (above), at a lower GPU priority than
+        // the render device here, which samples the planes: their memory is exported from the
+        // decode device and imported into this one, and the planes' descriptor sets are made on
+        // it. Both devices need VK_KHR_external_memory_fd. The render must take the planes over
+        // from VK_QUEUE_FAMILY_EXTERNAL (and give them back) rather than wait for timeline(),
+        // which is on the decode device, and only once the decode is done.
+        VkDevice renderDevice = VK_NULL_HANDLE;
+        const VkApi* renderVk = nullptr;
     };
 
     // Null if PyroWave can't decode on this device. width and height must be even.
@@ -79,7 +92,10 @@ public:
 
     // Three combined image samplers, Y, Cb and Cr, in the planes' descriptor sets
     VkDescriptorSetLayout setLayout() const { return setLayout_; }
+    // On the decode device
     VkSemaphore timeline() const { return timeline_; }
+    // The decodes have a device of their own (DeviceInfo::renderDevice)
+    bool ownDevice() const { return info_.renderDevice != VK_NULL_HANDLE; }
     uint32_t width() const { return width_; }
     uint32_t height() const { return height_; }
     bool tenBit() const { return tenBit_; }
@@ -149,6 +165,15 @@ private:
     // The queue lock PyroWave takes for its submissions, counting the wait in waitedNs_
     static void lockQueue(void* userdata);
     static void unlockQueue(void* userdata);
+    // Where the planes are sampled: the render device if the decodes have their own
+    const VkApi& renderVk() const { return info_.renderVk ? *info_.renderVk : vk_; }
+    VkDevice renderDevice() const { return info_.renderDevice ? info_.renderDevice : info_.device; }
+    // The decode's commands, with a device of its own: taking the planes from the render device
+    // before PyroWave records, and handing them back after
+    void recordOwnership(VkCommandBuffer cmd, const PyrowavePlanes& planes, bool acquire);
+    // The memory of a plane made on the decode device, imported into the render device
+    bool importPlane(PyrowavePlanes& planes, int plane, const VkImageCreateInfo& imageInfo, uint32_t memoryType,
+                     VkDeviceSize size);
     uint32_t planeWidth(int plane) const { return plane == 0 ? width_ : width_ / 2; }
     uint32_t planeHeight(int plane) const { return plane == 0 ? height_ : height_ / 2; }
 

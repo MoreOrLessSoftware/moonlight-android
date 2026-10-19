@@ -4,6 +4,7 @@
 #include <ctime>
 #include <dlfcn.h>
 #include <type_traits>
+#include <unistd.h>
 #include <android/log.h>
 #include <sys/system_properties.h>
 
@@ -247,7 +248,7 @@ bool PyrowaveDecoder::init(int width, int height, bool tenBit) {
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.maxLod = 0.0f;
-    if (vk_.vkCreateSampler(info_.device, &samplerInfo, nullptr, &sampler_) != VK_SUCCESS) {
+    if (renderVk().vkCreateSampler(renderDevice(), &samplerInfo, nullptr, &sampler_) != VK_SUCCESS) {
         return false;
     }
 
@@ -261,7 +262,7 @@ bool PyrowaveDecoder::init(int width, int height, bool tenBit) {
     VkDescriptorSetLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &binding;
-    if (vk_.vkCreateDescriptorSetLayout(info_.device, &layoutInfo, nullptr, &setLayout_) != VK_SUCCESS) {
+    if (renderVk().vkCreateDescriptorSetLayout(renderDevice(), &layoutInfo, nullptr, &setLayout_) != VK_SUCCESS) {
         return false;
     }
 
@@ -271,7 +272,7 @@ bool PyrowaveDecoder::init(int width, int height, bool tenBit) {
     poolInfo.maxSets = kMaxPlanes;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
-    if (vk_.vkCreateDescriptorPool(info_.device, &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS) {
+    if (renderVk().vkCreateDescriptorPool(renderDevice(), &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS) {
         return false;
     }
 
@@ -341,9 +342,9 @@ PyrowaveDecoder::~PyrowaveDecoder() {
     if (timestampPool_) vk_.vkDestroyQueryPool(device, timestampPool_, nullptr);
     if (commandPool_) vk_.vkDestroyCommandPool(device, commandPool_, nullptr);
     if (timeline_) vk_.vkDestroySemaphore(device, timeline_, nullptr);
-    if (descriptorPool_) vk_.vkDestroyDescriptorPool(device, descriptorPool_, nullptr);
-    if (setLayout_) vk_.vkDestroyDescriptorSetLayout(device, setLayout_, nullptr);
-    if (sampler_) vk_.vkDestroySampler(device, sampler_, nullptr);
+    if (descriptorPool_) renderVk().vkDestroyDescriptorPool(renderDevice(), descriptorPool_, nullptr);
+    if (setLayout_) renderVk().vkDestroyDescriptorSetLayout(renderDevice(), setLayout_, nullptr);
+    if (sampler_) renderVk().vkDestroySampler(renderDevice(), sampler_, nullptr);
 }
 
 PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount,
@@ -494,11 +495,17 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
     // With our commands, PyroWave leaves synchronizing them to us: the submission below waits
     // for the decode before at the stage that writes the planes, which makes the planes' writes
     // visible to it, and the render waits for the timeline before reading them
+    if (ownDevice()) {
+        recordOwnership(cmd, *planes, true);
+    }
     const int64_t recordStartNs = nowNs();
     const int64_t recordStartWaitedNs = waitedNs_;
     api.deviceSetCommandBuffer(device_, cmd);
     const pyrowave_result result = api.decoderDecodeGpuBuffer(decoder_, nullptr, nullptr, &buffers);
     api.deviceSetCommandBuffer(device_, VK_NULL_HANDLE);
+    if (ownDevice()) {
+        recordOwnership(cmd, *planes, false);
+    }
     times->recordNs = nowNs() - recordStartNs - (waitedNs_ - recordStartWaitedNs);
     times->pyrowaveSubmitNs = queueHeldNs_;
     times->pyrowaveSubmits = queueHolds_;
@@ -643,8 +650,13 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
         return false;
     }
 
+    // With a decode device of its own, the memory is shared with the render device
+    VkExternalMemoryImageCreateInfo externalInfo {VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+    externalInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+
     for (int i = 0; i < 3; i++) {
         VkImageCreateInfo imageInfo {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        imageInfo.pNext = ownDevice() ? &externalInfo : nullptr;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
         imageInfo.format = format_;
         imageInfo.extent = {planeWidth(i), planeHeight(i), 1};
@@ -677,7 +689,14 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
             return false;
         }
 
+        // Exported memory is given to its image alone, as the import into the render device is
+        VkMemoryDedicatedAllocateInfo dedicated {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+        dedicated.image = planes.images[i];
+        VkExportMemoryAllocateInfo exportInfo {VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO};
+        exportInfo.pNext = &dedicated;
+        exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
         VkMemoryAllocateInfo allocInfo {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        allocInfo.pNext = ownDevice() ? &exportInfo : nullptr;
         allocInfo.allocationSize = requirements.size;
         allocInfo.memoryTypeIndex = type;
         if (vk_.vkAllocateMemory(device, &allocInfo, nullptr, &planes.memory[i]) != VK_SUCCESS) {
@@ -685,6 +704,9 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
             return false;
         }
         vk_.vkBindImageMemory(device, planes.images[i], planes.memory[i], 0);
+        if (ownDevice() && !importPlane(planes, i, imageInfo, type, requirements.size)) {
+            return false;
+        }
 
         VkImageViewCreateInfo viewInfo {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         viewInfo.image = planes.images[i];
@@ -697,18 +719,19 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
         }
     }
 
+    // Sampled on the render device
     VkDescriptorSetAllocateInfo setInfo {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     setInfo.descriptorPool = descriptorPool_;
     setInfo.descriptorSetCount = 1;
     setInfo.pSetLayouts = &setLayout_;
-    if (vk_.vkAllocateDescriptorSets(device, &setInfo, &planes.descriptorSet) != VK_SUCCESS) {
+    if (renderVk().vkAllocateDescriptorSets(renderDevice(), &setInfo, &planes.descriptorSet) != VK_SUCCESS) {
         ALOGE("vkAllocateDescriptorSets failed for planes");
         planes.descriptorSet = VK_NULL_HANDLE;
         return false;
     }
     VkDescriptorImageInfo imageDescriptors[3] {};
     for (int i = 0; i < 3; i++) {
-        imageDescriptors[i].imageView = planes.views[i];
+        imageDescriptors[i].imageView = ownDevice() ? planes.renderViews[i] : planes.views[i];
         imageDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     }
     VkWriteDescriptorSet write {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -717,7 +740,7 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
     write.descriptorCount = 3;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.pImageInfo = imageDescriptors;
-    vk_.vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+    renderVk().vkUpdateDescriptorSets(renderDevice(), 1, &write, 0, nullptr);
 
     // Into GENERAL, where the planes stay. The next decode waits for the value this signals.
     // The fence only guards the command buffer, which the last new planes may still be using.
@@ -785,9 +808,91 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
     return true;
 }
 
+bool PyrowaveDecoder::importPlane(PyrowavePlanes& planes, int plane, const VkImageCreateInfo& imageInfo,
+                                  uint32_t memoryType, VkDeviceSize size) {
+    if (!vk_.vkGetMemoryFdKHR) {
+        ALOGE("vkGetMemoryFdKHR not available");
+        return false;
+    }
+    VkMemoryGetFdInfoKHR getInfo {VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
+    getInfo.memory = planes.memory[plane];
+    getInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+    int fd = -1;
+    if (vk_.vkGetMemoryFdKHR(info_.device, &getInfo, &fd) != VK_SUCCESS) {
+        ALOGE("vkGetMemoryFdKHR failed for a plane");
+        return false;
+    }
+
+    // The same image on the render device, over the same memory. A successful import takes the fd.
+    const VkApi& rvk = renderVk();
+    const VkDevice rdev = renderDevice();
+    if (rvk.vkCreateImage(rdev, &imageInfo, nullptr, &planes.renderImages[plane]) != VK_SUCCESS) {
+        ALOGE("vkCreateImage failed for a plane on the render device");
+        close(fd);
+        return false;
+    }
+    VkMemoryRequirements requirements {};
+    rvk.vkGetImageMemoryRequirements(rdev, planes.renderImages[plane], &requirements);
+    if (!(requirements.memoryTypeBits & (1u << memoryType))) {
+        ALOGE("The render device can't take a plane's memory type");
+        close(fd);
+        return false;
+    }
+    VkMemoryDedicatedAllocateInfo dedicated {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+    dedicated.image = planes.renderImages[plane];
+    VkImportMemoryFdInfoKHR importInfo {VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR};
+    importInfo.pNext = &dedicated;
+    importInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+    importInfo.fd = fd;
+    VkMemoryAllocateInfo allocInfo {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocInfo.pNext = &importInfo;
+    allocInfo.allocationSize = size;
+    allocInfo.memoryTypeIndex = memoryType;
+    if (rvk.vkAllocateMemory(rdev, &allocInfo, nullptr, &planes.renderMemory[plane]) != VK_SUCCESS) {
+        ALOGE("Importing a plane's memory into the render device failed");
+        close(fd);
+        return false;
+    }
+    rvk.vkBindImageMemory(rdev, planes.renderImages[plane], planes.renderMemory[plane], 0);
+
+    VkImageViewCreateInfo viewInfo {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    viewInfo.image = planes.renderImages[plane];
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = format_;
+    viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    if (rvk.vkCreateImageView(rdev, &viewInfo, nullptr, &planes.renderViews[plane]) != VK_SUCCESS) {
+        ALOGE("vkCreateImageView failed for a plane on the render device");
+        return false;
+    }
+    return true;
+}
+
+void PyrowaveDecoder::recordOwnership(VkCommandBuffer cmd, const PyrowavePlanes& planes, bool acquire) {
+    VkImageMemoryBarrier barriers[3] {};
+    for (int i = 0; i < 3; i++) {
+        barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barriers[i].srcAccessMask = acquire ? 0 : VK_ACCESS_MEMORY_WRITE_BIT;
+        barriers[i].dstAccessMask = acquire ? VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT : 0;
+        barriers[i].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barriers[i].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barriers[i].srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_EXTERNAL : info_.queueFamily;
+        barriers[i].dstQueueFamilyIndex = acquire ? info_.queueFamily : VK_QUEUE_FAMILY_EXTERNAL;
+        barriers[i].image = planes.images[i];
+        barriers[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    }
+    vk_.vkCmdPipelineBarrier(cmd, acquire ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             acquire ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                             0, 0, nullptr, 0, nullptr, 3, barriers);
+}
+
 void PyrowaveDecoder::destroyPlanes(PyrowavePlanes& planes) {
     VkDevice device = info_.device;
-    if (planes.descriptorSet) vk_.vkFreeDescriptorSets(device, descriptorPool_, 1, &planes.descriptorSet);
+    if (planes.descriptorSet) renderVk().vkFreeDescriptorSets(renderDevice(), descriptorPool_, 1, &planes.descriptorSet);
+    for (int i = 0; i < 3; i++) {
+        if (planes.renderViews[i]) renderVk().vkDestroyImageView(renderDevice(), planes.renderViews[i], nullptr);
+        if (planes.renderImages[i]) renderVk().vkDestroyImage(renderDevice(), planes.renderImages[i], nullptr);
+        if (planes.renderMemory[i]) renderVk().vkFreeMemory(renderDevice(), planes.renderMemory[i], nullptr);
+    }
     for (int i = 0; i < 3; i++) {
         if (planes.views[i]) vk_.vkDestroyImageView(device, planes.views[i], nullptr);
         if (planes.images[i]) vk_.vkDestroyImage(device, planes.images[i], nullptr);

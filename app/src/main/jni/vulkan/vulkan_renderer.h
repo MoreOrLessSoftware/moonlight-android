@@ -291,6 +291,26 @@ private:
     // PyroWave's queue, so a render doesn't wait behind the next frame's decode. Null when the
     // family has only one, which both then share. Either way queueMutex_ covers every queue.
     VkQueue decodeQueue_ = VK_NULL_HANDLE;
+    // PyroWave decoding on a device of its own, with a front buffer (or as
+    // debug.moonlight.pyrowave_device says). A device's queues share one GPU priority, and the GPU
+    // finishes a decode before starting a draw queued behind it at the same priority: on an
+    // iPlay 70 mini Ultra at 144 fps, front buffer draws queued while a decode ran started
+    // p50 3.2 ms (p90 4.5 ms) late and tore anywhere on the screen. With the decodes on a device
+    // at the default priority, rendering has high priority, and the GPU interrupts a decode for
+    // a draw: those draws started p50 0.3 ms (p90 0.6 ms) after being handed over, as on an idle
+    // GPU, and nothing tore. Decodes took 1.2 ms longer, being interrupted, but frames reached
+    // the screen as soon after their last packet (p50 14.6 ms against 14.4 ms). Decodes stay at
+    // the default priority, so they don't hold up the compositor either. The planes' memory is
+    // shared between the devices (PyrowaveDecoder::DeviceInfo).
+    bool pyrowaveOwnDeviceRequested_ = false;
+    bool hasExternalMemoryFdExt_ = false;
+    VkDevice decodeDevice_ = VK_NULL_HANDLE;
+    VkApi decodeVk_;
+    DeviceSetup decodeDeviceSetup_;
+    VkQueue decodeDeviceQueue_ = VK_NULL_HANDLE;
+    std::mutex decodeDeviceQueueMutex_;
+    // Makes decodeDevice_, or leaves it null if it can't
+    void createDecodeDevice();
     std::mutex queueMutex_;
     InstanceSetup instanceSetup_;
     DeviceSetup deviceSetup_;
