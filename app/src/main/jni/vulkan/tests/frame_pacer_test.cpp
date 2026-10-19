@@ -511,6 +511,36 @@ int main() {
         }
     }
     {
+        // Stalls frequent and long enough to hold every preset's buffer at its cap
+        // (FramePacer::kLowestLatencyCapSlots): none may wait longer than the preset above it,
+        // with a frame a vsync and, locked to a line, with a frame every two
+        const Scenario bases[] = {
+            {"stalls: 144 Hz host, 144 Hz display", 144.0, 144, 144.0},
+            {"stalls: 60 Hz host, 120 Hz display", 60.0, 60, 120.0},
+        };
+        const JitterBuffer presets[] = {JitterBuffer::LowestLatency, JitterBuffer::LowLatency, JitterBuffer::Balanced};
+        const char* presetNames[] = {"  Lowest latency", "  Low latency", "  Balanced"};
+        for (const Scenario& base : bases) {
+            printf("%s\n", base.name);
+            Result results[3];
+            for (int i = 0; i < 3; i++) {
+                Scenario s = base;
+                s.name = presetNames[i];
+                s.spikeChance = 0.05;
+                s.spikeMs = 60.0;
+                s.jitterBuffer = presets[i];
+                results[i] = run(s);
+                report(s, results[i]);
+            }
+            for (int i = 0; i < 2; i++) {
+                check(results[i].meanLatencyMs < results[i + 1].meanLatencyMs, base.name,
+                      "a lower preset's latency isn't below the one above it");
+                check(results[i].maxLatencyMs <= results[i + 1].maxLatencyMs, base.name,
+                      "a lower preset waited longer than the one above it");
+            }
+        }
+    }
+    {
         // For comparison: the existing balanced mode on a fast host keeps a full queue
         Scenario s {"Balanced mode, 60.3 Hz host, 60 Hz display", 60.3, 60, 60.0};
         s.mode = PacingMode::Balanced;

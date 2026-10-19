@@ -91,8 +91,7 @@ public:
     // LowLatency covers less of the transit times (see the presets in frame_pacer.cpp).
     void setSlotVsyncs(int64_t slotVsyncs);
 
-    // Largest buffer worth keeping. Frames wait in a queue of limited size for their time, so
-    // beyond what it holds, a bigger buffer only pushes frames out of the queue unshown.
+    // Largest buffer to keep (FramePacer::bufferCapNs())
     void setMaxBufferNs(int64_t maxBufferNs) { maxBufferNs_ = maxBufferNs; }
 
     // The start of a stream, when its first frames arrive late (the first keyframe is large):
@@ -244,6 +243,21 @@ public:
     // after the fitted line they're scheduled at, plus the vsync alignment
     int64_t scheduleDelayNs() const { return shiftNs_ + static_cast<int64_t>(lateNs_); }
 
+    // Most delay each preset's buffer may hold, so that no preset's delay reaches the one above
+    // it: Lowest latency (and Instant, when switched back from) one slot, Low latency two, and
+    // Balanced and Smooth what the queue holds (bufferCapNs()). With frames locked to a line,
+    // Low and Lowest latency's delay after the line counts toward it too (updatePhase()).
+    //
+    // Without these, all of them shared the queue's three frames, and the bursts of late frames
+    // after a network stall took every preset there: replaying PyroWave sessions at 120 and
+    // 144 fps over Wi-Fi, Lowest latency sat at it 13-18% of the time and Low latency about as
+    // often as Balanced (21%). Capped, Lowest latency's 99th percentile delay from arrival to
+    // vsync came down from 27-29 ms to 14-20 ms and Low latency's from 27-31 ms to 20-26 ms,
+    // for 10-40% more uneven frames in Lowest latency and 1-5% more in Low latency. Steady
+    // HEVC sessions never reach the caps.
+    static constexpr int64_t kLowestLatencyCapSlots = 1;
+    static constexpr int64_t kLowLatencyCapSlots = 2;
+
     // Window the frame schedule is fitted over
     static constexpr int64_t kPhaseWindowNs = 16'000'000'000;
     // What's kept of it when the frames stop fitting a line: enough to see a 71.82 fps game's
@@ -271,6 +285,8 @@ private:
     void scheduleFrom(FrameTiming& frame, int64_t measuredPtsNs, bool onLine, int64_t scheduledPtsNs);
     void resetPhase();
     int64_t slotPeriodNs() const { return slotVsyncs_ * periodNs_; }
+    // The most delay the current preset's buffer may hold (kLowestLatencyCapSlots)
+    int64_t bufferCapNs() const;
 
     PacingMode mode_;
     int64_t streamIntervalNs_;

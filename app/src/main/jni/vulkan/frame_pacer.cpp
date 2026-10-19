@@ -215,10 +215,29 @@ FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, Ji
     : mode_(mode),
       streamIntervalNs_(1'000'000'000LL / std::max(streamFps, 1)),
       periodNs_(vsyncPeriodNs > 0 ? vsyncPeriodNs : 16'666'667),
-      timeline_(jitterBuffer) {
+      timeline_(jitterBuffer) {}
+
+int64_t FramePacer::bufferCapNs() const {
     // Frames waiting out the buffer sit in the caller's queue (maxQueued()), which also holds
-    // the frame due next and one being shown
-    timeline_.setMaxBufferNs(static_cast<int64_t>(kMaxQueuedFrames - 3) * streamIntervalNs_);
+    // the frame due next and one being shown. Beyond what it holds, a bigger buffer only pushes
+    // frames out of the queue unshown.
+    const int64_t queueCapNs = static_cast<int64_t>(kMaxQueuedFrames - 3) * streamIntervalNs_;
+
+    // In slots rather than stream frames: a game below the stream's frame rate sends a frame
+    // a slot
+    int64_t slots;
+    switch (timeline_.jitterBuffer()) {
+        case JitterBuffer::LowestLatency:
+        case JitterBuffer::Instant:
+            slots = kLowestLatencyCapSlots;
+            break;
+        case JitterBuffer::LowLatency:
+            slots = kLowLatencyCapSlots;
+            break;
+        default:
+            return queueCapNs;
+    }
+    return std::min(queueCapNs, slots * std::max(streamIntervalNs_, slotPeriodNs()));
 }
 
 void FramePacer::setVsyncPeriod(int64_t periodNs) {
@@ -331,6 +350,7 @@ void FramePacer::scheduleFrom(FrameTiming& frame, int64_t measuredPtsNs, bool on
         transitOnLine_ = onLine;
         timeline_.restartWindow(0, onLine ? kLineDecayDivisor : 0);
     }
+    timeline_.setMaxBufferNs(bufferCapNs());
     timeline_.addSample(measuredPtsNs, frame.arrivalNs);
     frame.targetNs = scheduledPtsNs + timeline_.offsetNs();
 }
@@ -599,7 +619,8 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     }
 
     // Schedule this frame on the line. Balanced and Smooth measure the jitter buffer against the
-    // line, which covers frames the host stamped late and frames slow to arrive in one percentile.
+    // line, which covers frames the host stamped late and frames slow to arrive in one percentile,
+    // and caps both together (bufferCapNs()).
     // Low and Lowest latency, whose buffers cover less, schedule frames as late as the latest
     // recent one against the line and measure the buffer against frames' own timestamps: with
     // their buffer measured against the line, the frames at the start of each stretch of late
@@ -624,17 +645,26 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     else if (!phaseLocked_) {
         lockedSinceNs_ = frame.arrivalNs;
     }
+    if (againstLine) {
+        const int64_t scheduledNs = static_cast<int64_t>(std::llround(scheduled));
+        scheduleFrom(frame, scheduledNs, true, scheduledNs);
+    }
+    else {
+        scheduleFrom(frame, frame.hostPtsNs, false, static_cast<int64_t>(std::llround(scheduled)));
+
+        // The delay after the line counts toward the preset's cap along with the buffer
+        // (kLowestLatencyCapSlots), and gives way first. Frames the host stamped later than the
+        // schedule then come out late, shown as they arrive.
+        const double over = static_cast<double>(timeline_.bufferNs() - bufferCapNs()) + (scheduled - line);
+        if (over > 0) {
+            scheduled -= std::min(over, scheduled - line);
+            frame.targetNs = static_cast<int64_t>(std::llround(scheduled)) + timeline_.offsetNs();
+        }
+    }
     scheduledPtsNs_ = scheduled;
     scheduledIndex_ = frameIndex_;
     lateNs_ = scheduled - line;
     phaseLocked_ = true;
-    const int64_t scheduledNs = static_cast<int64_t>(std::llround(scheduled));
-    if (againstLine) {
-        scheduleFrom(frame, scheduledNs, true, scheduledNs);
-    }
-    else {
-        scheduleFrom(frame, frame.hostPtsNs, false, scheduledNs);
-    }
 
     // Where the schedule sits within the slot, as a narrow arc that allows for the fit
     // wobbling as frames enter and leave the window
