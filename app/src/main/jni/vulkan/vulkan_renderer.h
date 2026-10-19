@@ -471,9 +471,16 @@ private:
     // several times faster than the display reads it, so a draw starting a little early only
     // writes rows the last scan has passed, and one starting a little late still overtakes the
     // scan within the first rows. On an iPlay 70 mini Ultra at 144 Hz (draws taking 1.43 ms on
-    // the GPU and 0.3 ms to submit), 0.5 ms here (a lead of 0.8 ms) tore at the edge where the
-    // scan starts, and a lead of 1.3 ms didn't tear.
-    static constexpr int64_t kAlignedGpuStartNs = 1'000'000;
+    // the GPU and 0.3 ms to submit), leads of 0.8 ms and, at 144 fps, 1.25 ms tore a sliver at
+    // the edge where the scan starts, on every frame (the GPU started within 0.1 ms of the same
+    // time each draw), and a lead of 1.8 ms didn't tear.
+    //
+    // A PyroWave stream decodes on the same GPU, which finishes a decode before starting a draw
+    // queued behind it: with 4.5 ms decodes at 144 fps, draws started up to 5 ms late and tore
+    // anywhere on the screen. Holding decodes back until the draws were done cost 4-8 ms of
+    // latency, since the GPU clocks down to stay about 65% busy decoding whatever the frame
+    // rate (decodes took 8.9 ms at 72 fps), so PyroWave can tear with a front buffer.
+    static constexpr int64_t kAlignedGpuStartNs = 1'500'000;
     static constexpr int64_t kAlignedDefaultLeadNs = 1'500'000;
     static constexpr size_t kAlignedLeadSamples = 64;
     // A draw this close to its time when the timer runs is drawn then rather than waited for
