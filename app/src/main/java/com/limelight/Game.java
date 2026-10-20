@@ -1551,6 +1551,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return overlayMenuView.dispatchKeyEvent(event);
         }
 
+        // Likewise the brightness slider shown from it
+        if (brightnessSliderView != null && brightnessSliderView.isControllerMode()) {
+            return brightnessSliderView.handleKeyEvent(event);
+        }
+
         // Handle a synthetic back button event that some Android OS versions
         // create as a result of a right-click. This event WILL repeat if
         // the right mouse button is held down, so we ignore those.
@@ -1651,6 +1656,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // If overlay menu is visible, route all key events to it
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.dispatchKeyEvent(event);
+        }
+
+        // Likewise the brightness slider shown from it, and the release of the key that closed it
+        if (brightnessSliderView != null && brightnessSliderView.handleKeyEvent(event)) {
+            return true;
         }
 
         // Handle a synthetic back button event that some Android OS versions
@@ -2477,6 +2487,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.onGenericMotionEvent(event);
         }
+        if (brightnessSliderView != null && brightnessSliderView.isControllerMode()) {
+            return brightnessSliderView.handleMotionEvent(event);
+        }
 
         if (isImeVisible && isAndroidTV) {
             return super.onGenericMotionEvent(event);
@@ -2555,8 +2568,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // NB: This is still needed even when we call the newer requestUnbufferedDispatch()!
             view.requestUnbufferedDispatch(event);
 
-            // Check if touch is on the left edge to show brightness slider
-            if (brightnessSliderView.isTouchInActivationZone(event.getX())) {
+            // A touch on the stream closes the slider shown from the overlay menu
+            if (brightnessSliderView.isControllerMode()) {
+                brightnessSliderView.hide();
+                return true;
+            }
+
+            // Check if touch is on the left edge to show brightness slider. Only as a trackpad:
+            // otherwise touches go to the host where they land, the left edge included, and the
+            // overlay menu has a Brightness button.
+            if (prefConfig.touchscreenTrackpad && brightnessSliderView.isTouchInActivationZone(event.getX())) {
                 brightnessSliderView.show();
                 return true; // Consume the touch event to prevent game input
             }
@@ -3330,6 +3351,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             @Override
             public void onChangeJitterBuffer() {
                 showJitterBufferDialog();
+            }
+
+            @Override
+            public void onShowBrightness() {
+                brightnessSliderView.showForController(() -> streamView.requestFocus());
             }
 
             @Override

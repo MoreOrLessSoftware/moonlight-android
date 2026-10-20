@@ -437,6 +437,7 @@
     <string name="overlay_menu_disconnect">Disconnect</string>
     <string name="overlay_menu_quit_session">Quit Session</string>
     <string name="overlay_menu_jitter_buffer">Jitter Buffer</string>
+    <string name="overlay_menu_brightness">Brightness</string>
     <string name="overlay_menu_jitter_buffer_title">Jitter buffer for this session</string>
     <string name="overlay_menu_toggle_stats">Stats (RB)</string>
     <string name="overlay_menu_stats_title">Performance stats for this session</string>

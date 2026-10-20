@@ -28,6 +28,7 @@ public class OverlayMenuView extends LinearLayout {
         void onShowKeyboard();
         void onSendGuideButton();
         void onChangeJitterBuffer();
+        void onShowBrightness();
         void onCustomCommand(CustomCommand command);
         void onMenuClosed();
     }
@@ -57,6 +58,7 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_TOGGLE_MOUSE_EMULATION = 5;
     private static final int ACTION_SEND_GUIDE = 6;
     private static final int ACTION_JITTER_BUFFER = 7;
+    private static final int ACTION_BRIGHTNESS = 8;
     private static final int ACTION_CUSTOM_BASE = 100;
 
     private long lastAnalogNavTime = 0;
@@ -155,6 +157,8 @@ public class OverlayMenuView extends LinearLayout {
             getContext().getString(R.string.overlay_menu_keyboard), ACTION_SHOW_KEYBOARD, spacing);
         addVerticalButton(R.drawable.ic_overlay_perf,
                 getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_STATS, spacing);
+        addVerticalButton(R.drawable.ic_overlay_settings_brightness,
+                getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS, spacing);
         if (showJitterBuffer) {
             addVerticalButton(R.drawable.ic_overlay_jitter_buffer,
                     getContext().getString(R.string.overlay_menu_jitter_buffer), ACTION_JITTER_BUFFER, spacing);
@@ -549,6 +553,11 @@ public class OverlayMenuView extends LinearLayout {
                 // Closed first, so the dialog gets the controller and keyboard input
                 closeMenu();
                 actionListener.onChangeJitterBuffer();
+                return;
+            } else if (action == ACTION_BRIGHTNESS) {
+                // Closed first, so the slider gets the controller and remote input
+                closeMenu();
+                actionListener.onShowBrightness();
                 return;
             } else if (action == ACTION_CLOSE) {
                 closeMenu();
