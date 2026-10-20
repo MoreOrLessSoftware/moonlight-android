@@ -67,6 +67,10 @@ public:
     // changes. Against the fitted line, the window is at least minWindowNs long.
     void restartWindow(int64_t minWindowNs, int64_t minDecayDivisor);
 
+    // Moves the offset and every transit time in the window by deltaNs, for when what samples
+    // are measured against moves by -deltaNs, so the scheduled times stay where they were
+    void shift(int64_t deltaNs);
+
     bool hasEstimate() const { return started_; }
 
     // Past the warm-up at the start of the stream (kWarmupNs), which runs with no buffer

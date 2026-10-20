@@ -127,6 +127,16 @@ void HostTimeline::restartWindow(int64_t minWindowNs, int64_t minDecayDivisor) {
     decayDivisor_ = std::max(baseDecayDivisor_, minDecayDivisor);
 }
 
+void HostTimeline::shift(int64_t deltaNs) {
+    offsetNs_ += deltaNs;
+    for (Sample& s : window_) {
+        s.transitNs += deltaNs;
+    }
+    for (Sample& s : minQueue_) {
+        s.transitNs += deltaNs;
+    }
+}
+
 bool HostTimeline::checkContinuity(int64_t hostPtsNs) {
     bool continuous = true;
     if (started_ && (hostPtsNs < lastPtsNs_ - kMaxPtsBackstepNs || hostPtsNs > lastPtsNs_ + kMaxPtsGapNs)) {
@@ -595,6 +605,23 @@ void FramePacer::updatePhase(FrameTiming& frame) {
         }
         PhaseFit recent;
         if (fitPhase(recentStart, &recent) && recent.spread < kTightSpread * static_cast<double>(slotPeriod)) {
+            const PhaseSample& oldFirst = phaseSamples_.front();
+            const PhaseSample& newFirst = phaseSamples_[recentStart];
+            const double moved =
+                    (static_cast<double>(newFirst.hostPtsNs) + recent.interval * static_cast<double>(frameIndex_ - newFirst.frameIndex)) -
+                    (static_cast<double>(oldFirst.hostPtsNs) + fit.interval * static_cast<double>(frameIndex_ - oldFirst.frameIndex));
+
+            // A line that moves later would take the schedule with it, since the buffer was
+            // measured against the old one, and the buffer only comes down slowly: on an iPlay
+            // 70 mini Ultra at 120 fps, a refit after a few seconds of uneven host timestamps
+            // moved the line 4.6 ms later, frames went a vsync later, and stayed there for 25 s
+            // with nothing arriving any later than before. Measured against the new line instead,
+            // the schedule stays put, and the buffer still grows at once if frames need it to.
+            // A line that moves earlier (one from the desktop the game started from) moves the
+            // schedule with it.
+            if (transitOnLine_ && moved > 0) {
+                timeline_.shift(-static_cast<int64_t>(std::llround(moved)));
+            }
             phaseSamples_.erase(phaseSamples_.begin(), phaseSamples_.begin() + static_cast<std::ptrdiff_t>(recentStart));
             fit = recent;
             refitted = true;
