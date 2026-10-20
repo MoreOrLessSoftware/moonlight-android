@@ -4,21 +4,22 @@
 # updating PyroWave. The Vulkan renderer loads the library at runtime, so the codec just isn't
 # offered where it's missing.
 #
-#   PYROWAVE_DIR  PyroWave checkout, with Granite checked out by its checkout_granite.sh
-#                 (default: a pyrowave folder next to the moonlight-android folder)
+#   PYROWAVE_DIR  PyroWave checkout, with Granite checked out by its checkout_granite.sh (run it
+#                 again after pulling PyroWave, which pins the Granite commit it needs)
+#                 (default: a pyrowave folder next to this repository's folder)
 #   ANDROID_NDK   NDK to build with (default: the version app/build.gradle uses, in ANDROID_HOME
 #                 or the default SDK location)
 #   NINJA         ninja executable, if it isn't on the PATH
 #
-# Only arm64-v8a is built: PyroWave needs Vulkan 1.3, which no 32-bit or x86 Android device
-# we'd stream to has.
+# Only arm64-v8a is built: PyroWave needs Vulkan 1.1 with extensions that no 32-bit or x86
+# Android device we'd stream to has.
 set -e
 
 cd "$(dirname "$0")"
 HERE=$(pwd)
 REPO=$(cd ../../../../.. && pwd)
 
-PYROWAVE_DIR=${PYROWAVE_DIR:-$REPO/../../pyrowave}
+PYROWAVE_DIR=${PYROWAVE_DIR:-$REPO/../pyrowave}
 PYROWAVE_DIR=$(cd "$PYROWAVE_DIR" && pwd)
 
 NDK_VERSION=$(sed -n 's/.*ndkVersion "\(.*\)".*/\1/p' "$REPO/app/build.gradle")
@@ -47,7 +48,10 @@ mkdir -p "$LIBS"
 "$STRIP" --strip-unneeded -o "$LIBS/libpyrowave-shared.so" "$BUILD/libpyrowave-shared.so"
 cp "$PYROWAVE_DIR/pyrowave.h" pyrowave.h
 
-# Which PyroWave these came from
-(cd "$PYROWAVE_DIR" && git log -1 --format='%H %s') > SOURCE
+# Which PyroWave (and Granite) these came from
+{
+    (cd "$PYROWAVE_DIR" && git log -1 --format='%H %s')
+    (cd "$PYROWAVE_DIR/Granite" && git log -1 --format='Granite %H %s')
+} > SOURCE
 
 echo "Updated $LIBS and $HERE from $PYROWAVE_DIR ($(cat SOURCE))"

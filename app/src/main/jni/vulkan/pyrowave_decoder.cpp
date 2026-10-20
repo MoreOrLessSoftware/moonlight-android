@@ -132,11 +132,12 @@ bool PyrowaveDecoder::loadLibrary() {
             return;
         }
 
-        // The API and ABI can change between minor versions until 1.0
+        // From 1.0 the API and ABI are stable within a major version, and a later minor version
+        // only adds to them
         uint32_t major = 0, minor = 0, patch = 0;
         api.getApiVersion(&major, &minor, &patch);
-        if (major != PYROWAVE_API_VERSION_MAJOR || minor != PYROWAVE_API_VERSION_MINOR) {
-            ALOGE("Library version %u.%u.%u doesn't match the %u.%u API we were built with", major, minor, patch,
+        if (major != PYROWAVE_API_VERSION_MAJOR || minor < PYROWAVE_API_VERSION_MINOR) {
+            ALOGE("Library version %u.%u.%u doesn't provide the %u.%u API we were built with", major, minor, patch,
                   PYROWAVE_API_VERSION_MAJOR, PYROWAVE_API_VERSION_MINOR);
             return;
         }
