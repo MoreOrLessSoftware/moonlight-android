@@ -32,6 +32,7 @@ import com.limelight.preferences.AppPreferences;
 import com.limelight.preferences.GlPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.BrightnessSliderView;
+import com.limelight.ui.DisplayKeepAwakeView;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.LatencyMarkerView;
 import com.limelight.ui.StreamView;
@@ -170,6 +171,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private TextView notificationOverlayView;
     private int requestedNotificationOverlayVisibility = View.GONE;
     private TextView performanceOverlayView;
+    private DisplayKeepAwakeView displayKeepAwakeView;
     private BrightnessSliderView brightnessSliderView;
     private OverlayMenuView overlayMenuView;
     private boolean isImeVisible = false;
@@ -375,6 +377,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         notificationOverlayView = findViewById(R.id.notificationOverlay);
 
         performanceOverlayView = findViewById(R.id.performanceOverlay);
+
+        displayKeepAwakeView = findViewById(R.id.displayKeepAwake);
 
         // Initialize brightness slider
         brightnessSliderView = new BrightnessSliderView(this);
@@ -3169,6 +3173,37 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 Toast.makeText(Game.this, R.string.toast_front_buffer_unavailable, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    @Override
+    public void onFrontBufferActive(final boolean active) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // Only a display with more than one refresh rate can drop to a lower one
+                boolean keepAwake = active && hasOtherRefreshRates();
+                if (keepAwake) {
+                    LimeLog.info("Front buffer: keeping the display at its refresh rate");
+                }
+                displayKeepAwakeView.setRunning(keepAwake);
+            }
+        });
+    }
+
+    private boolean hasOtherRefreshRates() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return false;
+        }
+        Display display = getWindowManager().getDefaultDisplay();
+        Display.Mode current = display.getMode();
+        for (Display.Mode mode : display.getSupportedModes()) {
+            if (mode.getPhysicalWidth() == current.getPhysicalWidth() &&
+                    mode.getPhysicalHeight() == current.getPhysicalHeight() &&
+                    Math.abs(mode.getRefreshRate() - current.getRefreshRate()) > 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

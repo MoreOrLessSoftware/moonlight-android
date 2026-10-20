@@ -179,6 +179,11 @@ public class VulkanRendererBridge {
         return handle != 0 && nativeIsFrontBufferUnavailable(handle);
     }
 
+    /** Whether frames are drawn into a front buffer. Known once the first frame is drawn. */
+    public boolean isFrontBufferActive() {
+        return handle != 0 && nativeIsFrontBufferActive(handle);
+    }
+
     /**
      * Total PyroWave decode time since the last call, in nanoseconds, leaving out waits: each
      * frame's CPU work, then its run on the GPU. Where the GPU can't time it, from handing the
@@ -254,6 +259,7 @@ public class VulkanRendererBridge {
     private static native void nativeSetVsyncOffset(long handle, long offsetNs);
     private static native int nativeTakePresentedFrames(long handle);
     private static native boolean nativeIsFrontBufferUnavailable(long handle);
+    private static native boolean nativeIsFrontBufferActive(long handle);
     private static native long nativeTakeDecodedNs(long handle);
     private static native void nativeTakeCaptureLatency(long handle, long[] out);
     private static native String nativeGetRendererText(long handle);

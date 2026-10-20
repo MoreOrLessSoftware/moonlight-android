@@ -137,6 +137,8 @@ public:
     uint32_t takePresentedFrames() { return presentedFrames_.exchange(0); }
     // A front buffer was asked for but the swapchain couldn't have one, so the normal one is used
     bool frontBufferUnavailable() const { return frontBufferUnavailable_; }
+    // The swapchain is a front buffer
+    bool frontBufferActive() const { return frontBuffer_; }
 
     // Total PyroWave decode time since the last call, leaving out waits: each frame's CPU work,
     // then its run on the GPU. Where the GPU can't time it, from handing the frame to the renderer

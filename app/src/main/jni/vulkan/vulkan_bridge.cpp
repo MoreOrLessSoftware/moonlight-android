@@ -189,6 +189,12 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeIsFrontBufferUnavail
     return renderer && renderer->frontBufferUnavailable() ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeIsFrontBufferActive(JNIEnv*, jclass, jlong handle) {
+    VulkanRenderer* renderer = fromHandle(handle);
+    return renderer && renderer->frontBufferActive() ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeTakeCaptureLatency(JNIEnv* env, jclass, jlong handle,
                                                                               jlongArray out) {

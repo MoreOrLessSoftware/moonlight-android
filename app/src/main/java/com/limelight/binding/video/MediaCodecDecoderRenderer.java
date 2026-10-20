@@ -157,6 +157,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private boolean wantVulkan;
     private volatile VulkanRendererBridge vulkanRenderer;
     private boolean frontBufferUnavailableReported;
+    private boolean frontBufferActiveReported;
 
     // A PyroWave stream: no MediaCodec, the Vulkan renderer decodes it
     private boolean pyrowave;
@@ -1418,6 +1419,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (vulkanRenderer != null) {
             vulkanRenderer.stop();
         }
+        if (frontBufferActiveReported) {
+            frontBufferActiveReported = false;
+            perfListener.onFrontBufferActive(false);
+        }
 
         // Post a quit message to the Choreographer looper (if we have one)
         if (choreographerHandler != null) {
@@ -1749,6 +1754,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 if (!frontBufferUnavailableReported && vulkanRenderer.isFrontBufferUnavailable()) {
                     frontBufferUnavailableReported = true;
                     perfListener.onFrontBufferUnavailable();
+                }
+                boolean frontBufferActive = vulkanRenderer.isFrontBufferActive();
+                if (frontBufferActive != frontBufferActiveReported) {
+                    frontBufferActiveReported = frontBufferActive;
+                    perfListener.onFrontBufferActive(frontBufferActive);
                 }
             }
 
