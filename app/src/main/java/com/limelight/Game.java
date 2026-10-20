@@ -3319,10 +3319,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onQuitSession() {
-                userInitiatedDisconnect = true;
-                controllerHandler.pendingApplicationQuit = true;
-                stopConnection();
-                finish();
+                // Quitting closes the game on the host, losing anything unsaved, so ask first
+                UiHelper.displayQuitConfirmationDialog(Game.this, () -> {
+                    userInitiatedDisconnect = true;
+                    controllerHandler.pendingApplicationQuit = true;
+                    stopConnection();
+                    finish();
+                }, null);
             }
 
             @Override

@@ -535,8 +535,10 @@ public class OverlayMenuView extends LinearLayout {
                 actionListener.onDisconnect();
                 shouldCloseMenu = true;
             } else if (action == ACTION_QUIT) {
+                // Closed first, so the confirmation gets the controller and keyboard input
+                closeMenu();
                 actionListener.onQuitSession();
-                shouldCloseMenu = true;
+                return;
             } else if (action == ACTION_STATS) {
                 activateStats();
                 return;
