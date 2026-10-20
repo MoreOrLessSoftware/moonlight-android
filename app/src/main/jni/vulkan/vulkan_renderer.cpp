@@ -536,6 +536,26 @@ bool VulkanRenderer::init(ANativeWindow* output) {
         return false;
     }
 
+    // Work for the GPU between PyroWave decodes, so it keeps its clock up (GpuKeepBusy). Off
+    // unless switched on with adb shell setprop debug.moonlight.gpu_keep_busy 1; each piece of
+    // it takes about adb shell setprop debug.moonlight.gpu_keep_busy_chunk_us 500, with
+    // adb shell setprop debug.moonlight.gpu_keep_busy_groups 4 workgroups.
+    if (config_.pyrowave) {
+        char value[PROP_VALUE_MAX] = {};
+        if (__system_property_get("debug.moonlight.gpu_keep_busy", value) > 0 && atoi(value) != 0) {
+            int64_t chunkNs = 500'000;
+            if (__system_property_get("debug.moonlight.gpu_keep_busy_chunk_us", value) > 0 && atoi(value) > 0) {
+                chunkNs = static_cast<int64_t>(std::clamp(atoi(value), 100, 5000)) * 1000;
+            }
+            uint32_t groups = 4;
+            if (__system_property_get("debug.moonlight.gpu_keep_busy_groups", value) > 0 && atoi(value) > 0) {
+                groups = static_cast<uint32_t>(std::clamp(atoi(value), 1, 1024));
+            }
+            keepBusyGroups_ = keepBusy_.start(vk_, instance_, physicalDevice_, queueFamily_, globalPriorityExt_, chunkNs,
+                                           groups) ? groups : 0;
+        }
+    }
+
     // To try a present delay or guard rather than the ones learned (PresentScheduler):
     // adb shell setprop debug.moonlight.present_delay 1 (vsyncs), and
     // adb shell setprop debug.moonlight.present_guard_us 6000. Empty or 0 delay learns as usual.
@@ -567,11 +587,11 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     char configuration[512];
     snprintf(configuration, sizeof(configuration),
              "mode=%d,jitterBuffer=%d,presentAhead=%d,streamFps=%d,width=%d,height=%d,periodNs=%lld,refreshHz=%.3f,tenBit=%d,dither=%d,"
-             "perfHintUs=%lld,gpuPriority=%s,keepAliveMs=%lld,codec=%s,decoder=%s",
+             "perfHintUs=%lld,gpuPriority=%s,gpuKeepBusy=%u,keepAliveMs=%lld,codec=%s,decoder=%s",
              config_.framePacing, config_.jitterBuffer, presentAhead_ ? 1 : 0, config_.streamFps, config_.streamWidth, config_.streamHeight,
              static_cast<long long>(pacer_.vsyncPeriodNs()), config_.displayRefreshHz, config_.tenBit ? 1 : 0,
              config_.ditherMode, static_cast<long long>(perfHintTargetNs / 1000), highPriorityQueue_ ? "high" : "default",
-             static_cast<long long>(keepAliveNs_ / 1'000'000), config_.codec.c_str(), config_.decoderName.c_str());
+             keepBusyGroups_, static_cast<long long>(keepAliveNs_ / 1'000'000), config_.codec.c_str(), config_.decoderName.c_str());
     trace_.start(config_.traceDirectory, configuration);
     traceRecording_ = trace_.recording();
 
@@ -1057,6 +1077,8 @@ void VulkanRenderer::stop() {
         return;
     }
     stopped_ = true;
+
+    keepBusy_.stop();
 
     if (renderThread_.joinable()) {
         quit_ = true;

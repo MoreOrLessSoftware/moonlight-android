@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "frame_pacer.h"
+#include "gpu_keep_busy.h"
 #include "ndk_api.h"
 #include "pacer_trace.h"
 #include "perf_hint.h"
@@ -344,6 +345,9 @@ private:
     // our queues got high priority with it (createDevice())
     const char* globalPriorityExt_ = nullptr;
     bool highPriorityQueue_ = false;
+    // Work keeping the GPU busy between PyroWave decodes, if switched on (gpu_keep_busy.h)
+    GpuKeepBusy keepBusy_;
+    uint32_t keepBusyGroups_ = 0;  // Its workgroups, 0 when off
     uint64_t nextPresentId_ = 1;
 
     // Render thread: which vsync each present should reach the screen at

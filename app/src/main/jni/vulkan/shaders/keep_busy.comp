@@ -1,0 +1,23 @@
+#version 450
+
+// Work for the GPU while it would otherwise be idle, so its governor keeps its clock up (see
+// gpu_keep_busy.h). A dependent chain of multiply-adds per invocation, as many times as asked;
+// the result is written so the loop can't be left out.
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 0) buffer Results {
+    float results[];
+};
+
+layout(push_constant) uniform Params {
+    uint iterations;
+};
+
+void main() {
+    float x = float(gl_GlobalInvocationID.x);
+    for (uint i = 0u; i < iterations; i++) {
+        x = x * 0.999987 + 0.5;
+    }
+    results[gl_GlobalInvocationID.x] = x;
+}

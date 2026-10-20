@@ -108,7 +108,13 @@
     X(vkGetQueryPoolResults) \
     X(vkCmdResetQueryPool) \
     X(vkCmdWriteTimestamp) \
-    X(vkGetMemoryFdKHR)
+    X(vkGetMemoryFdKHR) \
+    X(vkCreateBuffer) \
+    X(vkDestroyBuffer) \
+    X(vkGetBufferMemoryRequirements) \
+    X(vkBindBufferMemory) \
+    X(vkCreateComputePipelines) \
+    X(vkCmdDispatch)
 
 #define VK_DECLARE_FUNCTION(name) PFN_##name name = nullptr;
 

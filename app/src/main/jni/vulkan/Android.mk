@@ -5,6 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := vulkan_renderer
 LOCAL_SRC_FILES := \
     frame_pacer.cpp \
+    gpu_keep_busy.cpp \
     ndk_api.cpp \
     pacer_trace.cpp \
     perf_hint.cpp \
