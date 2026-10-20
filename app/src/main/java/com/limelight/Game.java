@@ -688,7 +688,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             // PyroWave never falls back to another codec
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
-                    "This device can't decode PyroWave. It needs Vulkan 1.3 on a 64-bit ARM device.", true);
+                    "This device can't decode PyroWave. It needs Vulkan 1.1 with subgroup size control on a 64-bit ARM device.", true);
             return;
         }
 

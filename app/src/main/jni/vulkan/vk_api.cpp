@@ -55,5 +55,9 @@ bool VkApi::loadDevice(VkDevice device) {
     name = reinterpret_cast<PFN_##name>(vkGetDeviceProcAddr(device, #name));
     VK_OPTIONAL_DEVICE_FUNCTIONS(VK_LOAD_OPTIONAL)
 #undef VK_LOAD_OPTIONAL
+    // Before Vulkan 1.2, from VK_KHR_timeline_semaphore
+    if (!vkWaitSemaphores) {
+        vkWaitSemaphores = reinterpret_cast<PFN_vkWaitSemaphores>(vkGetDeviceProcAddr(device, "vkWaitSemaphoresKHR"));
+    }
     return ok;
 }

@@ -130,6 +130,9 @@ namespace {
         VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
     };
 
+    // The newest Vulkan a PyroWave instance and device use, where they have it
+    constexpr uint32_t kPyrowaveApiVersion = VK_API_VERSION_1_3;
+
     // Checks the parts of a physical device we can't run without
     bool deviceIsSuitable(VkApi& vk, VkPhysicalDevice device) {
         VkPhysicalDeviceProperties props;
@@ -176,13 +179,14 @@ bool VulkanRenderer::ConversionKey::operator==(const ConversionKey& other) const
 
 VkInstance VulkanRenderer::createVkInstance(VkApi& vk, bool pyrowave, bool* hasColorspaceExt, InstanceSetup& setup,
                                             bool frontBuffer) {
-    // PyroWave's Vulkan backend needs 1.3
-    const uint32_t apiVersion = pyrowave ? VK_API_VERSION_1_3 : VK_API_VERSION_1_1;
     uint32_t version = 0;
-    if (vk.vkEnumerateInstanceVersion(&version) != VK_SUCCESS || version < apiVersion) {
+    if (vk.vkEnumerateInstanceVersion(&version) != VK_SUCCESS || version < VK_API_VERSION_1_1) {
         ALOGI("Vulkan instance version too old");
         return VK_NULL_HANDLE;
     }
+    // PyroWave's Vulkan backend runs on 1.1 with extensions, and uses what's core up to 1.3
+    // where the device has it
+    const uint32_t apiVersion = pyrowave ? std::min(version, kPyrowaveApiVersion) : VK_API_VERSION_1_1;
 
     uint32_t count = 0;
     vk.vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
@@ -266,10 +270,12 @@ bool VulkanRenderer::prepareDevice(VkApi& vk, VkPhysicalDevice device, uint32_t 
         // PyroWave sees what the device has enabled, so give it all the device supports
         VkPhysicalDeviceProperties props;
         vk.vkGetPhysicalDeviceProperties(device, &props);
-        if (props.apiVersion < VK_API_VERSION_1_3 || !setup.pyrowave.query(vk, device)) {
+        if (!setup.pyrowave.query(vk, device, std::min(props.apiVersion, kPyrowaveApiVersion))) {
             ALOGI("%s can't run PyroWave", props.deviceName);
             return false;
         }
+        setup.extensions.insert(setup.extensions.end(), setup.pyrowave.extensions.begin(),
+                                setup.pyrowave.extensions.end());
         setup.info.pNext = &setup.pyrowave.features2;
     }
     else {
@@ -373,6 +379,7 @@ bool VulkanRenderer::probePyrowave() {
                 vk.vkGetDeviceQueue(device, family, 0, &info.queue);
                 info.queueFamily = family;
                 info.queueMutex = &queueMutex;
+                info.timelineSemaphores = deviceSetup.pyrowave.timelineSemaphores;
                 supported = PyrowaveDecoder::create(vk, info, 64, 64, false) != nullptr;
                 vk.vkDeviceWaitIdle(device);
                 vk.vkDestroyDevice(device, nullptr);
@@ -639,12 +646,6 @@ bool VulkanRenderer::pickDevice() {
         if (!deviceIsSuitable(vk_, device)) {
             continue;
         }
-        VkPhysicalDeviceProperties deviceProps;
-        vk_.vkGetPhysicalDeviceProperties(device, &deviceProps);
-        if (config_.pyrowave && deviceProps.apiVersion < VK_API_VERSION_1_3) {
-            continue;
-        }
-
         uint32_t familyCount = 0;
         vk_.vkGetPhysicalDeviceQueueFamilyProperties(device, &familyCount, nullptr);
         std::vector<VkQueueFamilyProperties> families(familyCount);
@@ -880,6 +881,7 @@ bool VulkanRenderer::createPyrowaveDecoder() {
     info.queueMutex = &queueMutex_;
     info.timestampValidBits = timestampValidBits_;
     info.timestampPeriodNs = timestampPeriodNs_;
+    info.timelineSemaphores = deviceSetup_.pyrowave.timelineSemaphores;
     if (decodeDevice_) {
         info.device = decodeDevice_;
         info.deviceInfo = &decodeDeviceSetup_.info;
@@ -898,11 +900,6 @@ bool VulkanRenderer::createPyrowaveDecoder() {
         return false;
     }
     pyrowave_->setLostFrameMinBlocks(lostFrameMinPercent_ / 100.0f);
-
-    if (!vk_.vkWaitSemaphores) {
-        ALOGE("vkWaitSemaphores not available");
-        return false;
-    }
 
     const VkDescriptorSetLayout setLayout = pyrowave_->setLayout();
     VkPushConstantRange range {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants)};
@@ -936,13 +933,7 @@ void VulkanRenderer::pyrowaveWaiterMain() {
             decoding_.pop_front();
         }
 
-        const VkSemaphore timeline = pyrowave_->timeline();
-        VkSemaphoreWaitInfo waitInfo {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &timeline;
-        waitInfo.pValues = &frame->readyValue;
-        const VkResult result = decodeDevice_ ? decodeVk_.vkWaitSemaphores(decodeDevice_, &waitInfo, kFenceTimeoutNs)
-                                              : vk_.vkWaitSemaphores(device_, &waitInfo, kFenceTimeoutNs);
+        const VkResult result = pyrowave_->waitDecoded(frame->readyValue, kFenceTimeoutNs);
         if (result != VK_SUCCESS) {
             ALOGE("PyroWave decode didn't finish: %d", result);
             continue;
@@ -2026,6 +2017,16 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
         vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                  0, 0, nullptr, 0, nullptr, 3, planeBarriers);
     }
+    // Without timeline semaphores, nothing below waits for the decode on the GPU: it was waited
+    // for on its fence before the frame got here, and this makes its writes visible
+    const bool waitDecode = planar && !ownDecodeDevice && pyrowave_->timeline() != VK_NULL_HANDLE;
+    if (planar && !ownDecodeDevice && !waitDecode) {
+        VkMemoryBarrier decoded {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+        decoded.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        decoded.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0, 1, &decoded, 0, nullptr, 0, nullptr);
+    }
     if (timed) {
         vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampPool_, kTimestampsPerFrame * slot + 1);
     }
@@ -2085,7 +2086,6 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     // for the image, so the start timestamp shows when it was free; only a draw's vertex work
     // could otherwise go ahead of it, which for one triangle is nothing. A decode on a device of
     // its own was waited for before the frame got here, and its timeline is on that device.
-    const bool waitDecode = planar && !ownDecodeDevice;
     const VkSemaphore waitSemaphores[2] = {imageAcquired_[slot], waitDecode ? pyrowave_->timeline() : VK_NULL_HANDLE};
     const VkPipelineStageFlags waitStages[2] = {
             timed ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,

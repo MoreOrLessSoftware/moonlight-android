@@ -77,11 +77,78 @@ void PyrowaveDecoder::unlockQueue(void* userdata) {
     decoder->info_.queueMutex->unlock();
 }
 
-bool PyrowaveDeviceFeatures::query(const VkApi& vk, VkPhysicalDevice device) {
-    features2.pNext = &vk11;
-    vk11.pNext = &vk12;
-    vk12.pNext = &vk13;
-    vk13.pNext = nullptr;
+bool PyrowaveDeviceFeatures::query(const VkApi& vk, VkPhysicalDevice device, uint32_t apiVersion) {
+    uint32_t count = 0;
+    vk.vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> available(count);
+    vk.vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data());
+    const auto has = [&](const char* name) {
+        for (const auto& ext : available) {
+            if (strcmp(ext.extensionName, name) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // The chain, and the extensions for what isn't core: each struct goes in only where its
+    // extension is enabled
+    extensions.clear();
+    void** next = &features2.pNext;
+    const auto chain = [&](auto& features) {
+        *next = &features;
+        next = &features.pNext;
+    };
+    const auto chainExtension = [&](auto& features, const char* name) {
+        if (has(name)) {
+            chain(features);
+            extensions.push_back(name);
+        }
+    };
+    if (apiVersion >= VK_API_VERSION_1_2) {
+        chain(vk11);
+        chain(vk12);
+    }
+    else {
+        // Sampler YCbCr conversion and 16-bit storage are core in 1.1, with structs of their own,
+        // but Granite only reads those when their extensions are enabled too
+        chain(ycbcr);
+        if (has(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME)) {
+            extensions.push_back(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+        }
+        chain(storage16);
+        if (has(VK_KHR_16BIT_STORAGE_EXTENSION_NAME)) {
+            extensions.push_back(VK_KHR_16BIT_STORAGE_EXTENSION_NAME);
+        }
+        chainExtension(storage8, VK_KHR_8BIT_STORAGE_EXTENSION_NAME);
+        chainExtension(float16Int8, VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME);
+        chainExtension(timeline, VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
+        chainExtension(hostQueryReset, VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME);
+        chainExtension(descriptorIndexing, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+        chainExtension(scalarBlockLayout, VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME);
+        // Granite needs it before 1.2, without a features struct
+        if (has(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME)) {
+            extensions.push_back(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
+        }
+        if (has(VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME)) {
+            extensions.push_back(VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME);
+        }
+        // Granite only reads the driver ID with it enabled, and PyroWave picks the fragment
+        // path by it: without it, a Pixel 4's Adreno 640 got the compute path, at 18 ms a frame
+        if (has(VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME)) {
+            extensions.push_back(VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME);
+        }
+    }
+    if (apiVersion >= VK_API_VERSION_1_3) {
+        chain(vk13);
+    }
+    else {
+        chainExtension(subgroupSizeControl, VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME);
+        chainExtension(demote, VK_EXT_SHADER_DEMOTE_TO_HELPER_INVOCATION_EXTENSION_NAME);
+        // Granite emulates it where it's missing
+        chainExtension(sync2, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
+    }
+    *next = nullptr;
     vk.vkGetPhysicalDeviceFeatures2(device, &features2);
 
     // Robustness costs performance and nothing here needs it, and protected memory needs
@@ -90,9 +157,31 @@ bool PyrowaveDeviceFeatures::query(const VkApi& vk, VkPhysicalDevice device) {
     vk13.robustImageAccess = VK_FALSE;
     vk11.protectedMemory = VK_FALSE;
 
-    // What PyroWave's Vulkan backend and decoder can't do without
-    return vk13.synchronization2 && vk13.subgroupSizeControl && vk13.computeFullSubgroups &&
-           vk12.timelineSemaphore && vk11.samplerYcbcrConversion;
+    // What our side needs: rendering samples through a YCbCr conversion. Decodes are ordered
+    // and waited for on a timeline semaphore where there is one, and with fences where not.
+    timelineSemaphores = apiVersion >= VK_API_VERSION_1_2 ? vk12.timelineSemaphore : timeline.timelineSemaphore;
+    const bool hasYcbcr = apiVersion >= VK_API_VERSION_1_2 ? vk11.samplerYcbcrConversion : ycbcr.samplerYcbcrConversion;
+    if (!hasYcbcr) {
+        ALOGI("No PyroWave on Vulkan %u.%u without sampler YCbCr conversion", VK_API_VERSION_MAJOR(apiVersion),
+              VK_API_VERSION_MINOR(apiVersion));
+        return false;
+    }
+    if (!timelineSemaphores) {
+        ALOGI("Vulkan %u.%u device lacks timeline semaphores; PyroWave decodes are tracked with fences",
+              VK_API_VERSION_MAJOR(apiVersion), VK_API_VERSION_MINOR(apiVersion));
+    }
+    // PyroWave's own needs, which it checks when a decoder is made; logged here to say why
+    const bool hasSubgroupSizeControl = apiVersion >= VK_API_VERSION_1_3
+            ? vk13.subgroupSizeControl && vk13.computeFullSubgroups
+            : subgroupSizeControl.subgroupSizeControl && subgroupSizeControl.computeFullSubgroups;
+    if (!hasSubgroupSizeControl) {
+        ALOGI("Vulkan %u.%u device lacks subgroup size control, which PyroWave's decoder needs",
+              VK_API_VERSION_MAJOR(apiVersion), VK_API_VERSION_MINOR(apiVersion));
+    }
+    if (apiVersion < VK_API_VERSION_1_2 && !has(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME)) {
+        ALOGI("Vulkan 1.1 device lacks %s, which PyroWave needs", VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
+    }
+    return true;
 }
 
 bool PyrowaveDecoder::loadLibrary() {
@@ -210,12 +299,13 @@ bool PyrowaveDecoder::init(int width, int height, bool tenBit) {
     // PyroWave picks the fragment path for Qualcomm and Mali. PowerVR is the same: on a Pixel 10
     // Pro at 2276x1280 10-bit, a frame took 6 ms that way and 15 ms on the compute path. To
     // compare the two: adb shell setprop debug.moonlight.pyrowave_path fragment (or compute)
-    VkPhysicalDeviceVulkan12Properties vk12Props {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES};
+    // (Core in Vulkan 1.2, and from VK_KHR_driver_properties before)
+    VkPhysicalDeviceDriverProperties driverProps {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
     VkPhysicalDeviceProperties2 props2 {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
-    props2.pNext = &vk12Props;
+    props2.pNext = &driverProps;
     vk_.vkGetPhysicalDeviceProperties2(info_.physicalDevice, &props2);
     bool prefersFragment = api.prefersFragmentPath(device_) ||
-                           vk12Props.driverID == VK_DRIVER_ID_IMAGINATION_PROPRIETARY;
+                           driverProps.driverID == VK_DRIVER_ID_IMAGINATION_PROPRIETARY;
     char forced[PROP_VALUE_MAX] = {};
     __system_property_get("debug.moonlight.pyrowave_path", forced);
     if (strcmp(forced, "fragment") == 0 || strcmp(forced, "compute") == 0) {
@@ -311,13 +401,28 @@ bool PyrowaveDecoder::init(int width, int height, bool tenBit) {
         return false;
     }
 
-    VkSemaphoreTypeCreateInfo timelineInfo {VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
-    timelineInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    timelineInfo.initialValue = 0;
-    VkSemaphoreCreateInfo semaphoreInfo {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-    semaphoreInfo.pNext = &timelineInfo;
-    if (vk_.vkCreateSemaphore(info_.device, &semaphoreInfo, nullptr, &timeline_) != VK_SUCCESS) {
-        return false;
+    if (info_.timelineSemaphores) {
+        if (!vk_.vkWaitSemaphores) {
+            ALOGE("vkWaitSemaphores not available");
+            return false;
+        }
+        VkSemaphoreTypeCreateInfo timelineInfo {VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
+        timelineInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        timelineInfo.initialValue = 0;
+        VkSemaphoreCreateInfo semaphoreInfo {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        semaphoreInfo.pNext = &timelineInfo;
+        if (vk_.vkCreateSemaphore(info_.device, &semaphoreInfo, nullptr, &timeline_) != VK_SUCCESS) {
+            return false;
+        }
+    }
+    else {
+        // Unsignaled: one is only waited for once its decode is submitted
+        VkFenceCreateInfo slotFenceInfo {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+        for (auto& slot : decodeSlots_) {
+            if (vk_.vkCreateFence(info_.device, &slotFenceInfo, nullptr, &slot.fence) != VK_SUCCESS) {
+                return false;
+            }
+        }
     }
 
     ALOGI("Decoding %ux%u %s 4:2:0 on the %s path", width_, height_, tenBit_ ? "10-bit" : "8-bit",
@@ -340,6 +445,9 @@ PyrowaveDecoder::~PyrowaveDecoder() {
 
     VkDevice device = info_.device;
     if (fence_) vk_.vkDestroyFence(device, fence_, nullptr);
+    for (auto& slot : decodeSlots_) {
+        if (slot.fence) vk_.vkDestroyFence(device, slot.fence, nullptr);
+    }
     if (timestampPool_) vk_.vkDestroyQueryPool(device, timestampPool_, nullptr);
     if (commandPool_) vk_.vkDestroyCommandPool(device, commandPool_, nullptr);
     if (timeline_) vk_.vkDestroySemaphore(device, timeline_, nullptr);
@@ -462,24 +570,25 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
         doneValue = slot.value;
     }
     if (doneValue != 0) {
-        VkSemaphoreWaitInfo waitInfo {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &timeline_;
-        waitInfo.pValues = &doneValue;
         const int64_t waitStartNs = nowNs();
-        const VkResult waited = vk_.vkWaitSemaphores(info_.device, &waitInfo, UINT64_MAX);
+        const VkResult waited = waitDecoded(doneValue, UINT64_MAX);
         waitedNs_ += nowNs() - waitStartNs;
         if (waited != VK_SUCCESS) {
-            ALOGE("vkWaitSemaphores failed for a decode's commands: %d", waited);
+            ALOGE("Waiting for a decode's commands failed: %d", waited);
             release(planes);
             times->waitedNs = waitedNs_;
             return nullptr;
         }
     }
     {
-        // Its timestamps are about to be reset
-        std::lock_guard<std::mutex> lock(timestampMutex_);
+        // Its timestamps are about to be reset, and its fence. Its decode is done, so anything
+        // still waiting for the fence is about to return.
+        std::unique_lock<std::mutex> lock(timestampMutex_);
         slot.value = 0;
+        slotWaitersCv_.wait(lock, [&slot] { return slot.waiters == 0; });
+    }
+    if (slot.fence) {
+        vk_.vkResetFences(info_.device, 1, &slot.fence);
     }
 
     VkCommandBuffer cmd = slot.commandBuffer;
@@ -495,7 +604,18 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
 
     // With our commands, PyroWave leaves synchronizing them to us: the submission below waits
     // for the decode before at the stage that writes the planes, which makes the planes' writes
-    // visible to it, and the render waits for the timeline before reading them
+    // visible to it, and the render waits for the timeline before reading them. Without a
+    // timeline, a barrier does the same for the decode before, which is ahead of this one on
+    // the queue, and the render makes the writes visible itself.
+    const VkPipelineStageFlags waitStage = fragmentPath_ ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                                         : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    if (!timeline_) {
+        VkMemoryBarrier barrier {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+        barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+        vk_.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, waitStage, 0, 1, &barrier, 0, nullptr,
+                                 0, nullptr);
+    }
     if (ownDevice()) {
         recordOwnership(cmd, *planes, true);
     }
@@ -527,29 +647,29 @@ PyrowavePlanes* PyrowaveDecoder::decode(const uint8_t* data, size_t size, const 
     // can then be written before the one before ends.
     const uint64_t waitValue = lastValue_;
     const uint64_t signalValue = lastValue_ + 1;
-    const VkPipelineStageFlags waitStage = fragmentPath_ ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                                         : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     VkTimelineSemaphoreSubmitInfo timelineInfo {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
     timelineInfo.waitSemaphoreValueCount = waitValue != 0 ? 1 : 0;
     timelineInfo.pWaitSemaphoreValues = &waitValue;
     timelineInfo.signalSemaphoreValueCount = 1;
     timelineInfo.pSignalSemaphoreValues = &signalValue;
     VkSubmitInfo submit {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submit.pNext = &timelineInfo;
-    submit.waitSemaphoreCount = waitValue != 0 ? 1 : 0;
-    submit.pWaitSemaphores = &timeline_;
-    submit.pWaitDstStageMask = &waitStage;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &cmd;
-    submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores = &timeline_;
+    if (timeline_) {
+        submit.pNext = &timelineInfo;
+        submit.waitSemaphoreCount = waitValue != 0 ? 1 : 0;
+        submit.pWaitSemaphores = &timeline_;
+        submit.pWaitDstStageMask = &waitStage;
+        submit.signalSemaphoreCount = 1;
+        submit.pSignalSemaphores = &timeline_;
+    }
     VkResult submitted;
     {
         const int64_t lockStartNs = nowNs();
         std::lock_guard<std::mutex> lock(*info_.queueMutex);
         const int64_t submitStartNs = nowNs();
         waitedNs_ += submitStartNs - lockStartNs;
-        submitted = vk_.vkQueueSubmit(info_.queue, 1, &submit, VK_NULL_HANDLE);
+        submitted = vk_.vkQueueSubmit(info_.queue, 1, &submit, slot.fence);
         times->submitNs = nowNs() - submitStartNs;
     }
     times->waitedNs = waitedNs_;
@@ -603,6 +723,40 @@ bool PyrowaveDecoder::gpuTimes(uint64_t readyValue, int64_t* startNs, int64_t* e
         return true;
     }
     return false;
+}
+
+VkResult PyrowaveDecoder::waitDecoded(uint64_t value, uint64_t timeoutNs) {
+    if (timeline_) {
+        VkSemaphoreWaitInfo waitInfo {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &timeline_;
+        waitInfo.pValues = &value;
+        return vk_.vkWaitSemaphores(info_.device, &waitInfo, timeoutNs);
+    }
+
+    // The decode's slot's fence, which also covers everything submitted to the queue before it.
+    // A slot is only reused once a later decode is done, so if it's gone, so is this decode.
+    DecodeSlot* slot = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(timestampMutex_);
+        for (auto& candidate : decodeSlots_) {
+            if (candidate.value == value) {
+                slot = &candidate;
+                break;
+            }
+        }
+        if (!slot) {
+            return VK_SUCCESS;
+        }
+        slot->waiters++;
+    }
+    const VkResult result = vk_.vkWaitForFences(info_.device, 1, &slot->fence, VK_TRUE, timeoutNs);
+    {
+        std::lock_guard<std::mutex> lock(timestampMutex_);
+        slot->waiters--;
+    }
+    slotWaitersCv_.notify_all();
+    return result;
 }
 
 bool PyrowaveDecoder::pushPartialFrame(const uint8_t* data, size_t size, const Gap* gaps, size_t gapCount) {
@@ -777,14 +931,17 @@ bool PyrowaveDecoder::createPlanes(PyrowavePlanes& planes) {
     timelineInfo.signalSemaphoreValueCount = 1;
     timelineInfo.pSignalSemaphoreValues = &signalValue;
     VkSubmitInfo submit {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submit.pNext = &timelineInfo;
-    submit.waitSemaphoreCount = waitValue != 0 ? 1 : 0;
-    submit.pWaitSemaphores = &timeline_;
-    submit.pWaitDstStageMask = &waitStage;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &commandBuffer_;
-    submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores = &timeline_;
+    // Without a timeline, the barrier's ALL_COMMANDS covers the decodes after it on the queue
+    if (timeline_) {
+        submit.pNext = &timelineInfo;
+        submit.waitSemaphoreCount = waitValue != 0 ? 1 : 0;
+        submit.pWaitSemaphores = &timeline_;
+        submit.pWaitDstStageMask = &waitStage;
+        submit.signalSemaphoreCount = 1;
+        submit.pSignalSemaphores = &timeline_;
+    }
 
     vk_.vkResetFences(device, 1, &fence_);
     VkResult result;

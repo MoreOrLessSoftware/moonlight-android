@@ -46,7 +46,7 @@ public class VulkanRendererBridge {
 
     /**
      * Whether the renderer can decode PyroWave here: libpyrowave-shared.so is packaged for this
-     * ABI, and the GPU can run it (Vulkan 1.3 and the features PyroWave needs). Tried once, by
+     * ABI, and the GPU can run it (Vulkan 1.1 and the extensions PyroWave needs). Tried once, by
      * making a decoder, which takes a moment.
      */
     public static synchronized boolean isPyrowaveSupported() {
