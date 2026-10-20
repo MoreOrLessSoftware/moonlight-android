@@ -297,6 +297,8 @@
     <string name="pyrowave_late_frames_balanced">Balanced (Recommended)</string>
     <string name="pyrowave_late_frames_smooth">Smoother</string>
     <string name="pyrowave_late_frames_smoothest">Smoothest (most blur)</string>
+    <string name="title_pyrowave_gpu_boost">PyroWave GPU boost</string>
+    <string name="summary_pyrowave_gpu_boost">Only used with the PyroWave codec: gives the GPU light work between frames so it keeps its clock up, making decoding faster and steadier where the GPU would otherwise slow down between frames. Uses more power and runs warmer, so drains the battery faster</string>
     <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>
     <string name="title_enable_hdr">Enable HDR / 10-bit SDR</string>
     <string name="summary_enable_hdr">Stream HDR / 10-bit SDR when the game and PC GPU support it. Requires a GPU with HEVC Main 10 encoding support.</string>

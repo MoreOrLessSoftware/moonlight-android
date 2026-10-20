@@ -75,20 +75,21 @@ public class VulkanRendererBridge {
      *                       {@code adb shell setprop debug.moonlight.pacer_trace 1}, or null
      * @param frontBuffer draw into a front buffer the display reads directly, timed to each scan,
      *                    where the device has one
+     * @param pyrowaveGpuBoost for PyroWave, keep the GPU busy between decodes so its clock stays up
      */
     public static VulkanRendererBridge create(Surface output, int streamWidth, int streamHeight, int streamFps,
                                               int framePacing, int jitterBuffer, int ditherMode, int colorspace,
                                               boolean fullRange, boolean tenBit, boolean pyrowave,
                                               boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
                                               float displayRefreshHz, String codec, String decoderName,
-                                              String traceDirectory, boolean frontBuffer) {
+                                              String traceDirectory, boolean frontBuffer, boolean pyrowaveGpuBoost) {
         if (!isSupported() || (pyrowave && !isPyrowaveSupported())) {
             return null;
         }
 
         long handle = nativeCreate(output, streamWidth, streamHeight, streamFps, framePacing, jitterBuffer, ditherMode,
                 colorspace, fullRange, tenBit, pyrowave, pyrowaveCenterChroma, pyrowaveLateFrames, displayRefreshHz,
-                codec, decoderName, traceDirectory, frontBuffer);
+                codec, decoderName, traceDirectory, frontBuffer, pyrowaveGpuBoost);
         if (handle == 0) {
             return null;
         }
@@ -247,7 +248,7 @@ public class VulkanRendererBridge {
                                             boolean fullRange, boolean tenBit, boolean pyrowave,
                                             boolean pyrowaveCenterChroma, int pyrowaveLateFrames,
                                             float displayRefreshHz, String codec, String decoderName,
-                                            String traceDirectory, boolean frontBuffer);
+                                            String traceDirectory, boolean frontBuffer, boolean pyrowaveGpuBoost);
     private static native boolean nativeSubmitPyrowaveFrame(long handle, byte[] frame, int length, long hostPtsUs,
                                                             long lastPacketUs, int[] missingRanges,
                                                             int[] recordStarts, int partialKind);

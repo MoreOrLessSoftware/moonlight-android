@@ -41,6 +41,7 @@ struct RendererConfig {
     bool pyrowaveCenterChroma = false;  // From the nonary host: 4:2:0 chroma sited at the center
     int pyrowaveLateFrames = 2;  // PreferenceConfiguration.PYROWAVE_LATE_FRAMES_*
     bool frontBuffer = false;    // A front buffer aligned to the scan, where the device has one
+    bool pyrowaveGpuBoost = false;  // Keep the GPU busy between PyroWave decodes (GpuKeepBusy)
     std::string codec;           // h264, hevc, av1 or pyrowave, for pacer traces
     std::string decoderName;     // The MediaCodec decoder, empty for PyroWave, for pacer traces
     std::string traceDirectory;  // Where pacer traces go when enabled (see PacerTrace)

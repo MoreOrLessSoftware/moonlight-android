@@ -617,7 +617,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
                 pyrowave, pyrowaveCenterChroma, prefs.pyrowaveLateFrames, getDisplayRefreshRate(),
                 getCodecName(), pyrowave || videoDecoder == null ? null : videoDecoder.getName(),
-                getPacerTraceDirectory(), prefs.frontBuffer);
+                getPacerTraceDirectory(), prefs.frontBuffer, prefs.pyrowaveGpuBoost);
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");
             renderer.setVsyncOffset(activity.getWindowManager().getDefaultDisplay().getAppVsyncOffsetNanos());

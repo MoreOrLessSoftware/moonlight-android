@@ -83,6 +83,11 @@
             android:entryValues="@array/pyrowave_late_frames_values"
             android:summary="@string/summary_pyrowave_late_frames"
             android:defaultValue="balanced" />
+        <CheckBoxPreference
+            android:key="checkbox_pyrowave_gpu_boost"
+            android:title="@string/title_pyrowave_gpu_boost"
+            android:summary="@string/summary_pyrowave_gpu_boost"
+            android:defaultValue="false" />
         <com.limelight.preferences.HelpListPreference
             android:key="video_renderer"
             android:title="@string/title_video_renderer"

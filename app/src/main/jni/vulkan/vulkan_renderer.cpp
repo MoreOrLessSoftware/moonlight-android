@@ -543,13 +543,19 @@ bool VulkanRenderer::init(ANativeWindow* output) {
         return false;
     }
 
-    // Work for the GPU between PyroWave decodes, so it keeps its clock up (GpuKeepBusy). Off
-    // unless switched on with adb shell setprop debug.moonlight.gpu_keep_busy 1; each piece of
-    // it takes about adb shell setprop debug.moonlight.gpu_keep_busy_chunk_us 500, with
+    // Work for the GPU between PyroWave decodes, so it keeps its clock up (GpuKeepBusy), with the
+    // PyroWave GPU boost setting. To switch it on or off whatever the setting says:
+    // adb shell setprop debug.moonlight.gpu_keep_busy 1 (or 0). Each piece of it takes about
+    // adb shell setprop debug.moonlight.gpu_keep_busy_chunk_us 500, with
     // adb shell setprop debug.moonlight.gpu_keep_busy_groups 4 workgroups.
     if (config_.pyrowave) {
         char value[PROP_VALUE_MAX] = {};
-        if (__system_property_get("debug.moonlight.gpu_keep_busy", value) > 0 && atoi(value) != 0) {
+        bool keepBusy = config_.pyrowaveGpuBoost;
+        if (__system_property_get("debug.moonlight.gpu_keep_busy", value) > 0) {
+            keepBusy = atoi(value) != 0;
+            ALOGI("GPU keep-busy %s was asked for", keepBusy ? "on" : "off");
+        }
+        if (keepBusy) {
             int64_t chunkNs = 500'000;
             if (__system_property_get("debug.moonlight.gpu_keep_busy_chunk_us", value) > 0 && atoi(value) > 0) {
                 chunkNs = static_cast<int64_t>(std::clamp(atoi(value), 100, 5000)) * 1000;

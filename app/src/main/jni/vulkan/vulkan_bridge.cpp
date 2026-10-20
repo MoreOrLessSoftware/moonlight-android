@@ -28,7 +28,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
         JNIEnv* env, jclass, jobject outputSurface, jint streamWidth, jint streamHeight, jint streamFps,
         jint framePacing, jint jitterBuffer, jint ditherMode, jint colorspace, jboolean fullRange, jboolean tenBit,
         jboolean pyrowave, jboolean pyrowaveCenterChroma, jint pyrowaveLateFrames, jfloat displayRefreshHz,
-        jstring codec, jstring decoderName, jstring traceDirectory, jboolean frontBuffer) {
+        jstring codec, jstring decoderName, jstring traceDirectory, jboolean frontBuffer, jboolean pyrowaveGpuBoost) {
     ANativeWindow* output = ANativeWindow_fromSurface(env, outputSurface);
     if (!output) {
         return 0;
@@ -49,6 +49,7 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeCreate(
     config.pyrowaveLateFrames = pyrowaveLateFrames;
     config.displayRefreshHz = displayRefreshHz;
     config.frontBuffer = frontBuffer;
+    config.pyrowaveGpuBoost = pyrowaveGpuBoost;
     auto toString = [env](jstring string) {
         std::string value;
         if (string) {
