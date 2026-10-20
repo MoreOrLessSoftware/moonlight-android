@@ -150,6 +150,16 @@ public class VulkanRendererBridge {
         }
     }
 
+    /**
+     * How long after the display's vsync Choreographer's frame times are
+     * ({@link android.view.Display#getAppVsyncOffsetNanos()}), which changes with the display mode
+     */
+    public void setVsyncOffset(long offsetNs) {
+        if (handle != 0) {
+            nativeSetVsyncOffset(handle, offsetNs);
+        }
+    }
+
     public void setHdrMode(boolean enabled, byte[] hdrMetadata) {
         if (handle != 0) {
             nativeSetHdrMode(handle, enabled, hdrMetadata);
@@ -241,6 +251,7 @@ public class VulkanRendererBridge {
                                                   char hostProcessingLatency);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] hdrMetadata);
     private static native void nativeSetJitterBuffer(long handle, int jitterBuffer);
+    private static native void nativeSetVsyncOffset(long handle, long offsetNs);
     private static native int nativeTakePresentedFrames(long handle);
     private static native boolean nativeIsFrontBufferUnavailable(long handle);
     private static native long nativeTakeDecodedNs(long handle);

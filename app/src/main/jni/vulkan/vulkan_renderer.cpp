@@ -1516,8 +1516,8 @@ void VulkanRenderer::scheduleAlignedDraw() {
     }
 
     // The first scan after now that there's still time to start drawing for, counted on from
-    // the last vsync callback (Choreographer's vsync times match when the display shows a
-    // frame to within 0.2 ms on an iPlay 70 mini Ultra)
+    // the last vsync callback (Choreographer's vsync times, less the app vsync offset the lead
+    // allows for, match when the display shows a frame to within 0.2 ms on an iPlay 70 mini Ultra)
     const int64_t leadNs = alignedLeadNs();
     const int64_t now = nowNs();
     int64_t vsyncNs = lastVsyncNs_ + periodNs;
@@ -1538,16 +1538,23 @@ void VulkanRenderer::scheduleAlignedDraw() {
 }
 
 int64_t VulkanRenderer::alignedLeadNs() const {
+    // Only the offset's phase within a refresh matters: one negative or over a refresh long
+    // still puts the scan the same distance before a frame time
+    int64_t offsetNs = vsyncOffsetNs_;
+    const int64_t periodNs = offsetPeriodNs_;
+    if (periodNs > 0) {
+        offsetNs = (offsetNs % periodNs + periodNs) % periodNs;
+    }
     if (fixedAlignedLeadNs_ >= 0) {
-        return fixedAlignedLeadNs_;
+        return fixedAlignedLeadNs_ + offsetNs;
     }
     if (drawSubmitNs_.size() < 8) {
-        return kAlignedDefaultLeadNs;
+        return kAlignedDefaultLeadNs + offsetNs;
     }
     std::vector<int64_t> sorted(drawSubmitNs_.begin(), drawSubmitNs_.end());
     const auto p90 = sorted.begin() + (sorted.size() - 1) * 9 / 10;
     std::nth_element(sorted.begin(), p90, sorted.end());
-    return *p90 + kAlignedGpuStartNs;
+    return *p90 + kAlignedGpuStartNs + offsetNs;
 }
 
 int VulkanRenderer::onAlignedTimerThunk(int fd, int, void* data) {
@@ -1623,6 +1630,7 @@ void VulkanRenderer::trackVsyncPeriod(int64_t frameTimeNanos) {
                 vsyncDeltas_.clear();
             }
         }
+        offsetPeriodNs_ = pacer_.vsyncPeriodNs();
     }
     lastVsyncNs_ = frameTimeNanos;
 }

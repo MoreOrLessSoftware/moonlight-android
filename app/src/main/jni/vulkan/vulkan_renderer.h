@@ -2,6 +2,7 @@
 
 #include <android/native_window.h>
 #include <android/hardware_buffer.h>
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -121,6 +122,10 @@ public:
 
     // Switches the jitter buffer preset for the rest of the stream
     void setJitterBuffer(JitterBuffer jitterBuffer);
+
+    // How long after the display's vsync Choreographer's frame times are (Display's app vsync
+    // offset), which a front buffer has to allow for to know when the scan starts
+    void setVsyncOffsetNs(int64_t offsetNs) { vsyncOffsetNs_ = offsetNs; }
 
     // Network timing of a frame, for pacer traces and the capture latency statistics
     void noteReceived(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t hostProcessingNs);
@@ -486,6 +491,13 @@ private:
     // How long before the scan to start drawing, if fixed with
     // adb shell setprop debug.moonlight.front_buffer_lead_us <us>; otherwise learned
     int64_t fixedAlignedLeadNs_ = -1;
+    // Choreographer's frame times are when apps are woken, the display's vsync plus this (with
+    // SurfaceFlinger's app phase on an iPlay 70 mini Ultra 0.15 ms at 144 Hz but 1.0 ms at 120 Hz,
+    // where a front buffer tore at the edge the scan starts until it was allowed for). Leads
+    // count from the scan, so each has this added.
+    std::atomic<int64_t> vsyncOffsetNs_ {0};
+    // The vsync period, copied for alignedLeadNs() to take the offset's phase within
+    std::atomic<int64_t> offsetPeriodNs_ {0};
     // Learned, the lead is the 90th percentile of recent draws' time to submit plus this, for
     // the GPU to start on it and a little to spare. The GPU writes the screen in scan order
     // several times faster than the display reads it, so a draw starting a little early only

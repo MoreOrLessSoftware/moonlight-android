@@ -106,6 +106,15 @@ Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetJitterBuffer(JNIE
     }
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_limelight_binding_video_VulkanRendererBridge_nativeSetVsyncOffset(JNIEnv*, jclass, jlong handle,
+                                                                          jlong offsetNs) {
+    VulkanRenderer* renderer = fromHandle(handle);
+    if (renderer) {
+        renderer->setVsyncOffsetNs(offsetNs);
+    }
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_limelight_binding_video_VulkanRendererBridge_nativeSubmitPyrowaveFrame(
         JNIEnv* env, jclass, jlong handle, jbyteArray data, jint length, jlong hostPtsUs, jlong lastPacketUs,

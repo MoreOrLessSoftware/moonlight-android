@@ -619,6 +619,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 getPacerTraceDirectory(), prefs.frontBuffer);
         if (renderer != null) {
             LimeLog.info("Using Vulkan renderer");
+            renderer.setVsyncOffset(activity.getWindowManager().getDefaultDisplay().getAppVsyncOffsetNanos());
             if (currentHdrMetadata != null) {
                 renderer.setHdrMode(true, currentHdrMetadata);
             }
@@ -1741,6 +1742,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 activeWindowVideoStats.totalCaptureToPresentUs += captureLatency[3] / 1000;
                 activeWindowVideoStats.framesWithCaptureToPresent += (int)captureLatency[4];
                 activeWindowVideoStats.presentedWithoutNetworkTransit += (int)captureLatency[5];
+
+                // The display mode can change mid-stream
+                vulkanRenderer.setVsyncOffset(activity.getWindowManager().getDefaultDisplay().getAppVsyncOffsetNanos());
 
                 if (!frontBufferUnavailableReported && vulkanRenderer.isFrontBufferUnavailable()) {
                     frontBufferUnavailableReported = true;
