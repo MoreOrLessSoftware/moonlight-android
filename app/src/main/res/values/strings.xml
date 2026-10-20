@@ -88,6 +88,10 @@
     <string name="conn_hardware_latency">Average hardware decoding latency:</string>
     <string name="conn_starting">Starting</string>
     <string name="conn_error_title">Connection Error</string>
+    <string name="refresh_mismatch_title">Frame Rate Mismatch</string>
+    <string name="refresh_mismatch_msg">The stream\'s %1$d FPS doesn\'t divide evenly into the display\'s %2$.0f Hz refresh rate, so frame pacing will be uneven. Continue anyway?</string>
+    <string name="refresh_mismatch_continue">Continue</string>
+    <string name="refresh_mismatch_stop">Stop</string>
     <string name="conn_error_msg">Failed to start</string>
     <string name="conn_terminated_title">Connection Terminated</string>
     <string name="conn_terminated_msg">The connection was terminated.</string>

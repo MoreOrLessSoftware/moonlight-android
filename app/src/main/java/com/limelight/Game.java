@@ -154,6 +154,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private StreamConfiguration streamConfig;
     private boolean manualRefreshRateX100;
     private DisplayRefreshMeter refreshMeter;
+    // Asking whether to stream at a frame rate that doesn't divide the refresh rate
+    private AlertDialog refreshMismatchDialog;
 
     private InputCaptureProvider inputCaptureProvider;
     private int modifierFlags = 0;
@@ -2925,9 +2927,36 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             refreshMeter = DisplayRefreshMeter.measure(getWindowManager().getDefaultDisplay(),
                     refreshHz -> {
                         refreshMeter = null;
-                        startConnection(refreshHz);
+                        confirmRefreshRateThenConnect(refreshHz);
                     });
         }
+    }
+
+    // A stream whose frame rate doesn't divide the display's refresh rate (60 fps at 144 Hz, or
+    // 120 fps at 90 Hz) can't be paced evenly: frames stay on screen for different numbers of
+    // vsyncs, or are dropped. Asks whether to go ahead anyway before connecting.
+    private void confirmRefreshRateThenConnect(double measuredRefreshHz) {
+        double refreshHz = measuredRefreshHz > 0 ? measuredRefreshHz : getWindowManager().getDefaultDisplay().getRefreshRate();
+        int streamFps = streamConfig.getRefreshRate();
+        if (isFinishing() || DisplayRefreshMeter.streamMatchedRate(refreshHz, streamFps) > 0) {
+            startConnection(measuredRefreshHz);
+            return;
+        }
+
+        LimeLog.warning(String.format(Locale.ROOT, "%d FPS stream doesn't divide the %.2f Hz display", streamFps, refreshHz));
+        refreshMismatchDialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.refresh_mismatch_title)
+                .setMessage(getString(R.string.refresh_mismatch_msg, streamFps, refreshHz))
+                .setCancelable(false)
+                .setPositiveButton(R.string.refresh_mismatch_continue, (dialog, which) -> {
+                    refreshMismatchDialog = null;
+                    startConnection(measuredRefreshHz);
+                })
+                .setNegativeButton(R.string.refresh_mismatch_stop, (dialog, which) -> {
+                    refreshMismatchDialog = null;
+                    finish();
+                })
+                .show();
     }
 
     private static String describeVideoFormat(int videoFormat) {
@@ -3059,6 +3088,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // The connection hadn't started yet. It starts when the surface is back.
             refreshMeter.cancel();
             refreshMeter = null;
+            attemptedConnection = false;
+        }
+        if (refreshMismatchDialog != null) {
+            // Likewise, and the display may be different when the surface is back, so it's
+            // measured and asked about again
+            refreshMismatchDialog.dismiss();
+            refreshMismatchDialog = null;
             attemptedConnection = false;
         }
 
