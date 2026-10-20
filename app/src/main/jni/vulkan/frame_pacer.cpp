@@ -20,6 +20,12 @@ namespace {
     constexpr double kScheduleWidth = 0.04;  // Allowance for the fit moving
     constexpr double kLateDecayPerFrame = 0.0005;
     constexpr int64_t kPlacementSettleNs = 5'000'000'000;
+    // Settled, with a frame every few vsyncs: how long every frame must have been due this long
+    // before the vsync ahead of its own for the slots to move there (see updatePhase())
+    constexpr int64_t kSoonerHoldNs = 3'000'000'000;
+    constexpr int64_t kSoonerRoomDivisor = 4;  // A quarter vsync
+    // ...and how long the host drifting slow must take to carry them back
+    constexpr double kSoonerKeepNs = 60e9;
     // While frames are scheduled on the fitted line with the buffer measured against it (Balanced
     // and Smooth, see updatePhase()), the buffer gives delay back over about 17 s (1024 frames at
     // 60 fps): stretches of late host timestamps come back, and a buffer that forgot them between
@@ -332,6 +338,7 @@ void FramePacer::resetPhase() {
     phaseLocked_ = false;
     driftPerFrame_ = 0;
     lateNs_ = 0;
+    soonerSinceNs_ = 0;
 }
 
 void FramePacer::onFrameArrived(FrameTiming& frame) {
@@ -671,6 +678,7 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     }
     else if (!phaseLocked_) {
         lockedSinceNs_ = frame.arrivalNs;
+        soonerSinceNs_ = 0;
     }
     if (againstLine) {
         const int64_t scheduledNs = static_cast<int64_t>(std::llround(scheduled));
@@ -794,6 +802,41 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     if (!clear || muchSooner) {
         slotParity_ = bestParity;
         shiftNs_ = static_cast<int64_t>(best.shift * slotPeriod);
+        soonerSinceNs_ = 0;
+        return;
+    }
+
+    // Settled, the slots only move when frames come too close to their vsync, which a growing
+    // buffer does by moving them a vsync later. Once it shrinks again, nothing moved them back:
+    // on an iPlay 70 mini Ultra streaming a 72 fps game at 144 Hz, a second of network jitter
+    // grew the buffer from 2.4 to 5.7 ms, frames went a vsync later, and when it came back down
+    // two seconds later they stayed there for the remaining 45 s, 7 ms later than they needed
+    // to be. When every frame for kSoonerHoldNs could have made the vsync before its own, with
+    // room to spare so that the jitter that just passed doesn't move them straight back, the
+    // slots move there: one frame held a vsync short, for a vsync less delay from then on. Not
+    // when the host runs slow enough to carry them back within kSoonerKeepNs, which would only
+    // trade the vsync for a second uneven frame (a host 0.03% slow at 72 fps on 144 Hz, in
+    // frame_pacer_test).
+    const bool keepsSooner = driftPerFrame_ <= 0 ||
+            1.0 / static_cast<double>(slotVsyncs_) / driftPerFrame_ * static_cast<double>(slotPeriod) >= kSoonerKeepNs;
+    if (slotVsyncs_ > 1 && keepsSooner && frame.arrivalNs - lockedSinceNs_ >= kPlacementSettleNs) {
+        const int64_t guard = presentGuardNs();
+        const int64_t shownIndex = shownAt(slotParity_, static_cast<double>(shiftNs_ + guard) / slotPeriod);
+        const int64_t soonerVsyncNs = lastVsyncNs_ + (shownIndex - 1 - vsyncIndex_) * periodNs_;
+        const int64_t room = soonerVsyncNs - (frame.targetNs + shiftNs_ + guard);
+        if (room < periodNs_ / kSoonerRoomDivisor) {
+            soonerSinceNs_ = 0;
+        }
+        else if (soonerSinceNs_ == 0) {
+            soonerSinceNs_ = frame.arrivalNs;
+        }
+        else if (frame.arrivalNs - soonerSinceNs_ >= kSoonerHoldNs) {
+            slotParity_ = (slotParity_ + slotVsyncs_ - 1) % slotVsyncs_;
+            soonerSinceNs_ = 0;
+        }
+    }
+    else {
+        soonerSinceNs_ = 0;
     }
 }
 

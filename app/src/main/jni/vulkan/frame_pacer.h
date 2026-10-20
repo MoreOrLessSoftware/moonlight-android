@@ -321,6 +321,8 @@ private:
     int64_t scheduledIndex_ = 0;
     bool transitOnLine_ = false;  // The timeline's samples are measured against the fitted line
     int64_t lockedSinceNs_ = 0;
+    // Since when every frame could have been shown a vsync sooner (updatePhase()), or 0
+    int64_t soonerSinceNs_ = 0;
 
     // Frames are shown every slotVsyncs_ vsyncs when the phase is locked, on the vsyncs whose
     // index is slotParity_ more than a multiple of slotVsyncs_
