@@ -69,6 +69,8 @@ public class OverlayMenuView extends LinearLayout {
     private boolean flipFaceButtons = false;
     // Only with "sync to host frame timing" pacing, the one mode with a jitter buffer
     private boolean showJitterBuffer = false;
+    // Not on TVs, whose screen brightness the app can't change
+    private boolean showBrightness = true;
 
     public OverlayMenuView(Context context) {
         super(context);
@@ -176,8 +178,10 @@ public class OverlayMenuView extends LinearLayout {
             getContext().getString(R.string.overlay_menu_keyboard), ACTION_SHOW_KEYBOARD, spacing);
         addVerticalButton(R.drawable.ic_overlay_perf,
                 getContext().getString(R.string.overlay_menu_toggle_stats), ACTION_STATS, spacing);
-        addVerticalButton(R.drawable.ic_overlay_settings_brightness,
-                getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS, spacing);
+        if (showBrightness) {
+            addVerticalButton(R.drawable.ic_overlay_settings_brightness,
+                    getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS, spacing);
+        }
         if (showJitterBuffer) {
             addVerticalButton(R.drawable.ic_overlay_jitter_buffer,
                     getContext().getString(R.string.overlay_menu_jitter_buffer), ACTION_JITTER_BUFFER, spacing);
@@ -309,6 +313,10 @@ public class OverlayMenuView extends LinearLayout {
 
     public void setShowJitterBuffer(boolean show) {
         this.showJitterBuffer = show;
+    }
+
+    public void setShowBrightness(boolean show) {
+        this.showBrightness = show;
     }
 
     @Override

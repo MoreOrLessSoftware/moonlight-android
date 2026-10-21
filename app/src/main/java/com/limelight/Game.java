@@ -389,6 +389,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         overlayMenuView = findViewById(R.id.overlayMenuView);
         overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
         overlayMenuView.setShowJitterBuffer(prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_HOST_TIMED);
+        overlayMenuView.setShowBrightness(!isAndroidTV);
 
         inputCaptureProvider = InputCaptureManager.getInputCaptureProvider(this, this);
 
