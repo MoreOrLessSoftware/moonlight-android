@@ -368,7 +368,7 @@
     <string name="title_spatial_dithering">Spatial Dithering (Vulkan)</string>
     <string name="summary_spatial_dithering">Adds fine moving noise that hides color banding, most visible in HDR gradients (Vulkan renderer only)</string>
     <string name="title_front_buffer">Front buffer rendering (Vulkan)</string>
-    <string name="summary_front_buffer">Draws each frame straight into the image the display is showing, skipping the system\'s compositor queue for lower latency. Turn off if you see tearing, flickering or corrupted video. (Vulkan renderer only)</string>
+    <string name="summary_front_buffer">Draws each frame straight into the image the display is showing, skipping the system\'s compositor queue for lower latency. Turn off if you see tearing, flickering or corrupted video. (Vulkan renderer only, when frame pacing is Sync to host frame timing or Prefer lowest latency)</string>
 
     <string name="title_frame_pacing">Video frame pacing</string>
     <string name="summary_frame_pacing">Specify how to balance video latency and smoothness</string>

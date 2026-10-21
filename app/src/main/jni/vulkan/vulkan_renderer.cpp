@@ -471,9 +471,13 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
         lostFrameMinPercent_ = std::clamp(atoi(value), 0, 100);
     }
     // The setting asks for a front buffer aligned to the scan; to force a mode either way,
-    // adb shell setprop debug.moonlight.front_buffer 0 (off), 1 (drawn on arrival, tearing) or 2
-    frontBufferRequested_ = config.frontBuffer;
-    frontBufferAligned_ = config.frontBuffer;
+    // adb shell setprop debug.moonlight.front_buffer 0 (off), 1 (drawn on arrival, tearing) or 2.
+    // The setting only takes it for host frame timing, which paces the front buffer's draws, and
+    // lowest latency, which shows frames on arrival anyway. The other modes pick a frame at each
+    // vsync, which a front buffer would bypass by drawing every frame as it arrives.
+    const bool frontBufferMode = pacer_.mode() == PacingMode::HostTimed || pacer_.mode() == PacingMode::MinLatency;
+    frontBufferRequested_ = config.frontBuffer && frontBufferMode;
+    frontBufferAligned_ = frontBufferRequested_;
     if (__system_property_get("debug.moonlight.front_buffer", value) > 0) {
         frontBufferRequested_ = atoi(value) != 0;
         frontBufferAligned_ = atoi(value) == 2;
