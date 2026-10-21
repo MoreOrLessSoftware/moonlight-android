@@ -233,14 +233,18 @@
     <string-array name="perf_overlay_mode_names">
         <item>@string/perf_overlay_off</item>
         <item>@string/perf_overlay_minimal</item>
+        <item>@string/perf_overlay_minimal_latency</item>
         <item>@string/perf_overlay_compact</item>
+        <item>@string/perf_overlay_compact_latency</item>
         <item>@string/perf_overlay_basic</item>
         <item>@string/perf_overlay_detailed</item>
     </string-array>
     <string-array name="perf_overlay_mode_values" translatable="false">
         <item>off</item>
         <item>minimal</item>
+        <item>minimal-latency</item>
         <item>compact</item>
+        <item>compact-latency</item>
         <item>basic</item>
         <item>detailed</item>
     </string-array>

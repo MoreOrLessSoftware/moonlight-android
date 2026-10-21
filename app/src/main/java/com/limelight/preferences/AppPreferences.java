@@ -274,30 +274,23 @@ public class AppPreferences {
 
             // Apply global performance overlay override
             // 0 = use default (no override), 1 = force detailed, 2 = force off, 3 = force compact,
-            // 4 = force minimal, 5 = force basic
+            // 4 = force minimal, 5 = force basic, 6 = force minimal with total latency,
+            // 7 = force compact with total latency
             int perfOverlayOverride = defaultPrefs.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
             if (perfOverlayOverride == 1) {
-                config.enablePerfOverlay = true;
-                config.perfOverlayCompact = false;
-                config.perfOverlayMinimal = false;
-                config.perfOverlayBasic = false;
+                config.setPerfOverlayMode("detailed");
             } else if (perfOverlayOverride == 5) {
-                config.enablePerfOverlay = true;
-                config.perfOverlayCompact = false;
-                config.perfOverlayMinimal = false;
-                config.perfOverlayBasic = true;
+                config.setPerfOverlayMode("basic");
             } else if (perfOverlayOverride == 3) {
-                config.enablePerfOverlay = true;
-                config.perfOverlayCompact = true;
-                config.perfOverlayMinimal = false;
-                config.perfOverlayBasic = false;
+                config.setPerfOverlayMode("compact");
             } else if (perfOverlayOverride == 4) {
-                config.enablePerfOverlay = true;
-                config.perfOverlayCompact = true;
-                config.perfOverlayMinimal = true;
-                config.perfOverlayBasic = false;
+                config.setPerfOverlayMode("minimal");
+            } else if (perfOverlayOverride == 6) {
+                config.setPerfOverlayMode("minimal-latency");
+            } else if (perfOverlayOverride == 7) {
+                config.setPerfOverlayMode("compact-latency");
             } else if (perfOverlayOverride == 2) {
-                config.enablePerfOverlay = false;
+                config.setPerfOverlayMode("off");
             }
             // If perfOverlayOverride == 0, keep the config value as is (use default)
 

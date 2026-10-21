@@ -1626,8 +1626,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
     }
 
-    // Fewer of the compact stats: the stream, the frame rate shown, the bitrate and the latency,
-    // which is capture to present where it's measured, or else capture to decoded
+    // Fewer of the compact stats: the stream, the frame rate shown and the bitrate, and with
+    // total latency, capture to present where it's measured, or else capture to decoded
     private void appendMinimalPerfText(StringBuilder sb, VideoStatsFps fps, VideoStats lastTwo,
                                        long rttInfo, float bandwidthMbps) {
         final String separator = " • ";
@@ -1636,7 +1636,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (bandwidthMbps >= 0) {
             sb.append(separator).append(context.getString(R.string.perf_overlay_compact_bandwidth, bandwidthMbps));
         }
-        appendCaptureLatency(sb, separator, lastTwo, rttInfo);
+        if (prefs.perfOverlayLatency) {
+            appendCaptureLatency(sb, separator, lastTwo, rttInfo);
+        }
     }
 
     // Capture to present where it's measured, or else capture to decoded
@@ -1685,7 +1687,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (bufferMs != null) {
             sb.append(separator).append(context.getString(R.string.perf_overlay_compact_pacing, bufferMs));
         }
-        appendCaptureLatency(sb, separator, lastTwo, rttInfo);
+        if (prefs.perfOverlayLatency) {
+            appendCaptureLatency(sb, separator, lastTwo, rttInfo);
+        }
     }
 
     // Just the buffer's milliseconds from the renderer's pacing headline, "<ms> ms buffer,

@@ -122,12 +122,12 @@
     <string name="perf_overlay_pacing_buffer">Frame pacing: %1$s ms</string>
     <string name="perf_overlay_pacing_details">└ %1$s</string>
     <!-- The compact stats, joined in one line along the top. Times are in ms. -->
-    <string name="perf_overlay_compact_stream">%1$s @ %2$.2f</string>
+    <string name="perf_overlay_compact_stream">%1$s @ %2$.2f FPS</string>
     <string name="perf_overlay_capture_latency">Capture to decoded/present: %1$.1f/%2$.1f ms</string>
     <string name="perf_overlay_capture_to_decoded">Capture to decoded: %1$.1f ms</string>
     <string name="perf_overlay_capture_to_present">Capture to present: %1$.1f ms</string>
     <string name="perf_overlay_compact_bandwidth">%1$.0f Mbps</string>
-    <string name="perf_overlay_compact_fps">In/render: %1$.2f/%2$.2f</string>
+    <string name="perf_overlay_compact_fps">In/render: %1$.2f/%2$.2f FPS</string>
     <string name="perf_overlay_compact_netdrops">Dropped: %1$.2f%%</string>
     <string name="perf_overlay_compact_netdrops_partial">Dropped/partial: %1$.2f%%/%2$.2f%%</string>
     <string name="perf_overlay_compact_netlatency">Net: %1$d/%2$d</string>
@@ -135,7 +135,7 @@
     <string name="perf_overlay_compact_dectime">%1$s: %2$.2f</string>
     <string name="perf_overlay_compact_pacing">Frame pacing: %1$s</string>
     <!-- The minimal stats, a shorter compact line -->
-    <string name="perf_overlay_minimal_fps">%1$.2f FPS</string>
+    <string name="perf_overlay_minimal_fps">Render: %1$.2f FPS</string>
     <string name="perf_overlay_minimal_capture_to_present">Capture to present: %1$.0f ms</string>
     <string name="perf_overlay_minimal_capture_to_decoded">Capture to decoded: %1$.0f ms</string>
 
@@ -308,7 +308,9 @@
     <string name="summary_enable_perf_overlay">Display real-time stream performance information while streaming. Compact shows the main numbers in one line along the top, and detailed shows all of them in the corner.</string>
     <string name="perf_overlay_off">Off</string>
     <string name="perf_overlay_minimal">Minimal</string>
+    <string name="perf_overlay_minimal_latency">Minimal (with total latency)</string>
     <string name="perf_overlay_compact">Compact</string>
+    <string name="perf_overlay_compact_latency">Compact (with total latency)</string>
     <string name="perf_overlay_basic">Basic</string>
     <string name="perf_overlay_detailed">Detailed</string>
     <string name="title_enable_post_stream_toast">Show latency message after streaming</string>

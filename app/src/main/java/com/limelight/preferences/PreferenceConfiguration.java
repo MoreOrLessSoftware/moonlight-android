@@ -207,6 +207,8 @@ public class PreferenceConfiguration {
     public boolean perfOverlayMinimal;
     // The detailed stats without the renderer details, and only the buffer for frame pacing
     public boolean perfOverlayBasic;
+    // The minimal or compact line ends with the total latency, capture to present (or decoded)
+    public boolean perfOverlayLatency;
     public boolean enableLatencyToast;
     public boolean latencyTestMarker;
     public boolean bindAllUsb;
@@ -602,6 +604,29 @@ public class PreferenceConfiguration {
                 Build.FINGERPRINT.contains("PPR1.180610.011/4079208_2235.1395");
     }
 
+    // Sets the stats overlay from one of perf_overlay_mode_values. Anything else is detailed.
+    public void setPerfOverlayMode(String mode) {
+        enablePerfOverlay = !mode.equals("off");
+        perfOverlayMinimal = mode.equals("minimal") || mode.equals("minimal-latency");
+        perfOverlayCompact = mode.equals("compact") || mode.equals("compact-latency") || perfOverlayMinimal;
+        perfOverlayBasic = mode.equals("basic");
+        perfOverlayLatency = mode.equals("minimal-latency") || mode.equals("compact-latency");
+    }
+
+    // The perf_overlay_mode_values entry for the stats overlay as set
+    public String getPerfOverlayMode() {
+        if (!enablePerfOverlay) {
+            return "off";
+        }
+        else if (perfOverlayMinimal) {
+            return perfOverlayLatency ? "minimal-latency" : "minimal";
+        }
+        else if (perfOverlayCompact) {
+            return perfOverlayLatency ? "compact-latency" : "compact";
+        }
+        return perfOverlayBasic ? "basic" : "detailed";
+    }
+
     public static PreferenceConfiguration readPreferences(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         PreferenceConfiguration config = new PreferenceConfiguration();
@@ -749,11 +774,7 @@ public class PreferenceConfiguration {
                     .putString(PERF_OVERLAY_PREF_STRING, legacyEnablePerfOverlay ? "detailed" : "off")
                     .apply();
         }
-        String perfOverlay = prefs.getString(PERF_OVERLAY_PREF_STRING, DEFAULT_PERF_OVERLAY);
-        config.enablePerfOverlay = !perfOverlay.equals("off");
-        config.perfOverlayMinimal = perfOverlay.equals("minimal");
-        config.perfOverlayCompact = perfOverlay.equals("compact") || config.perfOverlayMinimal;
-        config.perfOverlayBasic = perfOverlay.equals("basic");
+        config.setPerfOverlayMode(prefs.getString(PERF_OVERLAY_PREF_STRING, DEFAULT_PERF_OVERLAY));
         config.bindAllUsb = prefs.getBoolean(BIND_ALL_USB_STRING, DEFAULT_BIND_ALL_USB);
         config.mouseEmulation = prefs.getBoolean(MOUSE_EMULATION_STRING, DEFAULT_MOUSE_EMULATION);
         config.mouseNavButtons = prefs.getBoolean(MOUSE_NAV_BUTTONS_STRING, DEFAULT_MOUSE_NAV_BUTTONS);

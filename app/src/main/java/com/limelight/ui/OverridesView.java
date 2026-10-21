@@ -340,7 +340,7 @@ public class OverridesView {
         perfOverlayButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                togglePerfOverlay();
+                showPerfOverlayDialog();
             }
         });
 
@@ -348,38 +348,65 @@ public class OverridesView {
         updatePerfOverlayButton();
     }
 
-    private void togglePerfOverlay() {
-        // Performance overlay override cycles through: 0 (default) -> 4 (minimal) -> 3 (compact)
-        // -> 5 (basic) -> 1 (detailed) -> 2 (force off) -> 0 (default). Detailed keeps 1, which
-        // was force on when there were only detailed stats.
-        int currentOverride = preferences.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
-        int newOverride;
-        switch (currentOverride) {
-            case 0:
-                newOverride = 4;
-                break;
-            case 4:
-                newOverride = 3;
-                break;
-            case 3:
-                newOverride = 5;
-                break;
-            case 5:
-                newOverride = 1;
-                break;
-            case 1:
-                newOverride = 2;
-                break;
+    // The performance overlay override for each of perf_overlay_mode_values, with 0 for none
+    // (use the settings). Detailed keeps 1, which was force on when there were only detailed stats.
+    private static int perfOverlayOverrideFor(String mode) {
+        switch (mode) {
+            case "off":
+                return 2;
+            case "minimal":
+                return 4;
+            case "minimal-latency":
+                return 6;
+            case "compact":
+                return 3;
+            case "compact-latency":
+                return 7;
+            case "basic":
+                return 5;
+            case "detailed":
+                return 1;
             default:
-                newOverride = 0;
-                break;
+                return 0;
+        }
+    }
+
+    // Picks the performance overlay override: the settings' own mode, or one of the stats modes
+    private void showPerfOverlayDialog() {
+        final String[] modeNames = activity.getResources().getStringArray(R.array.perf_overlay_mode_names);
+        final String[] modeValues = activity.getResources().getStringArray(R.array.perf_overlay_mode_values);
+        final String[] names = new String[modeNames.length + 1];
+        final int[] overrides = new int[modeValues.length + 1];
+        names[0] = "Default";
+        overrides[0] = 0;
+        for (int i = 0; i < modeValues.length; i++) {
+            names[i + 1] = modeNames[i];
+            overrides[i + 1] = perfOverlayOverrideFor(modeValues[i]);
         }
 
-        preferences.edit()
-            .putInt(PREF_PERF_OVERLAY_OVERRIDE, newOverride)
-            .apply();
+        int currentOverride = preferences.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
+        int checked = 0;
+        for (int i = 0; i < overrides.length; i++) {
+            if (overrides[i] == currentOverride) {
+                checked = i;
+                break;
+            }
+        }
 
-        updatePerfOverlayButton();
+        new AlertDialog.Builder(activity)
+                .setTitle("Stats overlay")
+                .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        preferences.edit()
+                                .putInt(PREF_PERF_OVERLAY_OVERRIDE, overrides[which])
+                                .apply();
+                        updatePerfOverlayButton();
+                        dialog.dismiss();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void updatePerfOverlayButton() {
@@ -388,32 +415,25 @@ public class OverridesView {
         }
 
         int override = preferences.getInt(PREF_PERF_OVERLAY_OVERRIDE, 0);
-
-        if (override == 4) {
-            // Force minimal - green icon
-            perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
-            perfOverlayLabel.setText("Stats overlay: Minimal");
-        } else if (override == 3) {
-            // Force compact - green icon
-            perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
-            perfOverlayLabel.setText("Stats overlay: Compact");
-        } else if (override == 5) {
-            // Force basic - green icon
-            perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
-            perfOverlayLabel.setText("Stats overlay: Basic");
-        } else if (override == 1) {
-            // Force detailed - green icon
-            perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_enabled);
-            perfOverlayLabel.setText("Stats overlay: Detailed");
-        } else if (override == 2) {
-            // Force disabled - white icon with red slash
-            perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay);
-            perfOverlayLabel.setText("Stats overlay: Disabled");
-        } else {
+        if (override == 0) {
             // Use default - gray icon to indicate auto/default mode
             perfOverlayIcon.setImageResource(R.drawable.ic_perf_overlay_default);
             perfOverlayLabel.setText("Stats overlay: Default");
+            return;
         }
+
+        // Forced off - white icon with red slash; forced to a mode - green icon
+        perfOverlayIcon.setImageResource(override == 2 ? R.drawable.ic_perf_overlay : R.drawable.ic_perf_overlay_enabled);
+        String[] modeNames = activity.getResources().getStringArray(R.array.perf_overlay_mode_names);
+        String[] modeValues = activity.getResources().getStringArray(R.array.perf_overlay_mode_values);
+        String name = "Default";
+        for (int i = 0; i < modeValues.length; i++) {
+            if (perfOverlayOverrideFor(modeValues[i]) == override) {
+                name = modeNames[i];
+                break;
+            }
+        }
+        perfOverlayLabel.setText("Stats overlay: " + name);
     }
 
     private void initializeCodecButton() {
