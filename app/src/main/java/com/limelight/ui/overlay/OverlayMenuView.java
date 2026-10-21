@@ -9,6 +9,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 
 import com.limelight.R;
 
@@ -33,7 +34,10 @@ public class OverlayMenuView extends LinearLayout {
         void onMenuClosed();
     }
 
+    private ScrollView verticalScrollView;
     private LinearLayout verticalContainer;
+    // The buttons are compact, to fit a short screen (onMeasure())
+    private boolean compact = false;
     private HorizontalScrollView horizontalScrollView;
     private LinearLayout horizontalContainer;
 
@@ -95,7 +99,20 @@ public class OverlayMenuView extends LinearLayout {
         verticalContainer = new LinearLayout(context);
         verticalContainer.setOrientation(LinearLayout.VERTICAL);
         verticalContainer.setBackgroundDrawable(null);
-        addView(verticalContainer, new LinearLayout.LayoutParams(
+
+        // Scrolls where even compact buttons (onMeasure()) are too tall for the screen; a focused
+        // button is scrolled into view
+        verticalScrollView = new ScrollView(context);
+        verticalScrollView.setVerticalScrollBarEnabled(false);
+        verticalScrollView.setOverScrollMode(OVER_SCROLL_NEVER);
+        verticalScrollView.setFocusable(false);
+        verticalScrollView.setFocusableInTouchMode(false);
+        verticalScrollView.setBackgroundDrawable(null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            verticalScrollView.setDefaultFocusHighlightEnabled(false);
+        }
+        verticalScrollView.addView(verticalContainer);
+        addView(verticalScrollView, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ));
@@ -137,6 +154,8 @@ public class OverlayMenuView extends LinearLayout {
         verticalIndex = 0;
         horizontalIndex = 0;
         clearFocus();
+        // The new buttons start out full size; onMeasure() makes them compact if need be
+        compact = false;
 
         verticalContainer.removeAllViews();
         horizontalContainer.removeAllViews();
@@ -236,6 +255,48 @@ public class OverlayMenuView extends LinearLayout {
                 button.setSelected(false);
             }
         });
+    }
+
+    // On a short screen (a phone in landscape), the column of full size buttons runs off the top
+    // and bottom, cutting off Disconnect. When it won't fit, the buttons and the spacing between
+    // them take half the vertical room; if that's still too tall, the column scrolls.
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int available = MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED
+                ? Integer.MAX_VALUE : MeasureSpec.getSize(heightMeasureSpec) - getPaddingTop() - getPaddingBottom();
+        boolean needCompact = columnHeightPx(false) > available;
+        if (needCompact != compact) {
+            setCompact(needCompact);
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    private int spacingPx(boolean compact) {
+        float density = getContext().getResources().getDisplayMetrics().density;
+        return (int) ((compact ? BUTTON_SPACING_DP / 2 : BUTTON_SPACING_DP) * density);
+    }
+
+    private int columnHeightPx(boolean compact) {
+        int count = verticalButtons.size();
+        if (count == 0) {
+            return 0;
+        }
+        return count * OverlayMenuButton.heightPx(getContext(), compact) + (count - 1) * spacingPx(compact);
+    }
+
+    private void setCompact(boolean compact) {
+        this.compact = compact;
+        int spacing = spacingPx(compact);
+        for (int i = 0; i < verticalButtons.size(); i++) {
+            OverlayMenuButton button = verticalButtons.get(i);
+            button.setCompact(compact);
+            ((LinearLayout.LayoutParams) button.getLayoutParams()).bottomMargin =
+                    i < verticalButtons.size() - 1 ? spacing : 0;
+        }
+        // The row along the bottom matches the column
+        for (OverlayMenuButton button : horizontalButtons) {
+            button.setCompact(compact);
+        }
     }
 
     public void setMenuActionListener(MenuActionListener listener) {

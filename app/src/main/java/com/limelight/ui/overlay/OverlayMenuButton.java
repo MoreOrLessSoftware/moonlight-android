@@ -147,6 +147,24 @@ public class OverlayMenuButton extends LinearLayout {
         }
     }
 
+    /**
+     * Half the vertical padding, for a menu that wouldn't otherwise fit the screen's height
+     */
+    public void setCompact(boolean compact) {
+        float density = getContext().getResources().getDisplayMetrics().density;
+        int padding = (int) (PADDING_DP * density);
+        int verticalPadding = compact ? padding / 2 : padding;
+        setPadding(padding, verticalPadding, padding, verticalPadding);
+        setMinimumHeight((int) (ICON_SIZE_DP * density) + 2 * verticalPadding);
+    }
+
+    /** Height of a button with an icon, compact (setCompact()) or not */
+    public static int heightPx(Context context, boolean compact) {
+        float density = context.getResources().getDisplayMetrics().density;
+        int padding = (int) (PADDING_DP * density);
+        return (int) (ICON_SIZE_DP * density) + 2 * (compact ? padding / 2 : padding);
+    }
+
     public void hideIcon() {
         iconView.setVisibility(GONE);
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) labelView.getLayoutParams();
