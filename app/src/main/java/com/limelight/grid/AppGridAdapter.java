@@ -173,6 +173,10 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
 
     @Override
     public void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, ImageView settingsIndicator, AppView.AppObject obj) {
+        // Round the box art's corners to its rounded_image_mask background. The layouts'
+        // android:clipToOutline is only read from XML on Android 12 and newer.
+        imgView.setClipToOutline(true);
+
         // Let the cached asset loader handle it
         loader.populateImageView(obj.app, imgView, txtView);
 
