@@ -52,7 +52,7 @@
             android:entries="@array/jitter_buffer_names"
             android:entryValues="@array/jitter_buffer_values"
             android:summary="@string/summary_jitter_buffer"
-            android:defaultValue="balanced" />
+            android:defaultValue="lowest-latency" />
         <CheckBoxPreference
             android:key="checkbox_stretch_video"
             android:title="@string/title_checkbox_stretch_video"

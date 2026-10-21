@@ -112,7 +112,7 @@ public class PreferenceConfiguration {
     private static final String VIDEO_FORMAT_PYROWAVE = "forcepyrowave";
     private static final String DEFAULT_VIDEO_RENDERER = "auto";
     private static final String DEFAULT_SPATIAL_DITHERING = "off";
-    private static final String DEFAULT_JITTER_BUFFER = "balanced";
+    private static final String DEFAULT_JITTER_BUFFER = "lowest-latency";
     private static final String DEFAULT_PYROWAVE_LATE_FRAMES = "balanced";
 
     private static final boolean ONSCREEN_CONTROLLER_DEFAULT = false;
