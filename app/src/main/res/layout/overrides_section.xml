@@ -47,6 +47,7 @@
                 android:id="@+id/perfOverlayLabel"
                 android:layout_width="wrap_content"
                 android:minWidth="150dp"
+                android:maxWidth="200dp"
                 android:layout_height="wrap_content"
                 android:text="Stats overlay: Default"
                 android:textSize="13sp"
