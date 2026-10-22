@@ -18,7 +18,6 @@ public class BrightnessSliderView {
     private static final String PREFS_NAME = "GameSettings";
     private static final String BRIGHTNESS_KEY = "streamBrightness";
     private static final int AUTO_HIDE_DELAY_MS = 2000;
-    private static final int SHOW_DELAY_MS = 3000;
     private static final float TOUCH_ZONE_WIDTH_DP = 80;
     // Brightness steps for each d-pad press or stick repeat, in percent (touch moves by 1%)
     private static final int CONTROLLER_STEP = 5;
@@ -40,6 +39,8 @@ public class BrightnessSliderView {
     // The key that closed it, whose release is taken too
     private int closingKeyCode = KeyEvent.KEYCODE_UNKNOWN;
     private long lastStickStepMs = 0;
+    // The brightness was changed since the slider was shown, which starts its hide timer
+    private boolean adjusted = false;
 
     public BrightnessSliderView(Activity activity) {
         this.activity = activity;
@@ -104,9 +105,8 @@ public class BrightnessSliderView {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // Hide the slider after delay, unless a controller is driving it
-                if (!controllerMode) {
-                    handler.postDelayed(hideRunnable, AUTO_HIDE_DELAY_MS);
+                if (adjusted) {
+                    scheduleHide(AUTO_HIDE_DELAY_MS);
                 }
             }
         });
@@ -118,6 +118,7 @@ public class BrightnessSliderView {
     }
 
     private void applyBrightness(int progress) {
+        adjusted = true;
         WindowManager.LayoutParams params = activity.getWindow().getAttributes();
 
         if (progress == 0) {
@@ -134,8 +135,15 @@ public class BrightnessSliderView {
         activity.getWindow().setAttributes(params);
     }
 
+    // Hides the slider delayMs from now, in place of any hide already pending
+    private void scheduleHide(long delayMs) {
+        handler.removeCallbacks(hideRunnable);
+        handler.postDelayed(hideRunnable, delayMs);
+    }
+
     // Moves the brightness to the next multiple of CONTROLLER_STEP up or down, between Auto (0)
-    // and 100%, so a level set by touch (1% steps) snaps onto the controller's steps
+    // and 100%, so a level set by touch (1% steps) snaps onto the controller's steps. Once it
+    // has been changed, pushing past either end still keeps the slider up.
     private void stepBrightness(int direction) {
         int current = brightnessSlider.getProgress();
         int snapped = direction > 0 ? (current / CONTROLLER_STEP + 1) * CONTROLLER_STEP
@@ -145,11 +153,14 @@ public class BrightnessSliderView {
             brightnessSlider.setProgress(progress);
             applyBrightness(progress);
         }
+        if (adjusted) {
+            scheduleHide(AUTO_HIDE_DELAY_MS);
+        }
     }
 
     /**
      * Shows the slider for a gamepad or remote: up and down change the brightness, and A, B or
-     * back close it. It stays up until then.
+     * back close it. Otherwise it closes itself once changed, as when shown for touch.
      *
      * @param onClosed run once it's closed, to give focus back to the stream
      */
@@ -157,6 +168,11 @@ public class BrightnessSliderView {
         controllerMode = true;
         onControllerClosed = onClosed;
         show();
+    }
+
+    /** Whether the slider is up, for touch or a controller */
+    public boolean isShowing() {
+        return brightnessSliderContainer.getVisibility() != View.GONE;
     }
 
     /** Whether the slider is up for a controller (showForController()) */
@@ -275,6 +291,7 @@ public class BrightnessSliderView {
      */
     public void show() {
         if (brightnessSliderContainer.getVisibility() != View.VISIBLE) {
+            adjusted = false;
             // Set SeekBar width to match container height (only need to do this once)
             if (!initialized) {
                 // Get the saved brightness value before adjusting width
@@ -323,12 +340,11 @@ public class BrightnessSliderView {
             focusForController();
         }
 
-        // Cancel any pending hide operations
+        // Stays up until the brightness is changed, then hides AUTO_HIDE_DELAY_MS after the last
+        // change; a touch on the stream (or for a controller, A, B or back) closes it sooner
         handler.removeCallbacks(hideRunnable);
-
-        // Schedule auto-hide, unless a controller is driving it
-        if (!controllerMode) {
-            handler.postDelayed(hideRunnable, SHOW_DELAY_MS);
+        if (adjusted) {
+            scheduleHide(AUTO_HIDE_DELAY_MS);
         }
     }
 

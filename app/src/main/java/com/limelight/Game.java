@@ -2581,8 +2581,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // NB: This is still needed even when we call the newer requestUnbufferedDispatch()!
             view.requestUnbufferedDispatch(event);
 
-            // A touch on the stream closes the slider shown from the overlay menu
-            if (brightnessSliderView.isControllerMode()) {
+            // A touch on the stream closes the brightness slider, which otherwise stays up until
+            // it's been changed
+            if (brightnessSliderView.isShowing()) {
                 brightnessSliderView.hide();
                 return true;
             }
