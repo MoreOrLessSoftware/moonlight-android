@@ -204,6 +204,17 @@
         <item>lb_rb</item>
     </string-array>
 
+    <string-array name="left_edge_swipe_action_names">
+        <item>@string/left_edge_swipe_overlay_menu</item>
+        <item>@string/left_edge_swipe_brightness</item>
+        <item>@string/left_edge_swipe_off</item>
+    </string-array>
+    <string-array name="left_edge_swipe_action_values" translatable="false">
+        <item>overlay_menu</item>
+        <item>brightness</item>
+        <item>off</item>
+    </string-array>
+
     <string-array name="overlay_hold_duration_names">
         <item>@string/overlay_duration_500</item>
         <item>@string/overlay_duration_1000</item>

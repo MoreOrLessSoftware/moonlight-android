@@ -236,6 +236,11 @@
     <string name="summary_overlay_trigger_button">Choose which button opens the overlay menu when held</string>
     <string name="title_overlay_hold_duration">Trigger button hold duration</string>
     <string name="summary_overlay_hold_duration">How long to hold the button before the overlay menu opens</string>
+    <string name="title_left_edge_swipe_action">Left edge swipe action</string>
+    <string name="summary_left_edge_swipe_action">What a swipe in from the left edge of the screen does while streaming. A 3-finger tap always opens the overlay menu.</string>
+    <string name="left_edge_swipe_overlay_menu">Overlay menu</string>
+    <string name="left_edge_swipe_brightness">Brightness adjustment</string>
+    <string name="left_edge_swipe_off">Disabled</string>
 
     <string name="category_input_settings">Input Settings</string>
     <string name="title_checkbox_touchscreen_trackpad">Use the touchscreen as a trackpad</string>

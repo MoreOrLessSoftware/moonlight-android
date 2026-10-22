@@ -114,6 +114,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // Only 2 touches are supported
     private final TouchContext[] touchContextMap = new TouchContext[2];
     private long threeFingerDownTime = 0;
+    // A single finger that went down at the left edge, which does the left edge swipe action if
+    // it swipes in far and fast enough
+    private boolean edgeSwipeTracking = false;
+    private float edgeSwipeStartX, edgeSwipeStartY;
+    private long edgeSwipeStartTime;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -125,6 +130,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private static final int STYLUS_UP_DEAD_ZONE_RADIUS = 50;
 
     private static final int THREE_FINGER_TAP_THRESHOLD = 300;
+    // How far in from the left edge the swipe goes, and how long it has to get there
+    private static final float EDGE_SWIPE_DISTANCE_DP = 60;
+    private static final int EDGE_SWIPE_TIME_LIMIT = 500;
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -2367,6 +2375,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 int eventX = (int)(event.getX(actionIndex) + xOffset);
                 int eventY = (int)(event.getY(actionIndex) + yOffset);
 
+                if (!prefConfig.leftEdgeSwipeAction.equals("off") && trackEdgeSwipe(event)) {
+                    return true;
+                }
+
                 // Special handling for 3 finger gesture
                 if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN &&
                         event.getPointerCount() == 3) {
@@ -2574,19 +2586,53 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 brightnessSliderView.hide();
                 return true;
             }
-
-            // Check if touch is on the left edge to show brightness slider. Only as a trackpad:
-            // otherwise touches go to the host where they land, the left edge included, and the
-            // overlay menu has a Brightness button. Not with the on-screen controls either, whose
-            // buttons along the left edge would open it.
-            if (prefConfig.touchscreenTrackpad && virtualController == null &&
-                    brightnessSliderView.isTouchInActivationZone(event.getX())) {
-                brightnessSliderView.show();
-                return true; // Consume the touch event to prevent game input
-            }
         }
 
         return handleMotionEvent(view, event);
+    }
+
+    // Follows a single finger from the left edge of the screen, and does the left edge swipe
+    // action once it has swiped in far enough in time. Returns true when it did, having cancelled
+    // the touches the gesture made, which then ignore the rest of it.
+    private boolean trackEdgeSwipe(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                // On the screen's coordinates: the touch can land on the stream or around it
+                edgeSwipeTracking = brightnessSliderView.isTouchInActivationZone(event.getRawX());
+                edgeSwipeStartX = event.getRawX();
+                edgeSwipeStartY = event.getRawY();
+                edgeSwipeStartTime = event.getEventTime();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (!edgeSwipeTracking) {
+                    break;
+                }
+                if (event.getEventTime() - edgeSwipeStartTime > EDGE_SWIPE_TIME_LIMIT) {
+                    edgeSwipeTracking = false;
+                    break;
+                }
+                float in = event.getRawX() - edgeSwipeStartX;
+                float vertical = Math.abs(event.getRawY() - edgeSwipeStartY);
+                if (in >= EDGE_SWIPE_DISTANCE_DP * getResources().getDisplayMetrics().density && vertical < in) {
+                    edgeSwipeTracking = false;
+                    for (TouchContext aTouchContext : touchContextMap) {
+                        aTouchContext.cancelTouch();
+                    }
+                    if (prefConfig.leftEdgeSwipeAction.equals("overlay_menu")) {
+                        overlayMenuView.show();
+                    }
+                    else {
+                        brightnessSliderView.show();
+                    }
+                    return true;
+                }
+                break;
+            default:
+                // A second finger, or the finger lifted, before it swiped far enough
+                edgeSwipeTracking = false;
+                break;
+        }
+        return false;
     }
 
     @Override

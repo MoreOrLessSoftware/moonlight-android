@@ -86,6 +86,7 @@ public class PreferenceConfiguration {
     private static final String GAMEPAD_MOTION_FALLBACK_PREF_STRING = "checkbox_gamepad_motion_fallback";
     private static final String OVERLAY_TRIGGER_BUTTON_PREF_STRING = "overlay_trigger_button";
     private static final String OVERLAY_HOLD_DURATION_PREF_STRING = "overlay_hold_duration";
+    private static final String LEFT_EDGE_SWIPE_ACTION_PREF_STRING = "left_edge_swipe_action";
     private static final String AUTO_RESUME_STREAM_PREF_STRING = "checkbox_auto_resume_stream";
     private static final String VIDEO_RENDERER_PREF_STRING = "video_renderer";
     private static final String SPATIAL_DITHERING_PREF_STRING = "spatial_dithering";
@@ -144,6 +145,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_GAMEPAD_MOTION_FALLBACK = false;
     private static final String DEFAULT_OVERLAY_TRIGGER_BUTTON = "select";
     private static final String DEFAULT_OVERLAY_HOLD_DURATION = "1500";
+    private static final String DEFAULT_LEFT_EDGE_SWIPE_ACTION = "brightness";
     private static final boolean DEFAULT_AUTO_RESUME_STREAM = false;
 
     public static final int FRAME_PACING_MIN_LATENCY = 0;
@@ -237,6 +239,8 @@ public class PreferenceConfiguration {
     public boolean gamepadMotionSensorsFallbackToDevice;
     public String overlayTriggerButton;
     public int overlayHoldDurationMs;
+    // What a swipe in from the left edge does: overlay_menu, brightness or off
+    public String leftEdgeSwipeAction;
     public boolean autoResumeStream;
 
     public static boolean isNativeResolution(int width, int height) {
@@ -797,6 +801,7 @@ public class PreferenceConfiguration {
         config.gamepadMotionSensorsFallbackToDevice = prefs.getBoolean(GAMEPAD_MOTION_FALLBACK_PREF_STRING, DEFAULT_GAMEPAD_MOTION_FALLBACK);
         config.overlayTriggerButton = prefs.getString(OVERLAY_TRIGGER_BUTTON_PREF_STRING, DEFAULT_OVERLAY_TRIGGER_BUTTON);
         config.overlayHoldDurationMs = Integer.parseInt(prefs.getString(OVERLAY_HOLD_DURATION_PREF_STRING, DEFAULT_OVERLAY_HOLD_DURATION));
+        config.leftEdgeSwipeAction = prefs.getString(LEFT_EDGE_SWIPE_ACTION_PREF_STRING, DEFAULT_LEFT_EDGE_SWIPE_ACTION);
         config.autoResumeStream = prefs.getBoolean(AUTO_RESUME_STREAM_PREF_STRING, DEFAULT_AUTO_RESUME_STREAM);
 
         return config;
