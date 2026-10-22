@@ -2577,8 +2577,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             // Check if touch is on the left edge to show brightness slider. Only as a trackpad:
             // otherwise touches go to the host where they land, the left edge included, and the
-            // overlay menu has a Brightness button.
-            if (prefConfig.touchscreenTrackpad && brightnessSliderView.isTouchInActivationZone(event.getX())) {
+            // overlay menu has a Brightness button. Not with the on-screen controls either, whose
+            // buttons along the left edge would open it.
+            if (prefConfig.touchscreenTrackpad && virtualController == null &&
+                    brightnessSliderView.isTouchInActivationZone(event.getX())) {
                 brightnessSliderView.show();
                 return true; // Consume the touch event to prevent game input
             }
