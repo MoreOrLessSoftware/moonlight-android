@@ -96,7 +96,7 @@
     <string name="perf_overlay_hostprocessinglatency">புரவலன் செயலாக்க நேரந்தவறுகை நிமிடம்/அதிகபட்சம்/சராசரி:%1$.1f/%2$.1f/%3$.1f மிவி</string>
     <string name="perf_overlay_netdrops">உங்கள் பிணைய இணைப்பால் பிரிக்கப்பட்ட பிரேம்கள்:%1$.2f%%</string>
     <string name="perf_overlay_netlatency">சராசரி பிணையம் தாமதம்: %1$d மிநொ (மாறுபாடு: %2$d மிநொ)</string>
-    <string name="perf_overlay_dectime">சராசரி டிகோடிங் நேரம்: %1$.2f மிவி</string>
+    <string name="perf_overlay_dectime">சராசரி டிகோடிங் நேரம்: %1$.1f மிவி</string>
     <string name="applist_connect_msg">பிசியுடன் இணைக்கிறது…</string>
     <string name="applist_menu_resume">அமர்வு மீண்டும் தொடங்குங்கள்</string>
     <string name="applist_menu_quit">அமர்விலிருந்து வெளியேறுதல்</string>

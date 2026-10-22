@@ -153,7 +153,7 @@
     <string name="perf_overlay_hostprocessinglatency">ホスト処理遅延 最小/最大/平均: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="perf_overlay_netdrops">ネットワーク接続によりドロップしたフレーム: %1$.2f%%</string>
     <string name="perf_overlay_netlatency">平均ネットワーク遅延: %1$d ミリ秒 (分散: %2$d ミリ秒)</string>
-    <string name="perf_overlay_dectime">平均デコード時間: %1$.2f ms</string>
+    <string name="perf_overlay_dectime">平均デコード時間: %1$.1f ms</string>
     <string name="applist_menu_details">詳細を表示</string>
     <string name="applist_menu_scut">ショートカットを作成</string>
     <string name="perf_overlay_streamdetails">ビデオストリーム: %1$s %2$.2f FPS</string>

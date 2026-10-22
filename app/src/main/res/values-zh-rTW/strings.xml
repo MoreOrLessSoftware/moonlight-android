@@ -76,7 +76,7 @@
     <string name="perf_overlay_decoder">解碼器：%1$s</string>
     <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netdrops">網路丟失影格：%1$.2f%%</string>
-    <string name="perf_overlay_dectime">平均解碼時間：%1$.2f ms</string>
+    <string name="perf_overlay_dectime">平均解碼時間：%1$.1f ms</string>
     <!-- AppList activity -->
     <string name="applist_connect_msg">正在連線電腦…</string>
     <string name="applist_menu_resume">繼續工作階段</string>

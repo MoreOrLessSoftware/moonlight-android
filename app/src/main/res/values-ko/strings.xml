@@ -128,7 +128,7 @@
     <string name="applist_menu_hide_app">게임 숨기기</string>
     <string name="applist_menu_scut">바로가기 만들기</string>
     <string name="applist_menu_details">세부사항</string>
-    <string name="perf_overlay_dectime">평균 디코딩 시간 : %1$.2f ms</string>
+    <string name="perf_overlay_dectime">평균 디코딩 시간 : %1$.1f ms</string>
     <string name="perf_overlay_netlatency">평균 네트워크 지연 시간 : %1$d ms (편차 : %2$d ms)</string>
     <string name="perf_overlay_netdrops">네트워크에 의해 손실 된 프레임 : %1$.2f%%</string>
     <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>

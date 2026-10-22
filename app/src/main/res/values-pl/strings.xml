@@ -205,7 +205,7 @@
     <string name="applist_connect_msg">Podłączanie do komputera…</string>
     <string name="applist_menu_resume">Wznowienie sesji</string>
     <string name="perf_overlay_netdrops">Ramki porzucone przez połączenie sieciowe: %1$.2f%%</string>
-    <string name="perf_overlay_dectime">Średni czas dekodowania: %1$.2f ms</string>
+    <string name="perf_overlay_dectime">Średni czas dekodowania: %1$.1f ms</string>
     <string name="addpc_success">Dodano komputer z powodzeniem</string>
     <string name="resolution_prefix_native_landscape">(Panoramiczny)</string>
     <string name="resolution_prefix_native_fullscreen">Natywny pełny ekran</string>

@@ -122,7 +122,7 @@
     <string name="title_checkbox_disable_warnings">Nonaktifkan pesan peringatan</string>
     <string name="summary_checkbox_disable_warnings">Nonaktifkan pesan peringatan koneksi di layar saat streaming</string>
     <string name="error_unknown_host">Gagal menyelesaikan host</string>
-    <string name="perf_overlay_dectime">Waktu decoding rata-rata: %1$.2f ms</string>
+    <string name="perf_overlay_dectime">Waktu decoding rata-rata: %1$.1f ms</string>
     <string name="category_host_settings">Pengaturan tuan rumah</string>
     <string name="frame_conversion_error">PC host melaporkan kesalahan penyandian video yang fatal.
 \n

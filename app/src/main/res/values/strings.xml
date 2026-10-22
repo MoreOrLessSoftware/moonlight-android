@@ -116,7 +116,7 @@
     <string name="perf_overlay_netdrops">Frames dropped: %1$.2f%%</string>
     <string name="perf_overlay_netdrops_partial">Frames dropped: %1$.2f%% (partial %2$.2f%%)</string>
     <string name="perf_overlay_netlatency">Network latency: %1$d ms (±%2$d ms)</string>
-    <string name="perf_overlay_dectime">Decoding time: %1$.2f ms</string>
+    <string name="perf_overlay_dectime">Decoding time: %1$.1f ms</string>
     <string name="perf_overlay_bandwidth">Video bitrate: %1$.1f Mbps</string>
     <string name="perf_overlay_pacing">Frame pacing: %1$s</string>
     <string name="perf_overlay_pacing_buffer">Frame pacing: %1$s ms</string>
@@ -132,7 +132,7 @@
     <string name="perf_overlay_compact_netdrops_partial">Dropped/partial: %1$.2f%%/%2$.2f%%</string>
     <string name="perf_overlay_compact_netlatency">Net: %1$d/%2$d</string>
     <string name="perf_overlay_compact_hostlatency">Host: %1$.1f</string>
-    <string name="perf_overlay_compact_dectime">%1$s: %2$.2f</string>
+    <string name="perf_overlay_compact_dectime">%1$s: %2$.1f</string>
     <string name="perf_overlay_compact_pacing">Frame pacing: %1$s</string>
     <!-- The minimal stats, a shorter compact line -->
     <string name="perf_overlay_minimal_fps">Render: %1$.2f FPS</string>

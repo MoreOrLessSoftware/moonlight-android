@@ -63,7 +63,7 @@
     <string name="conn_hardware_latency">Průměrné zpoždění hardwarového dekodéru:</string>
     <string name="conn_client_latency">Průměrné zpoždění při dekódování snímků:</string>
     <string name="perf_overlay_netlatency">Průměrné zpoždění sítě: %1$d ms (odchylka: %2$d ms)</string>
-    <string name="perf_overlay_dectime">Průměrný čas pro dekódování: %1$.2f ms</string>
+    <string name="perf_overlay_dectime">Průměrný čas pro dekódování: %1$.1f ms</string>
     <string name="applist_connect_msg">Připojování k PC…</string>
     <string name="title_checkbox_touchscreen_trackpad">Použít dotykový displej jako trackpad</string>
     <string name="title_checkbox_multi_controller">Automatická detekce připojení herního ovladače</string>

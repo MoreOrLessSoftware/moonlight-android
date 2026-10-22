@@ -90,7 +90,7 @@
     <string name="perf_overlay_decoder">Décodeur : %1$s</string>
     <string name="perf_overlay_fps">FPS in/render: %1$.2f / %2$.2f FPS (%3$+.1f%%)</string>
     <string name="perf_overlay_netdrops">Images perdues par votre connexion réseau : %1$.2f%%</string>
-    <string name="perf_overlay_dectime">Temps moyen de décodage : %1$.2f ms</string>
+    <string name="perf_overlay_dectime">Temps moyen de décodage : %1$.1f ms</string>
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connexion au PC…</string>
     <string name="applist_menu_resume">Reprendre la session</string>
