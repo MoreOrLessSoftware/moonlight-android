@@ -76,6 +76,9 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     private RelativeLayout noPcFoundLayout;
     // The app list shown in place of the PC grid, or null while showing PCs
     private volatile AppView appView;
+    private static final String APP_LIST_UUID_STATE = "AppListUuid";
+    // The PC whose app list was showing before this activity was made again
+    private String restoredAppListUuid;
     private CharSequence pcListTitle;
     private OnBackInvokedCallback appListBackCallback;
     private PcGridAdapter pcGridAdapter;
@@ -109,14 +112,18 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
                     // Start updates
                     startComputerUpdates();
 
-                    // A PC shortcut launches us with the PC whose apps to show
-                    final String appListUuid = getIntent().getStringExtra(AppView.UUID_EXTRA);
+                    // A PC shortcut launches us with the PC whose apps to show,
+                    // or we were made again while showing a PC's apps
+                    String intentAppListUuid = getIntent().getStringExtra(AppView.UUID_EXTRA);
+                    final String appListUuid = intentAppListUuid != null ?
+                            intentAppListUuid : restoredAppListUuid;
                     if (appListUuid != null) {
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
                                 // Only open it once, not on every rebind
                                 getIntent().removeExtra(AppView.UUID_EXTRA);
+                                restoredAppListUuid = null;
 
                                 ComputerDetails computer = managerBinder != null ?
                                         managerBinder.getComputer(appListUuid) : null;
@@ -451,6 +458,10 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        if (savedInstanceState != null) {
+            restoredAppListUuid = savedInstanceState.getString(APP_LIST_UUID_STATE);
+        }
+
         // Before onStart(), so this activity starting is counted
         registerForegroundTracker(getApplication());
 
@@ -659,6 +670,22 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         // Notify OverridesView of pause
         if (overridesView != null) {
             overridesView.onPause();
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+
+        // Keep the app list across the activity being made again, like by a configuration
+        // change we don't handle or being destroyed in the background during a stream
+        AppView currentAppView = appView;
+        if (currentAppView != null) {
+            outState.putString(APP_LIST_UUID_STATE, currentAppView.getComputerUuid());
+        }
+        else if (restoredAppListUuid != null) {
+            // Made again before the service bound, so the app list wasn't opened yet
+            outState.putString(APP_LIST_UUID_STATE, restoredAppListUuid);
         }
     }
 
