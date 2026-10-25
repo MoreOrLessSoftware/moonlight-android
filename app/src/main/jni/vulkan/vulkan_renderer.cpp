@@ -5,9 +5,11 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <poll.h>
+#include <sched.h>
 #include <sys/eventfd.h>
 #include <sys/resource.h>
 #include <sys/timerfd.h>
@@ -102,6 +104,46 @@ namespace {
             return;
         }
         ALOGI("%s thread priority %d", name, getpriority(PRIO_PROCESS, tid));
+    }
+
+    // Keeps the calling thread off the slowest cores (the ones with the lowest top clock), which
+    // the scheduler packs other work onto; nothing if all are the same
+    void pinToFastCores(const char* name) {
+        const int cpus = std::min(static_cast<int>(sysconf(_SC_NPROCESSORS_CONF)), CPU_SETSIZE);
+        std::vector<long> maxKhz(cpus, 0);
+        for (int cpu = 0; cpu < cpus; cpu++) {
+            char path[96];
+            snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", cpu);
+            if (FILE* file = fopen(path, "r")) {
+                if (fscanf(file, "%ld", &maxKhz[cpu]) != 1) {
+                    maxKhz[cpu] = 0;
+                }
+                fclose(file);
+            }
+        }
+        long slowestKhz = 0;
+        for (const long khz : maxKhz) {
+            if (khz > 0 && (slowestKhz == 0 || khz < slowestKhz)) {
+                slowestKhz = khz;
+            }
+        }
+        cpu_set_t set;
+        CPU_ZERO(&set);
+        std::string list;
+        for (int cpu = 0; cpu < cpus; cpu++) {
+            if (maxKhz[cpu] > slowestKhz) {
+                CPU_SET(cpu, &set);
+                list += (list.empty() ? "" : ",") + std::to_string(cpu);
+            }
+        }
+        if (list.empty()) {
+            return;
+        }
+        if (sched_setaffinity(0, sizeof(set), &set) != 0) {
+            ALOGW("Could not keep the %s thread on CPUs %s: %s", name, list.c_str(), strerror(errno));
+            return;
+        }
+        ALOGI("%s thread kept on CPUs %s", name, list.c_str());
     }
 
     int64_t nowNs() {
@@ -1429,6 +1471,18 @@ void VulkanRenderer::renderThreadMain() {
     // A vsync callback that runs late can miss the compositor's deadline, and the frame reaches
     // the screen a vsync late. Android runs its own render threads at display priority.
     raiseThreadPriority("render");
+    // A front buffer aligned to the scan has to start each draw within 0.2 ms of its time. On an
+    // iPlay 70 mini Ultra on battery the thread was taken off the CPU for 0.15 to 0.85 ms while
+    // spinning to a draw's start or just after, moving 21 draws in 40 s, as often at -19 as at
+    // display priority (so by work at real-time priority, it seems). Kept off its slowest cores,
+    // 2 were in 90 s. Off with
+    // adb shell setprop debug.moonlight.front_buffer_pin 0
+    if (frontBufferRequested_ && frontBufferAligned_) {
+        char value[PROP_VALUE_MAX] = {};
+        if (__system_property_get("debug.moonlight.front_buffer_pin", value) <= 0 || atoi(value) != 0) {
+            pinToFastCores("render");
+        }
+    }
     perfHint_.addThread();
 
     ALooper* looper = ALooper_prepare(0);
