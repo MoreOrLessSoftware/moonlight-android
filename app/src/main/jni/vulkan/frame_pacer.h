@@ -281,7 +281,7 @@ private:
     void updateSlot(const FrameTiming& frame);
     struct PhaseFit {
         double interval = 0;  // The game's frame interval
-        double latest = 0;    // The latest sample against the line
+        double latest = 0;    // The second latest sample against the line (see updatePhase())
         double spread = 0;    // From the earliest sample against it to the latest
     };
     bool fitPhase(size_t from, PhaseFit* out) const;

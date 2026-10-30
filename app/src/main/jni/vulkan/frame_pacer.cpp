@@ -464,18 +464,25 @@ bool FramePacer::fitPhase(size_t from, PhaseFit* out) const {
     out->spread = 1e18;
     for (double candidate : candidates) {
         double high = -1e18;
+        double secondHigh = -1e18;
         double low = 1e18;
         for (size_t i = from; i < phaseSamples_.size(); i++) {
             const PhaseSample& s = phaseSamples_[i];
             const double residual = static_cast<double>(s.hostPtsNs - first.hostPtsNs) -
                                     candidate * static_cast<double>(s.frameIndex - first.frameIndex);
-            high = std::max(high, residual);
+            if (residual > high) {
+                secondHigh = high;
+                high = residual;
+            }
+            else if (residual > secondHigh) {
+                secondHigh = residual;
+            }
             low = std::min(low, residual);
         }
         if (high - low < out->spread) {
             out->spread = high - low;
             out->interval = candidate;
-            out->latest = high;
+            out->latest = secondHigh;
         }
     }
     return true;
@@ -665,6 +672,13 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     // slowly, since on a fixed refresh host they tend to return (the next time the game's
     // presents cross a host refresh). The schedule is carried from frame to frame so that
     // refitting the line doesn't move it.
+    //
+    // The latest frame itself is left out: one frame alone is a hitch, and is shown late. On an
+    // iPlay 70 mini Ultra streaming 60 fps from an AMD host at 120 Hz, the host showed one frame
+    // 11 ms late; scheduled as late as it, every frame after went a vsync later for over 30 s.
+    // Replayed without it, the median from arrival to vsync came down from 13.6 to 10.0 ms, and
+    // from 8.9 to 7.9 ms with 40% fewer uneven frames from an NVIDIA host; a second frame as late
+    // still moves the schedule.
     const bool againstLine = timeline_.jitterBuffer() == JitterBuffer::Balanced ||
                              timeline_.jitterBuffer() == JitterBuffer::Smooth;
     const double x = static_cast<double>(frameIndex_ - first.frameIndex);

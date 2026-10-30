@@ -47,6 +47,10 @@ struct Scenario {
     // across a hitch (on the host's desktop before a game, or as the game itself stalls)
     double stepAtS = 0;
     double stepMs = 0;
+    // The first frame from hitchAtS on comes hitchMs late, and only that one: the host showed
+    // it late (a hitch in the game or on the host's GPU), and the frames after it are on time
+    double hitchAtS = 0;
+    double hitchMs = 0;
 };
 
 struct Result {
@@ -55,6 +59,7 @@ struct Result {
     int emptySlots = 0;        // Vsyncs without a new frame where the stream should have had one
     double meanLatencyMs = 0;  // Vsync time minus frame arrival
     double maxLatencyMs = 0;
+    double meanScheduledMs = 0;  // When the pacer scheduled frames, after their arrival
     double cadenceErrorMs = 0; // Mean |display interval - host interval| between shown frames
     int heldShort = 0;         // Frames on screen for fewer vsyncs than a slot
     int heldLong = 0;          // Frames on screen for more vsyncs than a slot
@@ -109,6 +114,14 @@ std::vector<int64_t> hostFrames(const Scenario& s) {
             if (p >= s.stepAtS * 1e9) p += static_cast<int64_t>(s.stepMs * 1e6);
         }
     }
+    if (s.hitchAtS > 0) {
+        for (int64_t& p : pts) {
+            if (p >= s.hitchAtS * 1e9) {
+                p += static_cast<int64_t>(s.hitchMs * 1e6);
+                break;
+            }
+        }
+    }
     return pts;
 }
 
@@ -145,6 +158,8 @@ Result run(const Scenario& s, bool verbose = false) {
 
     Result r;
     double latencySum = 0;
+    double scheduledSum = 0;
+    int scheduledCount = 0;
     double cadenceSum = 0;
     int cadenceCount = 0;
     int64_t lastShownVsync = 0;
@@ -161,6 +176,10 @@ Result run(const Scenario& s, bool verbose = false) {
         while (next < pts.size() && arrival[next] <= vsync + 500'000) {
             Queued q {{pts[next], arrival[next], 0}, next};
             pacer.onFrameArrived(q.timing);
+            if (vsync > warmup) {
+                scheduledSum += static_cast<double>(q.timing.targetNs + pacer.phaseShiftNs() - q.timing.arrivalNs);
+                scheduledCount++;
+            }
             queue.push_back(q);
             while (queue.size() > pacer.maxQueued()) {
                 queue.pop_front();
@@ -222,6 +241,7 @@ Result run(const Scenario& s, bool verbose = false) {
     }
 
     r.meanLatencyMs = r.shown ? latencySum / r.shown : 0;
+    r.meanScheduledMs = scheduledCount ? scheduledSum / scheduledCount / 1e6 : 0;
     r.cadenceErrorMs = cadenceCount ? cadenceSum / cadenceCount : 0;
     if (verbose) {
         printf("  buffer %.2f ms, shift %.2f ms, locked %d\n",
@@ -465,6 +485,47 @@ int main() {
         check(rs.meanLatencyMs < rf.meanLatencyMs + 1.5, stepped.name, "frames from before the step still delay the rest");
         check(rs.skipped + rs.heldShort + rs.heldLong <= rf.skipped + rf.heldShort + rf.heldLong + 2, stepped.name,
               "more uneven frames than without the step");
+    }
+    {
+        // A 60 fps game on a 120 Hz display where the host shows one frame 11 ms late and the
+        // rest on time, as an AMD host (game and encoder sharing an integrated GPU) did in a trace
+        // from an iPlay 70 mini Ultra. Low and Lowest latency schedule frames as late as the
+        // recent frames against the line: counting that one frame, every frame after it went a
+        // vsync later for the 16 s it stayed in the window, and longer while the schedule came
+        // back down. One late frame should only be shown late itself, at every phase of the
+        // vsyncs against the frames: the frames after it scheduled as without it.
+        //
+        // Their time on screen isn't compared: where frames are due just before a vsync they
+        // can't count on making, they can go out at that vsync anyway, a slot early (the
+        // catch-up in onVsync()), until one late frame takes it and they settle on their own.
+        const JitterBuffer presets[] = {JitterBuffer::LowestLatency, JitterBuffer::LowLatency};
+        const char* names[] = {"Lowest latency: one host frame 11 ms late (120 Hz)",
+                               "Low latency: one host frame 11 ms late (120 Hz)"};
+        for (int i = 0; i < 2; i++) {
+            Scenario base {names[i], 60.0, 60, 120.0};
+            base.jitterBuffer = presets[i];
+            base.jitterMs = 2.0;
+            base.durationS = 50.0;
+            base.measureFromS = 21.0;
+            double worstExtraMs = 0;
+            int worstExtraUneven = 0;
+            for (int p = 0; p < 20; p++) {
+                Scenario steady = base;
+                steady.vsyncPhase = p / 20.0;
+                Scenario hitched = steady;
+                hitched.hitchAtS = 20.0;
+                hitched.hitchMs = 11.0;
+                const Result rh = run(hitched);
+                const Result rs = run(steady);
+                worstExtraMs = std::max(worstExtraMs, rh.meanScheduledMs - rs.meanScheduledMs);
+                worstExtraUneven = std::max(worstExtraUneven, (rh.skipped + rh.heldShort + rh.heldLong) -
+                                                                      (rs.skipped + rs.heldShort + rs.heldLong));
+            }
+            printf("%-44s worst of 20 phases: scheduled %.1f ms later, %d more uneven frames than without it\n",
+                   base.name, worstExtraMs, worstExtraUneven);
+            check(worstExtraMs < 0.5, base.name, "one late frame delays the frames after it");
+            check(worstExtraUneven <= 2, base.name, "more uneven frames than without the late frame");
+        }
     }
     {
         // Switching the jitter buffer mid-stream, as the overlay menu does: once it settles, the
