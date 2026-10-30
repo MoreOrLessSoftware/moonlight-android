@@ -412,10 +412,10 @@ int main(int argc, char** argv) {
     Tally recorded {"Recorded on the device"};
     Tally replayed {"Replayed through the current pacer"};
 
-    static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth", "lowest latency"};
+    static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth", "lowest latency", "instant"};
     const int jitterBuffer = jitterBufferOverride >= 0 ? jitterBufferOverride : config.jitterBuffer;
-    printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 4],
-           kJitterBufferNames[jitterBuffer % 4]);
+    printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 5],
+           kJitterBufferNames[jitterBuffer % 5]);
     const bool presentAhead = presentAheadOverride >= 0 ? presentAheadOverride != 0 : config.presentAhead != 0;
     printf("Presenting frames as they arrive: %s on the device, %s in the replay\n", config.presentAhead ? "on" : "off",
            presentAhead ? "on" : "off");
