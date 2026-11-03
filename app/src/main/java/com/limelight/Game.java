@@ -74,6 +74,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.Html;
 import android.util.Rational;
 import android.view.Display;
@@ -162,6 +163,20 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private float desiredRefreshRate;
     private StreamConfiguration streamConfig;
     private boolean manualRefreshRateX100;
+    // The host was asked for a rate matched to our display (startConnection()), and whether that
+    // allowed for its clock with a rate measured over an earlier stream (HostClockRates)
+    private boolean hostRateMatched;
+    private boolean hostClockCorrected;
+
+    // The host's clock rate is known once clock sync has spanned 30 s (MoonBridge.getHostClockRate()),
+    // checked from just after that until it is, or until a host that doesn't answer clock sync
+    // has had long enough
+    private static final long HOST_CLOCK_FIRST_CHECK_MS = 32_000;
+    private static final long HOST_CLOCK_RETRY_MS = 10_000;
+    private static final long HOST_CLOCK_GIVE_UP_MS = 180_000;
+    private final Handler hostClockHandler = new Handler(Looper.getMainLooper());
+    private long hostClockCheckStartMs;
+    private final Runnable hostClockCheck = this::checkHostClock;
     private DisplayRefreshMeter refreshMeter;
     // Asking whether to stream at a frame rate that doesn't divide the refresh rate
     private AlertDialog refreshMismatchDialog;
@@ -2653,14 +2668,40 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public void stageComplete(String stage) {
     }
 
+    // Saves the host's clock rate measured over the stream so far, telling the user with `message`
+    // when it's the first for the host or has moved a lot. The rate can't change mid-stream, so
+    // it only helps from the next one. After the first, each stream refines it by a few ppm, which
+    // nobody would notice. Returns whether the rate was known.
+    private boolean saveHostClockRate(String message) {
+        double[] hostClock = MoonBridge.getHostClockRate();
+        if (hostClock == null) {
+            return false;
+        }
+        if (HostClockRates.save(this, getIntent().getStringExtra(EXTRA_PC_UUID), hostClock[0], hostClock[1]) &&
+                hostRateMatched) {
+            final Context appContext = getApplicationContext();
+            runOnUiThread(() -> Toast.makeText(appContext, message, Toast.LENGTH_LONG).show());
+        }
+        return true;
+    }
+
+    // During the stream, so that the first one to a host can be restarted to use the rate
+    private void checkHostClock() {
+        if (!connected) {
+            return;
+        }
+        if (!saveHostClockRate("Calibrated to this host's clock. Reconnect to match your display's refresh rate more closely.") &&
+                SystemClock.uptimeMillis() - hostClockCheckStartMs < HOST_CLOCK_GIVE_UP_MS) {
+            hostClockHandler.postDelayed(hostClockCheck, HOST_CLOCK_RETRY_MS);
+        }
+    }
+
     private void stopConnection() {
         if (connecting || connected) {
             if (connected) {
                 // Measured over the stream, for the next one to ask for a rate that allows for it
-                double[] hostClock = MoonBridge.getHostClockRate();
-                if (hostClock != null) {
-                    HostClockRates.save(this, getIntent().getStringExtra(EXTRA_PC_UUID), hostClock[0], hostClock[1]);
-                }
+                hostClockHandler.removeCallbacks(hostClockCheck);
+                saveHostClockRate("Calibrated to this host's clock. Your next stream will match your display's refresh rate more closely.");
             }
             connecting = connected = false;
             updatePipAutoEnter();
@@ -2858,6 +2899,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 connecting = false;
                 updatePipAutoEnter();
 
+                hostClockCheckStartMs = SystemClock.uptimeMillis();
+                hostClockHandler.postDelayed(hostClockCheck, HOST_CLOCK_FIRST_CHECK_MS);
+
                 // Hide the mouse cursor now after a short delay.
                 // Doing it before dismissing the spinner seems to be undone
                 // when the spinner gets displayed. On Android Q, even now
@@ -3052,7 +3096,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // The exact rate the host was asked for
         String hostRateText = "";
         if (streamConfig.getClientRefreshRateUhz() > 0) {
-            hostRateText = String.format(Locale.getDefault(), " (%.4f Hz)", streamConfig.getClientRefreshRateUhz() / 1e6);
+            hostRateText = String.format(Locale.getDefault(), " (%.4f Hz%s)", streamConfig.getClientRefreshRateUhz() / 1e6,
+                    hostClockCorrected ? ", host clock calibrated" : "");
         }
         else if (streamConfig.getClientRefreshRateX100() > 0) {
             hostRateText = String.format(Locale.getDefault(), " (%.2f Hz)", streamConfig.getClientRefreshRateX100() / 100.0);
@@ -3113,6 +3158,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 String computerUuid = getIntent().getStringExtra(EXTRA_PC_UUID);
                 double hostClockPpm = HostClockRates.get(this, computerUuid);
                 double requestHz = HostClockRates.hostRequestHz(hostRate, hostClockPpm);
+                hostRateMatched = true;
+                hostClockCorrected = HostClockRates.isKnown(this, computerUuid);
                 streamConfig.setClientRefreshRateX100((int) Math.round(requestHz * 100));
                 streamConfig.setClientRefreshRateUhz((int) Math.round(requestHz * 1e6));
                 LimeLog.info(String.format(Locale.ROOT, "Asking the host for %.6f FPS (%.6f on our clock, host clock %+.1f ppm)",

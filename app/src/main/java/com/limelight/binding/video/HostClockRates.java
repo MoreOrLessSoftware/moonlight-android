@@ -20,8 +20,13 @@ import java.util.Locale;
 public final class HostClockRates {
     private static final String PREFS = "HostClockRate";
 
-    // Shorter streams measure too little to replace what's known
-    private static final double MIN_SPAN_SECONDS = 60;
+    // Shorter streams measure too little to replace what's known. Over 30 s the line through
+    // clock sync is already good to a couple of ppm, and a short first stream still calibrates.
+    private static final double MIN_SPAN_SECONDS = 30;
+
+    // A change this large is worth telling the user about: a different PC behind the same host,
+    // say. Measurements of the same host differ by a few ppm (59.2 and 56.8 in one morning).
+    private static final double NOTABLE_CHANGE_PPM = 10;
 
     // Further off than this, something other than the crystals is wrong
     private static final double MAX_PPM = 500;
@@ -37,15 +42,24 @@ public final class HostClockRates {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getFloat(computerUuid, 0);
     }
 
-    // Remembers the rate measured over the stream that's ending, if it ran long enough
-    public static void save(Context context, String computerUuid, double ppm, double spanSeconds) {
+    // Whether a rate has been measured for the host
+    public static boolean isKnown(Context context, String computerUuid) {
+        return computerUuid != null && context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(computerUuid);
+    }
+
+    // Remembers the rate measured over the stream that's ending, if it ran long enough. Returns
+    // true when it's the first for the host or differs notably from the last, so that the next
+    // stream asks for a noticeably different rate.
+    public static boolean save(Context context, String computerUuid, double ppm, double spanSeconds) {
         LimeLog.info(String.format(Locale.ROOT, "Host clock runs %+.1f ppm against ours, over %.0f s", ppm, spanSeconds));
         if (computerUuid == null || spanSeconds < MIN_SPAN_SECONDS || Math.abs(ppm) > MAX_PPM) {
-            return;
+            return false;
         }
-        SharedPreferences.Editor editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
-        editor.putFloat(computerUuid, (float) ppm);
-        editor.apply();
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        boolean notable = !prefs.contains(computerUuid) ||
+                Math.abs(prefs.getFloat(computerUuid, 0) - ppm) > NOTABLE_CHANGE_PPM;
+        prefs.edit().putFloat(computerUuid, (float) ppm).apply();
+        return notable;
     }
 
     // The rate to ask a host for, so that its frames come out at streamHz on our clock
