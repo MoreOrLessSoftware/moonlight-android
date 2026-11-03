@@ -112,6 +112,20 @@
             android:key="checkbox_ultra_low_latency"
             android:summary="@string/summary_checkbox_ultra_low_latency"
             android:title="@string/title_checkbox_ultra_low_latency" />
+        <com.limelight.preferences.FecListPreference
+            android:key="list_fec_percent"
+            android:title="@string/title_fec_percent"
+            android:entries="@array/fec_percent_names"
+            android:entryValues="@array/fec_percent_values"
+            android:summary="@string/summary_fec_percent"
+            android:defaultValue="-1" />
+        <com.limelight.preferences.VideoSendRateListPreference
+            android:key="list_video_send_rate"
+            android:title="@string/title_video_send_rate"
+            android:entries="@array/video_send_rate_names"
+            android:entryValues="@array/video_send_rate_values"
+            android:summary="@string/summary_video_send_rate"
+            android:defaultValue="0" />
         <CheckBoxPreference
             android:key="checkbox_full_range"
             android:title="@string/title_full_range"

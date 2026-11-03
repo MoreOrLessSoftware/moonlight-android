@@ -645,6 +645,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setAudioConfiguration(prefConfig.audioConfiguration)
                 .setColorSpace(decoderRenderer.getPreferredColorSpace())
                 .setColorRange(decoderRenderer.getPreferredColorRange())
+                .setFecPercentage(prefConfig.fecPercentage)
+                .setVideoSendRateMbps(prefConfig.videoSendRateMbps)
                 .setPersistGamepadsAfterDisconnect(!prefConfig.multiController);
 
         if (refreshRateX100 > 0) {
@@ -652,6 +654,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         StreamConfiguration config = configBuilder.build();
+
+        // Only this fork's Sunshine takes these; otherwise they're left to the host
+        if (prefConfig.fecPercentage >= 0) {
+            LimeLog.info("Requesting " + prefConfig.fecPercentage + "% video FEC");
+        }
+        if (prefConfig.videoSendRateMbps > 0) {
+            LimeLog.info("Requesting a video send rate of " + prefConfig.videoSendRateMbps + " Mbps");
+        }
         streamConfig = config;
 
         // Initialize the connection

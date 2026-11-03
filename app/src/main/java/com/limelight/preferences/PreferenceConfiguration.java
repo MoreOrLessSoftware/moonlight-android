@@ -94,6 +94,13 @@ public class PreferenceConfiguration {
     private static final String JITTER_BUFFER_PREF_STRING = "jitter_buffer";
     private static final String PYROWAVE_LATE_FRAMES_PREF_STRING = "pyrowave_late_frames";
     private static final String PYROWAVE_GPU_BOOST_PREF_STRING = "checkbox_pyrowave_gpu_boost";
+    static final String FEC_PERCENT_PREF_STRING = "list_fec_percent";
+    static final String VIDEO_SEND_RATE_PREF_STRING = "list_video_send_rate";
+
+    // What Sunshine takes for each (see FecListPreference and VideoSendRateListPreference)
+    static final int MAX_FEC_PERCENT = 255;
+    static final int MIN_VIDEO_SEND_RATE_MBPS = 100;
+    static final int MAX_VIDEO_SEND_RATE_MBPS = 100000;
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
@@ -225,6 +232,10 @@ public class PreferenceConfiguration {
     public int framePacing;
     public int jitterBuffer;
     public int pyrowaveLateFrames;
+    // FEC percentage to ask Sunshine for, -1 for the host's own setting
+    public int fecPercentage;
+    // Video send rate to ask Sunshine for in Mbps, 0 for the host's own setting
+    public int videoSendRateMbps;
     public boolean absoluteMouseMode;
     public boolean enableAudioFx;
     public boolean reduceRefreshRate;
@@ -513,6 +524,16 @@ public class PreferenceConfiguration {
         return parseJitterBuffer(prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER));
     }
 
+    // An integer setting stored as a string, or unset if it isn't one in the range
+    private static int parseIntInRange(String str, int min, int max, int unset) {
+        try {
+            int value = Integer.parseInt(str.trim());
+            return value >= min && value <= max ? value : unset;
+        } catch (NumberFormatException | NullPointerException e) {
+            return unset;
+        }
+    }
+
     public static int parseJitterBuffer(String str) {
         if (str.equals("low-latency")) {
             return JITTER_BUFFER_LOW_LATENCY;
@@ -747,6 +768,9 @@ public class PreferenceConfiguration {
         config.framePacing = getFramePacingValue(context);
         config.jitterBuffer = getJitterBufferValue(context);
         config.pyrowaveLateFrames = getPyrowaveLateFramesValue(context);
+        config.fecPercentage = parseIntInRange(prefs.getString(FEC_PERCENT_PREF_STRING, "-1"), 0, MAX_FEC_PERCENT, -1);
+        config.videoSendRateMbps = parseIntInRange(prefs.getString(VIDEO_SEND_RATE_PREF_STRING, "0"),
+                MIN_VIDEO_SEND_RATE_MBPS, MAX_VIDEO_SEND_RATE_MBPS, 0);
 
         config.analogStickForScrolling = getAnalogStickForScrollingValue(context);
 

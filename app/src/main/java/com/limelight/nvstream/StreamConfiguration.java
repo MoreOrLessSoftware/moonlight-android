@@ -28,6 +28,10 @@ public class StreamConfiguration {
     private int encryptionFlags;
     private int colorRange;
     private int colorSpace;
+    // The FEC percentage to ask Sunshine for, -1 for the host's own setting
+    private int fecPercentage;
+    // The video send rate to ask Sunshine for in Mbps, 0 for the host's own setting
+    private int videoSendRateMbps;
     private boolean persistGamepadsAfterDisconnect;
     private boolean enableUltraLowLatency;
 
@@ -130,6 +134,16 @@ public class StreamConfiguration {
             return this;
         }
 
+        public StreamConfiguration.Builder setFecPercentage(int fecPercentage) {
+            config.fecPercentage = fecPercentage;
+            return this;
+        }
+
+        public StreamConfiguration.Builder setVideoSendRateMbps(int videoSendRateMbps) {
+            config.videoSendRateMbps = videoSendRateMbps;
+            return this;
+        }
+
         public StreamConfiguration.Builder setEnableUltraLowLatency(boolean enable) {
             config.enableUltraLowLatency = enable;
             return this;
@@ -150,6 +164,7 @@ public class StreamConfiguration {
         this.bitrate = 10000;
         this.maxPacketSize = 1024;
         this.remote = STREAM_CFG_AUTO;
+        this.fecPercentage = -1;
         this.sops = true;
         this.enableAdaptiveResolution = false;
         this.audioConfiguration = MoonBridge.AUDIO_CONFIGURATION_STEREO;
@@ -242,6 +257,14 @@ public class StreamConfiguration {
 
     public int getColorSpace() {
         return colorSpace;
+    }
+
+    public int getFecPercentage() {
+        return fecPercentage;
+    }
+
+    public int getVideoSendRateMbps() {
+        return videoSendRateMbps;
     }
 
     public boolean getEnableUltraLowLatency() {

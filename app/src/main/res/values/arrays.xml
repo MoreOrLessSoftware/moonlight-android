@@ -139,6 +139,46 @@
         <item>smoothest</item>
     </string-array>
 
+    <string-array name="fec_percent_names">
+        <item>@string/fec_percent_host</item>
+        <item>@string/fec_percent_off</item>
+        <item>5%</item>
+        <item>10%</item>
+        <item>20%</item>
+        <item>30%</item>
+        <item>50%</item>
+    </string-array>
+    <string-array name="fec_percent_values" translatable="false">
+        <item>-1</item>
+        <item>0</item>
+        <item>5</item>
+        <item>10</item>
+        <item>20</item>
+        <item>30</item>
+        <item>50</item>
+    </string-array>
+
+    <string-array name="video_send_rate_names">
+        <item>@string/video_send_rate_host</item>
+        <item>200 Mbps</item>
+        <item>400 Mbps</item>
+        <item>600 Mbps</item>
+        <item>800 Mbps</item>
+        <item>1000 Mbps</item>
+        <item>1500 Mbps</item>
+        <item>2000 Mbps</item>
+    </string-array>
+    <string-array name="video_send_rate_values" translatable="false">
+        <item>0</item>
+        <item>200</item>
+        <item>400</item>
+        <item>600</item>
+        <item>800</item>
+        <item>1000</item>
+        <item>1500</item>
+        <item>2000</item>
+    </string-array>
+
     <string-array name="jitter_buffer_names">
         <item>@string/jitter_buffer_instant</item>
         <item>@string/jitter_buffer_lowest_latency</item>

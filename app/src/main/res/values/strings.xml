@@ -191,6 +191,7 @@
     <string name="resolution_prefix_native_portrait">(Portrait)</string>
     <string name="fps_suffix_fps">FPS</string>
     <string name="fps_custom_entry">Custom (%1$s FPS)</string>
+    <string name="custom_value_out_of_range">Enter a number from %1$d to %2$d</string>
     <string name="resolution_custom_entry">Custom (%1$s)</string>
     <string name="resolution_custom_message">Enter a width and height in pixels</string>
     <string name="resolution_custom_width">Width (e.g. 1920)</string>
@@ -384,6 +385,15 @@
     <string name="pacing_balanced_alt">Balanced with FPS limit</string>
     <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
     <string name="title_jitter_buffer">Jitter buffer</string>
+    <string name="title_fec_percent">Error correction</string>
+    <string name="summary_fec_percent">Extra packets sent with each video frame to rebuild lost ones. Raise it on lossy connections. Lower it on clean wired ones to save bandwidth and host CPU time. Off sends none, so any lost packet damages its frame. Requires this fork\'s Sunshine.</string>
+    <string name="fec_percent_host">Host setting</string>
+    <string name="fec_percent_off">Off</string>
+    <string name="fec_percent_custom_entry">Custom (%1$s%%)</string>
+    <string name="title_video_send_rate">Video send rate</string>
+    <string name="summary_video_send_rate">How fast the host sends each video frame\'s packets. A frame is only shown once all of it arrives, so a faster rate gets frames here sooner, but bursts faster than the slowest link (often Wi-Fi) can carry pile up in its buffers and arrive late or not at all. It\'s the rate within a frame, not the stream\'s bitrate, so keep it well above that. Requires this fork\'s Sunshine.</string>
+    <string name="video_send_rate_host">Host setting</string>
+    <string name="video_send_rate_custom_entry">Custom (%1$s Mbps)</string>
     <string name="summary_jitter_buffer">Only used with host frame timing pacing: configure how much latency you want to accept for a smoother stream</string>
     <string name="jitter_buffer_instant">Instant (drops frames, may stutter)</string>
     <string name="jitter_buffer_lowest_latency">Lowest latency</string>
