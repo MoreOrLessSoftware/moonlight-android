@@ -30,7 +30,12 @@ namespace vkr {
 //   V,vsyncNs,queued,choice,shownPtsNs,locked,slotVsyncs,slotParity,scheduleDelayNs,
 //     transitBufferNs,periodNs,driftPpm,callbackLateNs,presentId,presentDelayVsyncs
 //                                    vsync (FramePacer::onVsync()), choice -1 when nothing new
-//                                    was shown; callbackLateNs is how long after the vsync the
+//                                    was shown; locked is whether frames are assigned vsyncs
+//                                    (FramePacer::anchored()), scheduleDelayNs the newest frame's
+//                                    wait for its vsync (FramePacer::waitNs()), and slotParity,
+//                                    transitBufferNs and driftPpm are 0 since the pacer was
+//                                    simplified (older traces have the old pacer's values);
+//                                    callbackLateNs is how long after the vsync the
 //                                    callback ran, presentId identifies the present (0 if none)
 //                                    and presentDelayVsyncs is the vsync after this one it asked
 //                                    to reach the screen at (PresentScheduler)

@@ -639,7 +639,7 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     // display timing
     presentAhead_ = (hasDisplayTimingExt_ || (frontBufferAligned_ && hasSharedPresentExt_)) &&
             pacer_.mode() == PacingMode::HostTimed;
-    instant_ = pacer_.mode() == PacingMode::HostTimed && pacer_.timeline().jitterBuffer() == JitterBuffer::Instant;
+    instant_ = pacer_.mode() == PacingMode::HostTimed && pacer_.jitterBuffer() == JitterBuffer::Instant;
     pacer_.setPresentAhead(presentAhead_);
     pacer_.setPresentGuardNs(presentScheduler_.guardNs());
 
@@ -1199,7 +1199,7 @@ void VulkanRenderer::setHdrMode(bool enabled, const uint8_t* metadata, size_t me
 
 void VulkanRenderer::setJitterBuffer(JitterBuffer jitterBuffer) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (jitterBuffer == pacer_.timeline().jitterBuffer()) {
+    if (jitterBuffer == pacer_.jitterBuffer()) {
         return;
     }
     ALOGI("Jitter buffer changed to %d", static_cast<int>(jitterBuffer));
@@ -1229,19 +1229,15 @@ std::string VulkanRenderer::pacingText() {
         snprintf(text, sizeof(text), "instant, %.2f Hz", 1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));
         headline = text;
     }
-    else if (pacer_.mode() == PacingMode::HostTimed && pacer_.timeline().hasEstimate()) {
+    else if (pacer_.mode() == PacingMode::HostTimed && pacer_.anchored()) {
         // The display's measured refresh rate, to compare with the host's frame rate
-        snprintf(text, sizeof(text), "%.1f ms buffer, %.2f Hz", (pacer_.timeline().bufferNs() + pacer_.scheduleDelayNs()) / 1e6,
+        snprintf(text, sizeof(text), "%.1f ms wait, %.2f Hz", pacer_.waitNs() / 1e6,
                  1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));
         headline = text;
-        if (pacer_.phaseLocked()) {
-            snprintf(text, sizeof(text), "locked at %d vsync%s/frame", static_cast<int>(pacer_.slotVsyncs()),
-                     pacer_.slotVsyncs() == 1 ? "" : "s");
-            details = text;
-        }
-        else {
-            details = "unlocked";
-        }
+        snprintf(text, sizeof(text), "%d vsync%s/frame, %llu late, %llu pulled", static_cast<int>(pacer_.slotVsyncs()),
+                 pacer_.slotVsyncs() == 1 ? "" : "s", static_cast<unsigned long long>(pacer_.lateFrames()),
+                 static_cast<unsigned long long>(pacer_.pulls()));
+        details = text;
     }
     // Frames skipped recently. A running total since the stream started says little about
     // how it's going now.

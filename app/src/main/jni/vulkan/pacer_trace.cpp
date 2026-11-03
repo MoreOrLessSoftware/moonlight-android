@@ -194,10 +194,9 @@ void PacerTrace::vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shown
                        int64_t callbackLateNs, uint64_t presentId, int presentDelayVsyncs) {
     presentDelay_ = presentDelayVsyncs;
     write("V,%lld,%zu,%d,%lld,%d,%lld,%lld,%lld,%lld,%lld,%.1f,%lld,%llu,%d\n", static_cast<long long>(vsyncNs), queued, choice,
-          static_cast<long long>(shownPtsNs), pacer.phaseLocked() ? 1 : 0,
-          static_cast<long long>(pacer.slotVsyncs()), static_cast<long long>(pacer.slotParity()),
-          static_cast<long long>(pacer.scheduleDelayNs()), static_cast<long long>(pacer.timeline().bufferNs()),
-          static_cast<long long>(pacer.vsyncPeriodNs()), pacer.phaseDriftPerFrame() * 1e6,
+          static_cast<long long>(shownPtsNs), pacer.anchored() ? 1 : 0,
+          static_cast<long long>(pacer.slotVsyncs()), 0LL, static_cast<long long>(pacer.waitNs()), 0LL,
+          static_cast<long long>(pacer.vsyncPeriodNs()), 0.0,
           static_cast<long long>(callbackLateNs), static_cast<unsigned long long>(presentId), presentDelayVsyncs);
 
     if (callbackLateNs * 2 > pacer.vsyncPeriodNs()) {
@@ -210,7 +209,7 @@ void PacerTrace::vsync(int64_t vsyncNs, size_t queued, int choice, int64_t shown
     // Summary counters. A frame held for more or fewer vsyncs than its slot is a visible
     // hitch; the pacer should only produce them as often as the rate difference demands.
     vsyncs_++;
-    if (pacer.phaseLocked()) {
+    if (pacer.anchored()) {
         lockedVsyncs_++;
     }
     if (choice >= 0) {
@@ -253,21 +252,20 @@ void PacerTrace::summarize(int64_t vsyncNs, const FramePacer& pacer) {
 
     const double seconds = elapsed / 1e9;
     const double period = static_cast<double>(pacer.vsyncPeriodNs());
-    const double contentInterval = period * pacer.slotVsyncs() * (1.0 + pacer.phaseDriftPerFrame());
     char screen[96] = "on screen: no display timing";
     if (screenFrames_ > 0) {
         snprintf(screen, sizeof(screen), "on screen %u short / %u long, present delay %d vsyncs, guard %.1f ms",
                  screenShort_, screenLong_, presentDelay_, presentGuardNs_ / 1e6);
     }
     ALOGI("%.0fs: %u frames (%.2f fps), %u short / %u long holds (%s), %u skipped, %llu queue drops, "
-          "%u late callbacks | %s %.0f%%, %lld vsync%s per frame, buffer %.1f ms + schedule %.1f ms, "
-          "vsync %.3f Hz, content %.3f fps (drift %+.1f ppm)",
+          "%u late callbacks | %s %.0f%%, %lld vsync%s per frame, wait %.1f ms, %llu late, %llu pulled "
+          "(total), vsync %.3f Hz",
           seconds, shown_, shown_ / seconds, heldShort_, heldLong_, screen, skipped_,
           static_cast<unsigned long long>(queueDrops_ - queueDropsAtStart_), lateCallbacks_,
-          pacer.phaseLocked() ? "locked" : "unlocked", vsyncs_ ? 100.0 * lockedVsyncs_ / vsyncs_ : 0.0,
-          static_cast<long long>(pacer.slotVsyncs()), pacer.slotVsyncs() == 1 ? "" : "s",
-          pacer.timeline().bufferNs() / 1e6, pacer.scheduleDelayNs() / 1e6,
-          1e9 / period, 1e9 / contentInterval, pacer.phaseDriftPerFrame() * 1e6);
+          pacer.anchored() ? "anchored" : "unanchored", vsyncs_ ? 100.0 * lockedVsyncs_ / vsyncs_ : 0.0,
+          static_cast<long long>(pacer.slotVsyncs()), pacer.slotVsyncs() == 1 ? "" : "s", pacer.waitNs() / 1e6,
+          static_cast<unsigned long long>(pacer.lateFrames()), static_cast<unsigned long long>(pacer.pulls()),
+          1e9 / period);
 
     windowStartNs_ = vsyncNs;
     queueDropsAtStart_ = queueDrops_;

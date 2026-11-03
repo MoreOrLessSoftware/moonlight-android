@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <vector>
 
 // Decides which decoded frame to show at each display vsync.
 //
@@ -24,130 +23,52 @@ enum class PacingMode : int {
 struct FrameTiming {
     int64_t hostPtsNs = 0;   // Host present time, in the stream's timestamp epoch
     int64_t arrivalNs = 0;   // Local CLOCK_MONOTONIC time the decoded frame became available
-    int64_t targetNs = 0;    // HostTimed: local time the frame is due, before any phase shift
+    int64_t targetNs = 0;    // HostTimed: the vsync the frame is assigned to
 };
 
-// How much delay the host timeline adds to ride out variation in frame transit times.
-// Matches PreferenceConfiguration.JITTER_BUFFER_*.
+// Matches PreferenceConfiguration.JITTER_BUFFER_*. HostTimed pacing currently behaves the same
+// for all of them (Low latency); the setting is kept so it can be tuned per preset later.
 enum class JitterBuffer : int {
     LowLatency = 0,
     Balanced = 1,
     Smooth = 2,
-    LowestLatency = 3,  // Less buffer than LowLatency, which like it only evens out the host's
-                        // timing when frames span more than one vsync
-    Instant = 4,        // No buffer: each frame goes to the next vsync it can make, keeping
-                        // to one frame per slot (frameVsyncNs()), and a newer frame for the
-                        // same vsync replaces it. The host timeline goes on learning as for
-                        // LowestLatency, for switching back.
+    LowestLatency = 3,
+    Instant = 4,
 };
 
-// Maps host frame timestamps onto the local clock.
+// HostTimed pacing puts host frames on our vsyncs, one slot apart (a slot is the whole number of
+// vsyncs between host frames: one when the host's frame rate is matched to our refresh rate),
+// with as little delay as the frames' arrival allows:
 //
-// Sunshine captures each frame as soon as the host desktop presents it and stamps it with
-// that present time, so the spacing of host timestamps is the host display's real cadence.
-// The time from a frame's host timestamp to its arrival here (transit) is then only encode,
-// network and decode delay, and its variation is the jitter we have to buffer for. Showing a
-// frame at hostPts + offset, where offset covers nearly all observed transit times, recreates
-// the host's cadence with a constant delay.
-class HostTimeline {
-public:
-    explicit HostTimeline(JitterBuffer jitterBuffer);
-
-    void reset();
-
-    // Checks a frame's host timestamp against the last one. Returns false if it broke the
-    // timeline (the stream restarted or timestamps jumped) and the estimate was reset.
-    bool checkContinuity(int64_t hostPtsNs);
-
-    // Records a decoded frame, measured against the host time it's scheduled from (its host
-    // timestamp, or its place on the line the pacer fits to them)
-    void addSample(int64_t scheduledPtsNs, int64_t arrivalNs);
-
-    // Starts the window over, keeping the delay, for when what samples are measured against
-    // changes. Against the fitted line, the window is at least minWindowNs long.
-    void restartWindow(int64_t minWindowNs, int64_t minDecayDivisor);
-
-    // Moves the offset and every transit time in the window by deltaNs, for when what samples
-    // are measured against moves by -deltaNs, so the scheduled times stay where they were
-    void shift(int64_t deltaNs);
-
-    bool hasEstimate() const { return started_; }
-
-    // Past the warm-up at the start of the stream (kWarmupNs), which runs with no buffer
-    bool warmedUp() const { return warmedUp_; }
-
-    // Local time minus host time that frames are scheduled at
-    int64_t offsetNs() const { return offsetNs_; }
-
-    // Smallest transit time currently in the window
-    int64_t minTransitNs() const;
-
-    // How long the scheduled time is after the smallest transit time
-    int64_t bufferNs() const { return hasEstimate() ? offsetNs_ - minTransitNs() : 0; }
-
-    JitterBuffer jitterBuffer() const { return jitterBuffer_; }
-
-    // Switches to another preset mid-stream. The transit times seen so far and the current
-    // offset are kept, so the buffer moves to the new preset's as it normally adapts.
-    void setJitterBuffer(JitterBuffer jitterBuffer);
-
-    // How many vsyncs each frame stays on screen (FramePacer::updateSlot()). With more than one,
-    // LowLatency covers less of the transit times (see the presets in frame_pacer.cpp).
-    void setSlotVsyncs(int64_t slotVsyncs);
-
-    // Largest buffer to keep (FramePacer::bufferCapNs())
-    void setMaxBufferNs(int64_t maxBufferNs) { maxBufferNs_ = maxBufferNs; }
-
-    // The start of a stream, when its first frames arrive late (the first keyframe is large):
-    // no buffer then, and those frames don't count toward the buffer after it (see addSample())
-    static constexpr int64_t kWarmupNs = 1'000'000'000;
-
-private:
-    // Sets the preset's window, coverage and decay, keeping what restartWindow() and
-    // setSlotVsyncs() asked for
-    void applyPreset();
-
-    JitterBuffer jitterBuffer_;
-
-    // Window of transit samples the offset is taken from
-    int64_t windowNs_;
-    int64_t baseWindowNs_ = 0;
-    int64_t baseDecayDivisor_ = 0;
-    // The least window and decay divisor restartWindow() last asked for
-    int64_t minWindowNs_ = 0;
-    int64_t minDecayDivisor_ = 0;
-    int64_t slotVsyncs_ = 1;
-
-    // The offset covers this fraction of transit times. The rest arrive after their
-    // scheduled time and are shown at the first vsync after they arrive.
-    double coverage_;
-    double baseCoverage_;
-
-    // When transit times come down, the offset follows by this fraction of the difference
-    // per frame
-    int64_t decayDivisor_;
-
-    int64_t maxBufferNs_ = 0;
-    int64_t startNs_ = 0;
-    bool warmedUp_ = false;
-
-    struct Sample {
-        int64_t arrivalNs;
-        int64_t transitNs;
-    };
-
-    std::deque<Sample> window_;
-    std::deque<Sample> minQueue_;  // Increasing transit times, for the window minimum
-    std::vector<int64_t> scratch_;
-    int64_t offsetNs_ = 0;
-    int64_t lastPtsNs_ = 0;
-    bool started_ = false;
-};
-
+// - Each frame is assigned the vsync after the previous frame's, plus as many slots as its host
+//   timestamp advanced. Frames keep the host's cadence on our vsyncs with no clock mapping.
+// - A frame that can't make its vsync goes to the first one it can, and the frames after it
+//   follow from there: the delay grows by a vsync only when a frame actually needs it.
+// - When every frame for kPullHoldNs could have made the vsync before its own with a margin to
+//   spare, frames move a vsync sooner (one frame replaced by the next).
+// - No frame waits kMaxWaitVsyncs or more after it could first be shown; frames that would are
+//   moved sooner at once.
+//
+// A host running slightly slow against our display shows as an occasional late frame (one frame
+// held a vsync longer), one slightly fast as an occasional pull (one frame skipped): the least
+// the rate difference requires.
 class FramePacer {
 public:
     // Upper bound on maxQueued() in any mode
     static constexpr size_t kMaxQueuedFrames = 6;
+
+    // A frame waits less than this many vsyncs from when it could first be shown (its arrival
+    // plus the present guard) to the vsync it's assigned
+    static constexpr int64_t kMaxWaitVsyncs = 2;
+    // How long every frame must have had a vsync to spare before frames move a vsync sooner.
+    // Replayed through a 72 fps HEVC session on a 144 Hz iPlay 70 mini Ultra over Wi-Fi, where
+    // a lone frame arrived 5-10 ms late every few seconds, 3 s rather than 1 s cut the uneven
+    // frames by about a quarter for about 1 ms more median wait; longer saved little more.
+    static constexpr int64_t kPullHoldNs = 3'000'000'000;
+    // ...plus this fraction of a vsync, so that frames don't go straight back
+    static constexpr int64_t kPullMarginDivisor = 4;
+    // A host timestamp further from the last than this starts the schedule over
+    static constexpr int64_t kMaxPtsGapNs = 250'000'000;
 
     FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, JitterBuffer jitterBuffer);
 
@@ -171,18 +92,12 @@ public:
 
     // HostTimed: the vsync a waiting frame is due to be shown at, so the caller can present it
     // right away and ask for that vsync, rather than waiting for the vsync to come around.
-    // Returns 0 if the frame can't be committed yet: frames are shown in the order they're
-    // presented, so the vsync must be later than the last one a frame was committed to, and it
-    // must be within presentAheadVsyncs() of the last vsync. Every frame presented ahead holds
-    // a swapchain image until it's on screen; with too many, the render thread blocks waiting
-    // for a free one, which makes it late for vsyncs and for frames arriving.
+    // Returns 0 if the frame can't be committed yet: it must be within presentAheadVsyncs() of
+    // the last vsync, and not before the last vsync a frame was committed to. The same vsync
+    // replaces that frame.
     int64_t plannedVsyncNs(const FrameTiming& frame) const { return frameVsyncNs(frame, true); }
 
-    // How many vsyncs ahead frames may be committed: one, or with several vsyncs a frame, that
-    // many, which still holds about one frame waiting at a time. A frame then has up to that
-    // many vsyncs before its own to be presented in, which a longer present guard may need (on
-    // an iPlay 70 mini Ultra, 6.3 ms of its 6.9 ms vsyncs at a delay of one vsync, streaming
-    // 72 fps on 144 Hz).
+    // How many vsyncs ahead frames may be committed: one slot
     int64_t presentAheadVsyncs() const { return std::clamp<int64_t>(slotVsyncs_, 1, kMaxPresentAheadVsyncs); }
     static constexpr int64_t kMaxPresentAheadVsyncs = 4;
 
@@ -190,17 +105,14 @@ public:
     void onPresentedAhead(int64_t vsyncNs);
 
     // The caller presents frames ahead (plannedVsyncNs()), so onVsync() only gets frames that
-    // couldn't be: late ones. It then shows the newest due frame and nothing early; its rules
-    // for easing frames into place would take frames that are about to be presented ahead
-    // with time to spare and present them with none.
+    // couldn't be
     void setPresentAhead(bool presentAhead) { presentAhead_ = presentAhead; }
 
-    // Switches the jitter buffer preset mid-stream. The presets lock to the host's cadence
-    // differently (updatePhase()), so locking starts over, as when the cadence changes.
-    void setJitterBuffer(JitterBuffer jitterBuffer);
+    void setJitterBuffer(JitterBuffer jitterBuffer) { jitterBuffer_ = jitterBuffer; }
+    JitterBuffer jitterBuffer() const { return jitterBuffer_; }
 
-    // With frames presented ahead, how long before its vsync a frame must be due for that vsync
-    // (PresentScheduler::guardNs()). Frames due later go to the next vsync.
+    // With frames presented ahead, how long before its vsync a frame must be ready for that
+    // vsync (PresentScheduler::guardNs())
     void setPresentGuardNs(int64_t guardNs) { presentGuardNs_ = guardNs; }
     int64_t presentGuardNs() const { return presentAhead_ ? presentGuardNs_ : 0; }
 
@@ -208,19 +120,22 @@ public:
     int64_t vsyncIndexAt(int64_t vsyncNs) const {
         return vsyncIndex_ + (vsyncNs - lastVsyncNs_ + (vsyncNs >= lastVsyncNs_ ? periodNs_ / 2 : -periodNs_ / 2)) / periodNs_;
     }
-
-    // HostTimed: extra delay added to line frames up with the vsyncs they're shown at
-    int64_t phaseShiftNs() const { return shiftNs_; }
-    bool phaseLocked() const { return phaseLocked_; }
-    // Vsyncs each frame is held for, from the spacing of host timestamps
-    int64_t slotVsyncs() const { return slotVsyncs_; }
-    int64_t slotParity() const { return slotParity_; }
     // Vsyncs counted so far, including ones whose callbacks were missed
     int64_t vsyncIndex() const { return vsyncIndex_; }
-    const HostTimeline& timeline() const { return timeline_; }
+
+    // HostTimed: frames are being assigned vsyncs (there's a schedule to follow)
+    bool anchored() const { return anchored_; }
+    // Vsyncs each frame is held for, from the spacing of host timestamps
+    int64_t slotVsyncs() const { return slotVsyncs_; }
+    // How long the newest frame waits from when it could first be shown to its vsync
+    int64_t waitNs() const { return waitNs_; }
 
     // Frames the pacer chose not to show
     uint64_t framesSkipped() const { return framesSkipped_; }
+    // Frames that couldn't make their vsync, moving the schedule a vsync or more later
+    uint64_t lateFrames() const { return lateFrames_; }
+    // Times the schedule moved sooner
+    uint64_t pulls() const { return pulls_; }
 
     // Frames still arriving when they should be ready are cut short then, where the decoder can
     // show what arrived (PyroWave), rather than shown late (LiSetPartialFrameDeadline()).
@@ -229,9 +144,9 @@ public:
     void addReadyCost(int64_t costNs);
 
     // HostTimed: how long after a frame's host timestamp its last packet must be in for it to be
-    // ready in time to be shown on schedule, judged from a frame that just arrived: the time it
-    // must be ready by, less the 90th percentile of recent ready costs. False when frames aren't
-    // scheduled by their timestamps, or before there are enough ready costs to go on.
+    // ready in time for its vsync, judged from a frame that just arrived: the time it must be
+    // ready by, less the 90th percentile of recent ready costs. False before frames are
+    // scheduled, or before there are enough ready costs to go on.
     // readyByNs and readyCostNs, if given, get the time the frame must be ready by and the
     // percentile of ready costs, for the trace.
     bool partialDeadlineOffsetNs(const FrameTiming& frame, int64_t* offsetNs, int64_t* readyByNs = nullptr,
@@ -240,63 +155,23 @@ public:
     static constexpr size_t kPartialReadySamples = 64;
     static constexpr size_t kPartialMinReadySamples = 16;
 
-    // How far the host's frames drift against our vsyncs, in slots per frame
-    double phaseDriftPerFrame() const { return driftPerFrame_; }
-
-    // Delay added to frames' host timestamps beyond the transit buffer when locked: the time
-    // after the fitted line they're scheduled at, plus the vsync alignment
-    int64_t scheduleDelayNs() const { return shiftNs_ + static_cast<int64_t>(lateNs_); }
-
-    // Most delay each preset's buffer may hold, so that no preset's delay reaches the one above
-    // it: Lowest latency (and Instant, when switched back from) one slot, Low latency two, and
-    // Balanced and Smooth what the queue holds (bufferCapNs()). With frames locked to a line,
-    // Low and Lowest latency's delay after the line counts toward it too (updatePhase()).
-    //
-    // Without these, all of them shared the queue's three frames, and the bursts of late frames
-    // after a network stall took every preset there: replaying PyroWave sessions at 120 and
-    // 144 fps over Wi-Fi, Lowest latency sat at it 13-18% of the time and Low latency about as
-    // often as Balanced (21%). Capped, Lowest latency's 99th percentile delay from arrival to
-    // vsync came down from 27-29 ms to 14-20 ms and Low latency's from 27-31 ms to 20-26 ms,
-    // for 10-40% more uneven frames in Lowest latency and 1-5% more in Low latency. Steady
-    // HEVC sessions never reach the caps.
-    static constexpr int64_t kLowestLatencyCapSlots = 1;
-    static constexpr int64_t kLowLatencyCapSlots = 2;
-
-    // Window the frame schedule is fitted over
-    static constexpr int64_t kPhaseWindowNs = 16'000'000'000;
-    // What's kept of it when the frames stop fitting a line: enough to see a 71.82 fps game's
-    // timestamps step by a 143.64 Hz host refresh (every 2.8 s) before locking again
-    static constexpr int64_t kRelockWindowNs = 4'000'000'000;
-    // While locked, frames from before the last kRelockWindowNs are dropped when the whole
-    // window packs looser than kTrimSpread slots around its line and those last seconds alone
-    // pack tighter than kTightSpread (updatePhase())
-    static constexpr double kTrimSpread = 0.25;
-    static constexpr double kTightSpread = 0.1;
-
 private:
     // plannedVsyncNs(), or with committable false, the vsync even if it's too far off to
     // commit the frame to yet
     int64_t frameVsyncNs(const FrameTiming& frame, bool committable) const;
     void trackVsync(int64_t vsyncNs);
-    void updateSlot(const FrameTiming& frame);
-    struct PhaseFit {
-        double interval = 0;  // The game's frame interval
-        double latest = 0;    // The second latest sample against the line (see updatePhase())
-        double spread = 0;    // From the earliest sample against it to the latest
-    };
-    bool fitPhase(size_t from, PhaseFit* out) const;
-    void updatePhase(FrameTiming& frame);
-    void scheduleFrom(FrameTiming& frame, int64_t measuredPtsNs, bool onLine, int64_t scheduledPtsNs);
-    void resetPhase();
-    int64_t slotPeriodNs() const { return slotVsyncs_ * periodNs_; }
-    // The most delay the current preset's buffer may hold (kLowestLatencyCapSlots)
-    int64_t bufferCapNs() const;
+    void updateSlot(int64_t hostPtsNs);
+    // The vsync on our grid nearest to timeNs, and the first at or after it (and after the last
+    // vsync seen)
+    int64_t nearestVsyncNs(int64_t timeNs) const;
+    int64_t firstVsyncFromNs(int64_t timeNs) const;
 
     PacingMode mode_;
     int64_t streamIntervalNs_;
+    JitterBuffer jitterBuffer_;
 
-    // The vsync period, measured from vsync times once there are enough of them. The phase
-    // lock needs it exact: Android may report 144 Hz for a panel that runs at 143.64 Hz.
+    // The vsync period, measured from vsync times once there are enough of them: Android may
+    // report 144 Hz for a panel that runs at 143.64 Hz
     int64_t periodNs_;
     struct VsyncSample {
         int64_t index;
@@ -310,48 +185,19 @@ private:
     uint64_t framesSkipped_ = 0;
 
     // HostTimed
-    HostTimeline timeline_;
-    int64_t shiftNs_ = 0;
-    bool phaseLocked_ = false;
     bool presentAhead_ = false;
     int64_t presentGuardNs_ = 0;
-    double driftPerFrame_ = 0;
-    double lateNs_ = 0;  // How far after the fitted line frames are scheduled
-    double scheduledPtsNs_ = 0;  // Host time the last frame was scheduled at
-    int64_t scheduledIndex_ = 0;
-    bool transitOnLine_ = false;  // The timeline's samples are measured against the fitted line
-    int64_t lockedSinceNs_ = 0;
-    // Since when every frame could have been shown a vsync sooner (updatePhase()), or 0
-    int64_t soonerSinceNs_ = 0;
-    // Each recent frame's room before the vsync it's shown at, over the slot it's on now
-    // (updatePhase()), for working out roomBeforeLaterNs_
-    struct RoomSample {
-        int64_t timeNs;
-        int64_t roomNs;
-    };
-    std::deque<RoomSample> roomHistory_;
-    // The room frames had on their slot before they last had to move a vsync later, which is
-    // what moving back to it asks for, or -1 when not known
-    int64_t roomBeforeLaterNs_ = -1;
-
-    // Frames are shown every slotVsyncs_ vsyncs when the phase is locked, on the vsyncs whose
-    // index is slotParity_ more than a multiple of slotVsyncs_
-    int64_t slotVsyncs_ = 1;
-    int64_t slotParity_ = 0;
-    // Instant: consecutive frames that could have been shown a vsync before their slot
-    int instantEarlyFrames_ = 0;
-    static constexpr int kInstantEarlyFrames = 4;
-    std::deque<int64_t> ptsDeltas_;
+    bool anchored_ = false;
     int64_t lastPtsNs_ = 0;
+    int64_t lastAssignedNs_ = 0;  // The vsync the last frame was assigned
+    double carry_ = 0;            // Part of a slot the host timestamps were ahead or behind
+    int64_t holdSinceNs_ = 0;     // Since when every frame had a vsync to spare, or 0
+    int64_t waitNs_ = 0;
+    uint64_t lateFrames_ = 0;
+    uint64_t pulls_ = 0;
 
-    // Recent frames the schedule is fitted to, over kPhaseWindowNs
-    struct PhaseSample {
-        int64_t timeNs;
-        int64_t frameIndex;  // Slots since the first sample, counting frames the host skipped
-        int64_t hostPtsNs;
-    };
-    std::deque<PhaseSample> phaseSamples_;
-    int64_t frameIndex_ = 0;
+    int64_t slotVsyncs_ = 1;
+    std::deque<int64_t> ptsDeltas_;
 
     // Recent ready costs (addReadyCost())
     std::deque<int64_t> readyCosts_;

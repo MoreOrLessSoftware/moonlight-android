@@ -486,8 +486,8 @@ int main(int argc, char** argv) {
                     aheadSlack.push_back(showVsync - timing.arrivalNs);
                     shownWait.push_back({showVsync, showVsync - queue.front().arrivalNs});
                     aheadCount++;
-                    replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.phaseLocked(),
-                                     (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
+                    replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.anchored(),
+                                     pacer.waitNs() / 1e6);
                     queue.pop_front();
                 }
             }
@@ -560,19 +560,19 @@ int main(int argc, char** argv) {
                 char item[64];
                 for (const FrameTiming& t : timings) {
                     snprintf(item, sizeof(item), " [arr %+.1f due %+.1f]", (t.arrivalNs - vsyncNs) / 1e6,
-                             (t.targetNs + pacer.phaseShiftNs() - vsyncNs) / 1e6);
+                             (t.targetNs - vsyncNs) / 1e6);
                     queueText += item;
                 }
                 history.push_back({vsyncNs, choice, queueText});
                 if (history.size() > 5) history.pop_front();
                 if (choice >= 0) {
                     const int64_t held = explainLastShown >= 0 ? pacer.vsyncIndex() - explainLastShown : pacer.slotVsyncs();
-                    if ((held != pacer.slotVsyncs() || choice > 0) && pacer.phaseLocked() && explained < explain) {
+                    if ((held != pacer.slotVsyncs() || choice > 0) && pacer.anchored() && explained < explain) {
                         explained++;
-                        printf("t=%.3f s: held %lld (slot %lld, parity %lld), schedule +%.1f ms, shift %.1f ms, buffer %.1f ms, drift %+.0f ppm\n",
+                        printf("t=%.3f s: held %lld (slot %lld), wait %.1f ms, %llu late, %llu pulled\n",
                                (vsyncNs - explainFirstNs) / 1e9, (long long) held, (long long) pacer.slotVsyncs(),
-                               (long long) pacer.slotParity(), pacer.scheduleDelayNs() / 1e6, pacer.phaseShiftNs() / 1e6,
-                               pacer.timeline().bufferNs() / 1e6, pacer.phaseDriftPerFrame() * 1e6);
+                               pacer.waitNs() / 1e6, (unsigned long long) pacer.lateFrames(),
+                               (unsigned long long) pacer.pulls());
                         for (const VsyncState& h : history) {
                             printf("    vsync %+7.1f ms: %s%s\n", (h.vsyncNs - vsyncNs) / 1e6,
                                    h.choice >= 0 ? "showed #" : "nothing", h.choice >= 0 ? std::to_string(h.choice).c_str() : "");
@@ -590,8 +590,8 @@ int main(int argc, char** argv) {
                 queue.erase(queue.begin(), queue.begin() + choice + 1);
                 atVsyncCount++;
             }
-            replayed.onVsync(vsyncNs, pacer.vsyncIndex(), choice, pacer.slotVsyncs(), pacer.phaseLocked(),
-                             (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
+            replayed.onVsync(vsyncNs, pacer.vsyncIndex(), choice, pacer.slotVsyncs(), pacer.anchored(),
+                             pacer.waitNs() / 1e6);
             if (presentAhead) {
                 while (!queue.empty()) {
                     const int64_t showVsync = pacer.plannedVsyncNs(queue.front());
@@ -600,8 +600,8 @@ int main(int argc, char** argv) {
                     aheadSlack.push_back(showVsync - vsyncNs);
                     shownWait.push_back({showVsync, showVsync - queue.front().arrivalNs});
                     aheadCount++;
-                    replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.phaseLocked(),
-                                     (pacer.timeline().bufferNs() + pacer.scheduleDelayNs()) / 1e6);
+                    replayed.onShown(showVsync, pacer.vsyncIndexAt(showVsync), 0, pacer.slotVsyncs(), pacer.anchored(),
+                                     pacer.waitNs() / 1e6);
                     queue.pop_front();
                 }
             }
