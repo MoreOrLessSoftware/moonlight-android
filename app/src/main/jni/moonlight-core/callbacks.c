@@ -654,7 +654,9 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
             .clientRefreshRateX100 = clientRefreshRateX100,
             .encryptionFlags = ENCFLG_AUDIO,
             .colorSpace = colorSpace,
-            .colorRange = colorRange
+            .colorRange = colorRange,
+            // Leave FEC to the host, as LiInitializeStreamConfiguration() does: 0 would turn it off
+            .fecPercentage = -1
     };
 
     jbyte* riAesKeyBuf = (*env)->GetByteArrayElements(env, riAesKey, NULL);
