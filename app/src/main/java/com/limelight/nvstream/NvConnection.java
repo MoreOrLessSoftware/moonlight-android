@@ -448,6 +448,7 @@ public class NvConnection {
                             context.streamConfig.getAudioConfiguration().toInt(),
                             context.streamConfig.getSupportedVideoFormats(),
                             context.streamConfig.getClientRefreshRateX100(),
+                            context.streamConfig.getClientRefreshRateUhz(),
                             context.riKey.getEncoded(), ib.array(),
                             context.videoCapabilities,
                             context.streamConfig.getColorSpace(),

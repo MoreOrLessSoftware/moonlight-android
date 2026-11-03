@@ -631,7 +631,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jint width, jint height, jint fps,
                                                            jint bitrate, jint packetSize, jint streamingRemotely,
                                                            jint audioConfiguration, jint supportedVideoFormats,
-                                                           jint clientRefreshRateX100,
+                                                           jint clientRefreshRateX100, jint clientRefreshRateUhz,
                                                            jbyteArray riAesKey, jbyteArray riAesIv,
                                                            jint videoCapabilities,
                                                            jint colorSpace, jint colorRange) {
@@ -652,6 +652,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
             .audioConfiguration = audioConfiguration,
             .supportedVideoFormats = supportedVideoFormats,
             .clientRefreshRateX100 = clientRefreshRateX100,
+            .clientRefreshRateUhz = clientRefreshRateUhz,
             .encryptionFlags = ENCFLG_AUDIO,
             .colorSpace = colorSpace,
             .colorRange = colorRange,

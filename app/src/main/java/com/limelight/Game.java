@@ -15,6 +15,7 @@ import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.video.CrashListener;
 import com.limelight.binding.video.DisplayRefreshMeter;
+import com.limelight.binding.video.HostClockRates;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.PerfOverlayListener;
@@ -2654,6 +2655,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private void stopConnection() {
         if (connecting || connected) {
+            if (connected) {
+                // Measured over the stream, for the next one to ask for a rate that allows for it
+                double[] hostClock = MoonBridge.getHostClockRate();
+                if (hostClock != null) {
+                    HostClockRates.save(this, getIntent().getStringExtra(EXTRA_PC_UUID), hostClock[0], hostClock[1]);
+                }
+            }
             connecting = connected = false;
             updatePipAutoEnter();
 
@@ -3043,7 +3051,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private String describeStream() {
         // The exact rate the host was asked for
         String hostRateText = "";
-        if (streamConfig.getClientRefreshRateX100() > 0) {
+        if (streamConfig.getClientRefreshRateUhz() > 0) {
+            hostRateText = String.format(Locale.getDefault(), " (%.4f Hz)", streamConfig.getClientRefreshRateUhz() / 1e6);
+        }
+        else if (streamConfig.getClientRefreshRateX100() > 0) {
             hostRateText = String.format(Locale.getDefault(), " (%.2f Hz)", streamConfig.getClientRefreshRateX100() / 100.0);
         }
         return String.format(Locale.getDefault(),
@@ -3098,8 +3109,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (!manualRefreshRateX100) {
             double hostRate = DisplayRefreshMeter.streamMatchedRate(measuredRefreshHz, streamConfig.getRefreshRate());
             if (hostRate > 0) {
-                streamConfig.setClientRefreshRateX100((int) Math.round(hostRate * 100));
-                LimeLog.info(String.format(Locale.ROOT, "Asking the host for %.2f FPS", hostRate));
+                // The host paces frames on its own clock, so undo how far off ours that runs
+                String computerUuid = getIntent().getStringExtra(EXTRA_PC_UUID);
+                double hostClockPpm = HostClockRates.get(this, computerUuid);
+                double requestHz = HostClockRates.hostRequestHz(hostRate, hostClockPpm);
+                streamConfig.setClientRefreshRateX100((int) Math.round(requestHz * 100));
+                streamConfig.setClientRefreshRateUhz((int) Math.round(requestHz * 1e6));
+                LimeLog.info(String.format(Locale.ROOT, "Asking the host for %.6f FPS (%.6f on our clock, host clock %+.1f ppm)",
+                        requestHz, hostRate, hostClockPpm));
             }
         }
 

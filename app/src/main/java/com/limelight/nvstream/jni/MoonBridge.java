@@ -381,7 +381,7 @@ public class MoonBridge {
                                               int width, int height, int fps,
                                               int bitrate, int packetSize, int streamingRemotely,
                                               int audioConfiguration, int supportedVideoFormats,
-                                              int clientRefreshRateX100,
+                                              int clientRefreshRateX100, int clientRefreshRateUhz,
                                               byte[] riAesKey, byte[] riAesIv,
                                               int videoCapabilities,
                                               int colorSpace, int colorRange);
@@ -449,6 +449,11 @@ public class MoonBridge {
     // A frame's presentationTimeUs (the host's capture time) on getMicroseconds()'s clock, or -1
     // when the host doesn't answer clock sync or hasn't yet
     public static native long getHostTimeOnLocalClock(long presentationTimeUs);
+
+    // How fast the host's clock runs against ours over the stream so far: parts per million
+    // (positive when it runs fast), then the seconds that's measured over. Null until clock sync
+    // has spanned 30 seconds, or when the host doesn't answer clock sync.
+    public static native double[] getHostClockRate();
 
     // moonlight-common-c's clock, which decode units' receive and enqueue times are on
     public static native long getMicroseconds();

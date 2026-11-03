@@ -223,6 +223,21 @@ Java_com_limelight_nvstream_jni_MoonBridge_getHostTimeOnLocalClock(JNIEnv *env, 
     return (jlong)localTimeUs;
 }
 
+JNIEXPORT jdoubleArray JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_getHostClockRate(JNIEnv *env, jclass clazz) {
+    double values[2];
+
+    if (!LiGetHostClockRate(&values[0], &values[1])) {
+        return NULL;
+    }
+
+    jdoubleArray result = (*env)->NewDoubleArray(env, 2);
+    if (result != NULL) {
+        (*env)->SetDoubleArrayRegion(env, result, 0, 2, values);
+    }
+    return result;
+}
+
 JNIEXPORT jlong JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_getVideoBytesReceived(JNIEnv *env, jclass clazz) {
     return (jlong)LiGetRTPVideoStats()->byteCountReceived;
