@@ -51,6 +51,11 @@ struct Scenario {
     // it late (a hitch in the game or on the host's GPU), and the frames after it are on time
     double hitchAtS = 0;
     double hitchMs = 0;
+    // Frames taken from burstAtS for burstS take up to burstMs longer to arrive (uniformly):
+    // a second or so of Wi-Fi stalls
+    double burstAtS = 0;
+    double burstS = 0;
+    double burstMs = 0;
 };
 
 struct Result {
@@ -137,6 +142,9 @@ Result run(const Scenario& s, bool verbose = false) {
         double delay = s.transitMs + uniform(rng) * s.jitterMs;
         if (uniform(rng) < s.spikeChance) {
             delay += s.spikeMs;
+        }
+        if (s.burstS > 0 && pts[i] >= s.burstAtS * 1e9 && pts[i] < (s.burstAtS + s.burstS) * 1e9) {
+            delay += uniform(rng) * s.burstMs;
         }
         // The decoder hands frames out in order
         int64_t a = pts[i] + clockOffset + static_cast<int64_t>(delay * 1e6);
@@ -526,6 +534,44 @@ int main() {
             check(worstExtraMs < 0.5, base.name, "one late frame delays the frames after it");
             check(worstExtraUneven <= 2, base.name, "more uneven frames than without the late frame");
         }
+    }
+    {
+        // 72 fps on a 143.65 Hz display, Lowest latency, with a second of Wi-Fi stalls (frames
+        // up to 10 ms late) at 30 s: frames move a vsync later through it, and once it's over
+        // should go back to where they were. On an iPlay 70 mini Ultra the buffer was back to
+        // its level from before within 3 s, but frames waited 24 s to move back, asking for a
+        // quarter vsync of room on a slot they'd been showing evenly on with less. Counted from
+        // 40 s, they should be scheduled no later than without the stalls, at every phase. As
+        // for one late frame above, when they're shown isn't compared: at some phases frames
+        // go out a slot early without the stalls (the catch-up in onVsync()) and settle on their
+        // own slot after them.
+        Scenario base {"Lowest latency: 1 s of Wi-Fi stalls at 30 s (72 fps, 143.65 Hz)", 71.8274, 72, 143.6548};
+        base.jitterBuffer = JitterBuffer::LowestLatency;
+        base.reportedDisplayHz = 144.0;
+        base.transitMs = 10.0;
+        base.jitterMs = 3.0;
+        base.durationS = 70.0;
+        base.measureFromS = 40.0;
+        double worstExtraMs = 0;
+        int worstExtraUneven = 0;
+        for (int p = 0; p < 20; p++) {
+            Scenario steady = base;
+            steady.vsyncPhase = p / 20.0;
+            Scenario stalled = steady;
+            stalled.burstAtS = 30.0;
+            stalled.burstS = 1.0;
+            stalled.burstMs = 10.0;
+            const Result rb = run(stalled);
+            const Result rs = run(steady);
+            worstExtraMs = std::max(worstExtraMs, rb.meanScheduledMs - rs.meanScheduledMs);
+            if (getenv("STALL_PHASES")) printf("    phase %2d: stalled %.2f ms, steady %.2f ms, uneven %d vs %d\n", p, rb.meanScheduledMs, rs.meanScheduledMs, rb.skipped + rb.heldShort + rb.heldLong, rs.skipped + rs.heldShort + rs.heldLong);
+            worstExtraUneven = std::max(worstExtraUneven, (rb.skipped + rb.heldShort + rb.heldLong) -
+                                                                  (rs.skipped + rs.heldShort + rs.heldLong));
+        }
+        printf("%-44s worst of 20 phases: %.1f ms later, %d more uneven frames than without the stalls\n",
+               base.name, worstExtraMs, worstExtraUneven);
+        check(worstExtraMs < 1.0, base.name, "frames stay a vsync later after the stalls");
+        check(worstExtraUneven <= 2, base.name, "more uneven frames than without the stalls");
     }
     {
         // Switching the jitter buffer mid-stream, as the overlay menu does: once it settles, the

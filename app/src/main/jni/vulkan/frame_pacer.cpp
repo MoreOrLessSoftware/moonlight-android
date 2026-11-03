@@ -24,6 +24,15 @@ namespace {
     // before the vsync ahead of its own for the slots to move there (see updatePhase())
     constexpr int64_t kSoonerHoldNs = 3'000'000'000;
     constexpr int64_t kSoonerRoomDivisor = 4;  // A quarter vsync
+    // ...or as much as frames had on that slot before they last had to leave it, if that's less,
+    // but not less than this
+    constexpr int64_t kMinSoonerRoomDivisor = 16;
+    // That room is a low percentile of the frames' room over kRoomHistoryNs, leaving out the last
+    // kRoomBeforeLaterGapNs before the move, when what moved them was already arriving
+    constexpr int64_t kRoomHistoryNs = 4'000'000'000;
+    constexpr int64_t kRoomBeforeLaterGapNs = 1'000'000'000;
+    constexpr double kRoomBeforeLaterPercentile = 0.0;
+    constexpr size_t kMinRoomSamples = 32;
     // ...and how long the host drifting slow must take to carry them back
     constexpr double kSoonerKeepNs = 60e9;
     // While frames are scheduled on the fitted line with the buffer measured against it (Balanced
@@ -339,6 +348,8 @@ void FramePacer::resetPhase() {
     driftPerFrame_ = 0;
     lateNs_ = 0;
     soonerSinceNs_ = 0;
+    roomHistory_.clear();
+    roomBeforeLaterNs_ = -1;
 }
 
 void FramePacer::onFrameArrived(FrameTiming& frame) {
@@ -693,6 +704,8 @@ void FramePacer::updatePhase(FrameTiming& frame) {
     else if (!phaseLocked_) {
         lockedSinceNs_ = frame.arrivalNs;
         soonerSinceNs_ = 0;
+        roomHistory_.clear();
+        roomBeforeLaterNs_ = -1;
     }
     if (againstLine) {
         const int64_t scheduledNs = static_cast<int64_t>(std::llround(scheduled));
@@ -814,10 +827,47 @@ void FramePacer::updatePhase(FrameTiming& frame) {
         }
     }
     if (!clear || muchSooner) {
+        // Moving later, remember how much room frames had on the slot they're leaving before
+        // whatever moved them, which moving back will ask for again (see below). A placement
+        // that leaves frames on the vsync they were on keeps what's known about it: one that
+        // forgot it as a stall began left too little to go on when the stall then moved frames
+        // a vsync later.
+        const int64_t step = shownAt(bestParity, best.shift) - shownNow;
+        if (step > 0) {
+            roomBeforeLaterNs_ = -1;
+            std::vector<int64_t> rooms;
+            for (const RoomSample& s : roomHistory_) {
+                if (s.timeNs <= frame.arrivalNs - kRoomBeforeLaterGapNs) {
+                    rooms.push_back(s.roomNs);
+                }
+            }
+            if (rooms.size() >= kMinRoomSamples) {
+                const size_t index = static_cast<size_t>(kRoomBeforeLaterPercentile * static_cast<double>(rooms.size() - 1));
+                std::nth_element(rooms.begin(), rooms.begin() + static_cast<std::ptrdiff_t>(index), rooms.end());
+                roomBeforeLaterNs_ = rooms[index];
+            }
+        }
+        else if (step < 0) {
+            roomBeforeLaterNs_ = -1;
+        }
+        if (step != 0) {
+            roomHistory_.clear();
+        }
         slotParity_ = bestParity;
         shiftNs_ = static_cast<int64_t>(best.shift * slotPeriod);
         soonerSinceNs_ = 0;
         return;
+    }
+
+    // How much room this frame has before the vsync it's shown at
+    if (slotVsyncs_ > 1) {
+        const int64_t guard = presentGuardNs();
+        const int64_t shownIndex = shownAt(slotParity_, static_cast<double>(shiftNs_ + guard) / slotPeriod);
+        const int64_t shownVsyncNs = lastVsyncNs_ + (shownIndex - vsyncIndex_) * periodNs_;
+        roomHistory_.push_back({frame.arrivalNs, shownVsyncNs - (frame.targetNs + shiftNs_ + guard)});
+        while (roomHistory_.front().timeNs < frame.arrivalNs - kRoomHistoryNs) {
+            roomHistory_.pop_front();
+        }
     }
 
     // Settled, the slots only move when frames come too close to their vsync, which a growing
@@ -838,15 +888,36 @@ void FramePacer::updatePhase(FrameTiming& frame) {
         const int64_t shownIndex = shownAt(slotParity_, static_cast<double>(shiftNs_ + guard) / slotPeriod);
         const int64_t soonerVsyncNs = lastVsyncNs_ + (shownIndex - 1 - vsyncIndex_) * periodNs_;
         const int64_t room = soonerVsyncNs - (frame.targetNs + shiftNs_ + guard);
-        if (room < periodNs_ / kSoonerRoomDivisor) {
+        // Frames that had less room than a quarter vsync on that slot before something moved
+        // them off it were showing evenly with it, and can go back with as much. On an iPlay 70
+        // mini Ultra at 72 fps on 144 Hz, a second of Wi-Fi stalls moved frames a vsync later;
+        // the buffer was back to where it had been within 3 s, but at a quarter vsync they
+        // waited 24 s to move back. Not with more than a quarter, so where frames drift against
+        // the vsyncs (a host that doesn't answer clock sync), the slot they left has to be at
+        // least that clear before they take it again.
+        int64_t neededRoom = periodNs_ / kSoonerRoomDivisor;
+        if (roomBeforeLaterNs_ >= 0) {
+            neededRoom = std::clamp(roomBeforeLaterNs_, periodNs_ / kMinSoonerRoomDivisor, neededRoom);
+        }
+        if (room < neededRoom) {
             soonerSinceNs_ = 0;
         }
         else if (soonerSinceNs_ == 0) {
             soonerSinceNs_ = frame.arrivalNs;
         }
         else if (frame.arrivalNs - soonerSinceNs_ >= kSoonerHoldNs) {
-            slotParity_ = (slotParity_ + slotVsyncs_ - 1) % slotVsyncs_;
+            // Placed afresh on that slot, if that shows them there: frames pushed later within
+            // their slot while the buffer was up (shiftNs_) otherwise kept the push, and in
+            // frame_pacer_test went back to a slot a vsync later than before the stalls
+            const int64_t soonerParity = (slotParity_ + slotVsyncs_ - 1) % slotVsyncs_;
+            const Placement p = place(soonerParity);
+            if (shownAt(soonerParity, p.shift) == shownNow - 1) {
+                shiftNs_ = static_cast<int64_t>(p.shift * slotPeriod);
+            }
+            slotParity_ = soonerParity;
             soonerSinceNs_ = 0;
+            roomHistory_.clear();
+            roomBeforeLaterNs_ = -1;
         }
     }
     else {

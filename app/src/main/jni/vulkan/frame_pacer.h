@@ -323,6 +323,16 @@ private:
     int64_t lockedSinceNs_ = 0;
     // Since when every frame could have been shown a vsync sooner (updatePhase()), or 0
     int64_t soonerSinceNs_ = 0;
+    // Each recent frame's room before the vsync it's shown at, over the slot it's on now
+    // (updatePhase()), for working out roomBeforeLaterNs_
+    struct RoomSample {
+        int64_t timeNs;
+        int64_t roomNs;
+    };
+    std::deque<RoomSample> roomHistory_;
+    // The room frames had on their slot before they last had to move a vsync later, which is
+    // what moving back to it asks for, or -1 when not known
+    int64_t roomBeforeLaterNs_ = -1;
 
     // Frames are shown every slotVsyncs_ vsyncs when the phase is locked, on the vsyncs whose
     // index is slotParity_ more than a multiple of slotVsyncs_
