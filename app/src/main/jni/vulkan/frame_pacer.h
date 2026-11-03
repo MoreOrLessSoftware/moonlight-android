@@ -26,14 +26,25 @@ struct FrameTiming {
     int64_t targetNs = 0;    // HostTimed: the vsync the frame is assigned to
 };
 
-// Matches PreferenceConfiguration.JITTER_BUFFER_*. HostTimed pacing currently behaves the same
-// for all of them (Low latency); the setting is kept so it can be tuned per preset later.
+// Matches PreferenceConfiguration.JITTER_BUFFER_*. Any other value (from presets since removed,
+// as in older traces) is treated as LowLatency.
 enum class JitterBuffer : int {
     LowLatency = 0,
     Balanced = 1,
-    Smooth = 2,
-    LowestLatency = 3,
-    Instant = 4,
+};
+
+// What a jitter buffer preset does in HostTimed pacing (FramePacer)
+struct JitterBufferPreset {
+    // Added to when a frame could first be shown, ahead of any frame needing it: room for a
+    // frame arriving that much later than the rest to still make its vsync
+    int64_t headroomNs;
+    // A frame waits less than this many vsyncs from when it could first be shown (its arrival
+    // plus the present guard and the headroom) to the vsync it's assigned
+    int64_t maxWaitVsyncs;
+    // How long every frame must have had a vsync to spare before frames move a vsync sooner
+    int64_t pullHoldNs;
+
+    static JitterBufferPreset forJitterBuffer(JitterBuffer jitterBuffer);
 };
 
 // HostTimed pacing puts host frames on our vsyncs, one slot apart (a slot is the whole number of
@@ -44,10 +55,12 @@ enum class JitterBuffer : int {
 //   timestamp advanced. Frames keep the host's cadence on our vsyncs with no clock mapping.
 // - A frame that can't make its vsync goes to the first one it can, and the frames after it
 //   follow from there: the delay grows by a vsync only when a frame actually needs it.
-// - When every frame for kPullHoldNs could have made the vsync before its own with a margin to
-//   spare, frames move a vsync sooner (one frame replaced by the next).
-// - No frame waits kMaxWaitVsyncs or more after it could first be shown; frames that would are
-//   moved sooner at once.
+// - When every frame for the preset's pull hold could have made the vsync before its own with a
+//   margin to spare, frames move a vsync sooner (one frame replaced by the next).
+// - No frame waits the preset's maxWaitVsyncs or more after it could first be shown; frames that
+//   would are moved sooner at once.
+// - Balanced adds headroom to when each frame could first be shown, so a frame arriving a few
+//   ms later than the rest still makes its vsync.
 //
 // A host running slightly slow against our display shows as an occasional late frame (one frame
 // held a vsync longer), one slightly fast as an occasional pull (one frame skipped): the least
@@ -57,15 +70,8 @@ public:
     // Upper bound on maxQueued() in any mode
     static constexpr size_t kMaxQueuedFrames = 6;
 
-    // A frame waits less than this many vsyncs from when it could first be shown (its arrival
-    // plus the present guard) to the vsync it's assigned
-    static constexpr int64_t kMaxWaitVsyncs = 2;
-    // How long every frame must have had a vsync to spare before frames move a vsync sooner.
-    // Replayed through a 72 fps HEVC session on a 144 Hz iPlay 70 mini Ultra over Wi-Fi, where
-    // a lone frame arrived 5-10 ms late every few seconds, 3 s rather than 1 s cut the uneven
-    // frames by about a quarter for about 1 ms more median wait; longer saved little more.
-    static constexpr int64_t kPullHoldNs = 3'000'000'000;
-    // ...plus this fraction of a vsync, so that frames don't go straight back
+    // Frames move a vsync sooner only with this fraction of a vsync to spare beyond it, so that
+    // they don't go straight back
     static constexpr int64_t kPullMarginDivisor = 4;
     // A host timestamp further from the last than this starts the schedule over
     static constexpr int64_t kMaxPtsGapNs = 250'000'000;
@@ -108,8 +114,11 @@ public:
     // couldn't be
     void setPresentAhead(bool presentAhead) { presentAhead_ = presentAhead; }
 
-    void setJitterBuffer(JitterBuffer jitterBuffer) { jitterBuffer_ = jitterBuffer; }
+    // Switches preset mid-stream. The schedule moves to the new preset's as frames arrive: later
+    // through frames missing their vsync, sooner through the wait cap and pulls.
+    void setJitterBuffer(JitterBuffer jitterBuffer);
     JitterBuffer jitterBuffer() const { return jitterBuffer_; }
+    const JitterBufferPreset& preset() const { return preset_; }
 
     // With frames presented ahead, how long before its vsync a frame must be ready for that
     // vsync (PresentScheduler::guardNs())
@@ -127,7 +136,8 @@ public:
     bool anchored() const { return anchored_; }
     // Vsyncs each frame is held for, from the spacing of host timestamps
     int64_t slotVsyncs() const { return slotVsyncs_; }
-    // How long the newest frame waits from when it could first be shown to its vsync
+    // How long the newest frame waits from its arrival (plus the present guard) to its vsync,
+    // headroom included
     int64_t waitNs() const { return waitNs_; }
 
     // Frames the pacer chose not to show
@@ -169,6 +179,7 @@ private:
     PacingMode mode_;
     int64_t streamIntervalNs_;
     JitterBuffer jitterBuffer_;
+    JitterBufferPreset preset_;
 
     // The vsync period, measured from vsync times once there are enough of them: Android may
     // report 144 Hz for a panel that runs at 143.64 Hz

@@ -639,7 +639,6 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     // display timing
     presentAhead_ = (hasDisplayTimingExt_ || (frontBufferAligned_ && hasSharedPresentExt_)) &&
             pacer_.mode() == PacingMode::HostTimed;
-    instant_ = pacer_.mode() == PacingMode::HostTimed && pacer_.jitterBuffer() == JitterBuffer::Instant;
     pacer_.setPresentAhead(presentAhead_);
     pacer_.setPresentGuardNs(presentScheduler_.guardNs());
 
@@ -1204,7 +1203,6 @@ void VulkanRenderer::setJitterBuffer(JitterBuffer jitterBuffer) {
     }
     ALOGI("Jitter buffer changed to %d", static_cast<int>(jitterBuffer));
     pacer_.setJitterBuffer(jitterBuffer);
-    instant_ = pacer_.mode() == PacingMode::HostTimed && jitterBuffer == JitterBuffer::Instant;
     trace_.jitterBuffer(jitterBuffer);
 }
 
@@ -1224,12 +1222,7 @@ std::string VulkanRenderer::pacingText() {
     std::string headline;
     std::string details;
     char text[96];
-    if (instant_) {
-        // No buffer: frames go to the next vsync they can make
-        snprintf(text, sizeof(text), "instant, %.2f Hz", 1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));
-        headline = text;
-    }
-    else if (pacer_.mode() == PacingMode::HostTimed && pacer_.anchored()) {
+    if (pacer_.mode() == PacingMode::HostTimed && pacer_.anchored()) {
         // The display's measured refresh rate, to compare with the host's frame rate
         snprintf(text, sizeof(text), "%.1f ms wait, %.2f Hz", pacer_.waitNs() / 1e6,
                  1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));

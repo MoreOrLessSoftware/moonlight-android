@@ -120,7 +120,7 @@ public class PreferenceConfiguration {
     private static final String VIDEO_FORMAT_PYROWAVE = "forcepyrowave";
     private static final String DEFAULT_VIDEO_RENDERER = "auto";
     private static final String DEFAULT_SPATIAL_DITHERING = "off";
-    private static final String DEFAULT_JITTER_BUFFER = "lowest-latency";
+    private static final String DEFAULT_JITTER_BUFFER = "low-latency";
     private static final String DEFAULT_PYROWAVE_LATE_FRAMES = "balanced";
 
     private static final boolean ONSCREEN_CONTROLLER_DEFAULT = false;
@@ -161,14 +161,10 @@ public class PreferenceConfiguration {
     public static final int FRAME_PACING_MAX_SMOOTHNESS = 3;
     public static final int FRAME_PACING_HOST_TIMED = 4;
 
-    // Delay added to ride out network jitter in the host frame timing pacing mode
+    // Delay added to ride out network jitter in the host frame timing pacing mode. Matches
+    // vkr::JitterBuffer (jni/vulkan/frame_pacer.h).
     public static final int JITTER_BUFFER_LOW_LATENCY = 0;
     public static final int JITTER_BUFFER_BALANCED = 1;
-    public static final int JITTER_BUFFER_SMOOTH = 2;
-    public static final int JITTER_BUFFER_LOWEST_LATENCY = 3;
-    // No buffer or pacing at all: each frame is shown as soon as it's decoded, and the display
-    // takes the newest at each vsync, dropping the rest
-    public static final int JITTER_BUFFER_INSTANT = 4;
 
     // What to do with a PyroWave frame still arriving when it should be ready to show: show it
     // late, or cut it short then and show it with what arrived, missing some fine detail. The
@@ -521,7 +517,18 @@ public class PreferenceConfiguration {
 
     private static int getJitterBufferValue(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        return parseJitterBuffer(prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER));
+
+        // Migrate presets since removed to the one that took their place, so the setting shows
+        // what's in use
+        String str = prefs.getString(JITTER_BUFFER_PREF_STRING, DEFAULT_JITTER_BUFFER);
+        String normalized = normalizeJitterBuffer(str);
+        if (normalized == null) {
+            normalized = DEFAULT_JITTER_BUFFER;
+        }
+        if (!normalized.equals(str)) {
+            prefs.edit().putString(JITTER_BUFFER_PREF_STRING, normalized).apply();
+        }
+        return parseJitterBuffer(normalized);
     }
 
     // An integer setting stored as a string, or unset if it isn't one in the range
@@ -535,20 +542,28 @@ public class PreferenceConfiguration {
     }
 
     public static int parseJitterBuffer(String str) {
-        if (str.equals("low-latency")) {
-            return JITTER_BUFFER_LOW_LATENCY;
+        return "balanced".equals(normalizeJitterBuffer(str)) ? JITTER_BUFFER_BALANCED : JITTER_BUFFER_LOW_LATENCY;
+    }
+
+    /**
+     * A stored jitter buffer value as one of today's ("low-latency" or "balanced"), or null if
+     * it's unset or not one at all. The presets since removed map to the nearest: Smooth to
+     * Balanced, and Lowest latency and Instant to Low latency.
+     */
+    public static String normalizeJitterBuffer(String str) {
+        if (str == null) {
+            return null;
         }
-        else if (str.equals("lowest-latency")) {
-            return JITTER_BUFFER_LOWEST_LATENCY;
-        }
-        else if (str.equals("instant")) {
-            return JITTER_BUFFER_INSTANT;
-        }
-        else if (str.equals("smooth")) {
-            return JITTER_BUFFER_SMOOTH;
-        }
-        else {
-            return JITTER_BUFFER_BALANCED;
+        switch (str) {
+            case "balanced":
+            case "smooth":
+                return "balanced";
+            case "low-latency":
+            case "lowest-latency":
+            case "instant":
+                return "low-latency";
+            default:
+                return null;
         }
     }
 

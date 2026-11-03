@@ -23,11 +23,34 @@ namespace {
     constexpr double kCarryKeep = 0.5;
 }
 
+// Presets chosen by replaying two HEVC sessions on a 144 Hz iPlay 70 mini Ultra over Wi-Fi, one
+// at 72 fps and one at 144 fps, where a lone frame arrived 5-10 ms later than the rest every few
+// seconds:
+// - Low latency, with no headroom: at 72 fps, a 3 s pull hold rather than 1 s cut the uneven
+//   frames by about a quarter for about 1 ms more median wait (7.5 ms from arrival to vsync)
+// - Balanced, with 4 ms of headroom and frames allowed to wait up to 3 vsyncs: at 72 fps, 9
+//   uneven frames in 80 s where Low latency had 12, for a median wait of 13.9 ms. At 144 fps
+//   neither changed the uneven frames, which weren't late arrivals; the wait went from 8.1 to
+//   14.8 ms. A 30 s hold took 72 fps down to 4 uneven frames for 20.7 ms.
+JitterBufferPreset JitterBufferPreset::forJitterBuffer(JitterBuffer jitterBuffer) {
+    if (jitterBuffer == JitterBuffer::Balanced) {
+        return {4'000'000, 3, 3'000'000'000};
+    }
+    return {0, 2, 3'000'000'000};
+}
+
 FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, JitterBuffer jitterBuffer)
     : mode_(mode),
       streamIntervalNs_(1'000'000'000LL / std::max(streamFps, 1)),
       jitterBuffer_(jitterBuffer),
+      preset_(JitterBufferPreset::forJitterBuffer(jitterBuffer)),
       periodNs_(vsyncPeriodNs > 0 ? vsyncPeriodNs : 16'666'667) {}
+
+void FramePacer::setJitterBuffer(JitterBuffer jitterBuffer) {
+    jitterBuffer_ = jitterBuffer;
+    preset_ = JitterBufferPreset::forJitterBuffer(jitterBuffer);
+    holdSinceNs_ = 0;
+}
 
 void FramePacer::setVsyncPeriod(int64_t periodNs) {
     // Small differences are the caller's estimate being less exact than our own measurement.
@@ -82,10 +105,14 @@ size_t FramePacer::maxQueued() const {
             return 1;
         case PacingMode::Balanced:
             return 2;
-        case PacingMode::HostTimed:
-            // Frames wait less than kMaxWaitVsyncs, so only a couple are ever queued; the rest
-            // is room for a burst after a stall, which the schedule then catches up on
-            return 4;
+        case PacingMode::HostTimed: {
+            // Every frame that may be waiting out the headroom and the wait cap, plus the one due
+            // next and one being committed. Fewer, and the caller drops frames the schedule
+            // still means to show.
+            const int64_t heldNs = preset_.headroomNs + preset_.maxWaitVsyncs * periodNs_;
+            const size_t frames = static_cast<size_t>(heldNs / std::max<int64_t>(streamIntervalNs_, 1)) + 2;
+            return std::clamp<size_t>(frames, 2, kMaxQueuedFrames);
+        }
         case PacingMode::CapFps:
         case PacingMode::Smoothness:
         default:
@@ -145,9 +172,9 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
         return;
     }
 
-    // The earliest the frame could be shown: the first vsync at least the present guard after
-    // it arrived
-    const int64_t readyNs = frame.arrivalNs + presentGuardNs();
+    // The earliest the frame could be shown: the first vsync at least the present guard (and the
+    // preset's headroom) after it arrived
+    const int64_t readyNs = frame.arrivalNs + presentGuardNs() + preset_.headroomNs;
     const int64_t earliestNs = firstVsyncFromNs(readyNs);
 
     int64_t assignedNs;
@@ -173,9 +200,9 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
             lateFrames_++;
             holdSinceNs_ = 0;
         }
-        else if (roomNs >= kMaxWaitVsyncs * periodNs_) {
+        else if (roomNs >= preset_.maxWaitVsyncs * periodNs_) {
             // Waiting too long (frames bunched up after a stall, or the host running fast)
-            const int64_t excess = roomNs / periodNs_ - (kMaxWaitVsyncs - 1);
+            const int64_t excess = roomNs / periodNs_ - (preset_.maxWaitVsyncs - 1);
             assignedNs = std::max(assignedNs - excess * periodNs_, lastAssignedNs_);
             pulls_++;
             holdSinceNs_ = 0;
@@ -187,7 +214,7 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
             if (holdSinceNs_ == 0) {
                 holdSinceNs_ = frame.arrivalNs;
             }
-            else if (frame.arrivalNs - holdSinceNs_ >= kPullHoldNs) {
+            else if (frame.arrivalNs - holdSinceNs_ >= preset_.pullHoldNs) {
                 assignedNs = std::max(assignedNs - periodNs_, lastAssignedNs_);
                 pulls_++;
                 holdSinceNs_ = 0;
@@ -199,7 +226,7 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
     }
 
     lastAssignedNs_ = assignedNs;
-    waitNs_ = assignedNs - readyNs;
+    waitNs_ = assignedNs - (readyNs - preset_.headroomNs);
     frame.targetNs = assignedNs;
 }
 

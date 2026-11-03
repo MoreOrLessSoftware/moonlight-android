@@ -463,9 +463,6 @@ private:
     bool refreshRateCallbackRegistered_ = false;
     std::atomic<bool> presentOnArrival_ {false};  // Mailbox swapchain in lowest latency mode, or a front buffer
 
-    // The Instant jitter buffer, with host frame timing pacing: no buffer, each frame presented
-    // ahead for the next vsync it can make (FramePacer::frameVsyncNs()). For the overlay's text.
-    std::atomic<bool> instant_ {false};
     // Held for any Vulkan work: the render thread's, and frames the image reader presents ahead
     // itself. Taken before mutex_, never while holding it.
     std::mutex renderMutex_;

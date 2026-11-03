@@ -395,11 +395,8 @@
     <string name="video_send_rate_host">Host setting</string>
     <string name="video_send_rate_custom_entry">Custom (%1$s Mbps)</string>
     <string name="summary_jitter_buffer">Only used with host frame timing pacing: configure how much latency you want to accept for a smoother stream</string>
-    <string name="jitter_buffer_instant">Instant (drops frames, may stutter)</string>
-    <string name="jitter_buffer_lowest_latency">Lowest latency</string>
     <string name="jitter_buffer_low_latency">Low latency</string>
     <string name="jitter_buffer_balanced">Balanced</string>
-    <string name="jitter_buffer_smooth">Smooth</string>
     <string name="pacing_host_timed">Sync to host frame timing (best with the Vulkan renderer)</string>
 
     <string name="title_analog_scrolling">Use an analog stick to scroll</string>

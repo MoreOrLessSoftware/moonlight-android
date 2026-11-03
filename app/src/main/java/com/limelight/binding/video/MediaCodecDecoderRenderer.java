@@ -1147,6 +1147,15 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         frameTimeNanos -= activity.getWindowManager().getDefaultDisplay().getAppVsyncOffsetNanos();
 
+        // Host frame timing: frames are released as they're decoded, for vsyncs on this grid
+        HostFrameTimeline timeline = hostFrameTimeline;
+        if (timeline != null) {
+            timeline.onVsync(frameTimeNanos);
+            doCodecRecoveryIfRequired(CR_FLAG_CHOREOGRAPHER);
+            Choreographer.getInstance().postFrameCallback(this);
+            return;
+        }
+
         // Don't render unless a new frame is due. This prevents microstutter when streaming
         // at a frame rate that doesn't match the display (such as 60 FPS on 120 Hz).
         long actualFrameTimeDeltaNs = frameTimeNanos - lastRenderedFrameTimeNanos;
@@ -1186,8 +1195,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private void startChoreographerThread() {
-        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED || vulkanRenderer != null) {
-            // Not using Choreographer in this pacing mode, or the Vulkan renderer paces frames
+        if ((prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED && hostFrameTimeline == null) ||
+                vulkanRenderer != null) {
+            // Not using Choreographer in this pacing mode, or the Vulkan renderer paces frames.
+            // Host frame timing uses it for the vsyncs it schedules frames on.
             return;
         }
 
@@ -1235,7 +1246,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 videoDecoder.releaseOutputBuffer(lastIndex, true);
                             }
                             else if (hostFrameTimeline != null) {
-                                // Show each frame at its host timestamp plus a constant delay.
+                                // Show each frame at the vsync the timeline assigns it.
                                 // SurfaceFlinger holds a frame until then and skips any that a
                                 // newer frame has replaced by the time it's due.
                                 long renderTimeNs = hostFrameTimeline.onFrameDecoded(presentationTimeUs * 1000, System.nanoTime());

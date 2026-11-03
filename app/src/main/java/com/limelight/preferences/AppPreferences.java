@@ -69,7 +69,7 @@ public class AppPreferences {
                 json.optString("enableHdr", null),
                 json.optString("enablePerfOverlay", null),
                 json.optString("videoFormat", null),
-                json.optString("jitterBuffer", null),
+                PreferenceConfiguration.normalizeJitterBuffer(json.optString("jitterBuffer", null)),
                 json.optBoolean("useGlobalSettings", true)
             );
         }

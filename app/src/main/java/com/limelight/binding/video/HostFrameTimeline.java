@@ -6,66 +6,89 @@ import java.util.Arrays;
 
 /**
  * Schedules frames for the direct (MediaCodec to SurfaceView) renderer in the "sync to host
- * frame timing" pacing mode. The Vulkan renderer does the same natively, with vsync phase
- * locking on top (see jni/vulkan/frame_pacer.h).
+ * frame timing" pacing mode, by the same rules as the Vulkan renderer's pacer
+ * (jni/vulkan/frame_pacer.h), which any change here should follow:
  *
- * Sunshine captures each frame as soon as the host desktop presents it and stamps it with
- * that present time, so the spacing of frame timestamps is the host display's real cadence.
- * The time from a frame's timestamp to its decode here (transit) is only encode, network and
- * decode delay. Scheduling each frame at timestamp + offset, where the offset covers nearly
- * every observed transit time, recreates the host's cadence with a constant delay. When the
- * host display runs slightly fast, the surplus frames get dropped one at a time instead of
- * building up a queue.
+ * - Each frame is assigned the vsync after the previous frame's, plus as many slots as its host
+ *   timestamp advanced (a slot is the whole number of vsyncs between host frames: one when the
+ *   host's frame rate is matched to our refresh rate).
+ * - A frame that can't make its vsync goes to the first one it can, and the frames after it
+ *   follow from there.
+ * - When every frame for the preset's pull hold could have made the vsync before its own with a
+ *   margin to spare, frames move a vsync sooner.
+ * - No frame waits the preset's wait cap or more after it could first be shown.
+ * - Balanced adds headroom to when each frame could first be shown.
+ *
+ * The vsyncs come from Choreographer (onVsync()). SurfaceFlinger shows a buffer at the first
+ * vsync whose expected present time is at or after the buffer's timestamp, about a refresh after
+ * it latches it, so each frame is stamped half a vsync before the present of its assigned vsync:
+ * well clear of the vsyncs either side, so timing jitter doesn't move it to one of them.
  */
 class HostFrameTimeline {
-    private static final long MAX_PTS_BACKSTEP_NS = 100_000_000L;
-    private static final long MAX_PTS_GAP_NS = 5_000_000_000L;
-    private static final int CAPACITY = 1024;
+    // A host timestamp further from the last than this starts the schedule over
+    private static final long MAX_PTS_GAP_NS = 250_000_000L;
+    // Frames move a vsync sooner only with this fraction of a vsync to spare beyond it
+    private static final int PULL_MARGIN_DIVISOR = 4;
+    // How much of the part of a slot that host timestamps were early or late is carried to the
+    // next frame (see jni/vulkan/frame_pacer.cpp)
+    private static final double CARRY_KEEP = 0.5;
 
-    // Ring buffer of recent samples
-    private final long[] arrivalNs = new long[CAPACITY];
-    private final long[] transitNs = new long[CAPACITY];
-    private final long[] scratch = new long[CAPACITY];
-    private int head;
-    private int count;
+    // Host timestamp spacings the slot is taken from
+    private static final int SLOT_DELTA_WINDOW = 15;
+    private static final int MIN_SLOT_DELTAS = 8;
 
-    private long offsetNs;
-    private long lastPtsNs;
+    // Vsyncs the period is measured over
+    private static final int VSYNC_WINDOW = 240;
+    private static final int MIN_VSYNCS_FOR_PERIOD = 60;
 
-    // The start of a stream, when its first frames arrive late (the first keyframe is large):
-    // the buffer covers less of the transit times then, so those don't set it
-    private static final long WARMUP_NS = 1_000_000_000L;
-    private static final double WARMUP_COVERAGE = 0.9;
-    private long startNs;
-    private boolean warmedUp;
+    // About how long after SurfaceFlinger latches a buffer at a vsync it's shown
     private final long presentLatencyNs;
 
-    // How much of the transit time variation to buffer for, from the presets in
-    // jni/vulkan/frame_pacer.cpp. Balanced is still that pacer's original 10 s window and 1/512
-    // decay: the native one has since moved to 3 s and 1/64, which wasn't carried over here.
-    // Set on the decoder thread, from pendingJitterBuffer.
-    private long windowNs;
-    private double coverage;
-    private long decayDivisor;
+    // The vsync period, measured from vsync times once there are enough of them
+    private long periodNs;
+    private final long[] vsyncIndexes = new long[VSYNC_WINDOW];
+    private final long[] vsyncTimes = new long[VSYNC_WINDOW];
+    private int vsyncHead;
+    private int vsyncCount;
+    private long lastVsyncNs;
+    private long vsyncIndex;
+
+    // The preset (see jni/vulkan/frame_pacer.cpp for how they were chosen)
+    private long headroomNs;
+    private long maxWaitVsyncs;
+    private long pullHoldNs;
     private int jitterBuffer = -1;
     // The preset to switch to, set from any thread (setJitterBuffer())
     private volatile int pendingJitterBuffer;
 
+    private boolean anchored;
+    private long lastPtsNs;
+    private long lastAssignedNs;
+    private double carry;
+    private long holdSinceNs;
+    private long slotVsyncs = 1;
+    private final long[] ptsDeltas = new long[SLOT_DELTA_WINDOW];
+    private final long[] sortedDeltas = new long[SLOT_DELTA_WINDOW];
+    private int ptsDeltaHead;
+    private int ptsDeltaCount;
+
+    private long lateFrames;
+    private long pulls;
+
     /**
-     * @param displayRefreshHz current display refresh rate. SurfaceFlinger shows a buffer at
-     *                         the first vsync whose expected present time is at or after the
-     *                         buffer's timestamp, which is about a frame after we release it,
-     *                         so targets are pushed out by one refresh period.
+     * @param displayRefreshHz current display refresh rate
+     * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
      */
     HostFrameTimeline(float displayRefreshHz, int jitterBuffer) {
-        presentLatencyNs = displayRefreshHz > 1 ? (long) (1e9 / displayRefreshHz) : 16_666_667L;
+        periodNs = displayRefreshHz > 1 ? (long) (1e9 / displayRefreshHz) : 16_666_667L;
+        presentLatencyNs = periodNs;
         pendingJitterBuffer = jitterBuffer;
         applyPendingJitterBuffer();
     }
 
     /**
-     * Switches to another preset mid-stream, from the next frame. The transit times seen so far
-     * and the current offset are kept, so the buffer moves to the new preset's as it adapts.
+     * Switches to another preset mid-stream, from the next frame. The schedule moves to the new
+     * preset's as frames arrive.
      * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
      */
     void setJitterBuffer(int jitterBuffer) {
@@ -78,30 +101,53 @@ class HostFrameTimeline {
             return;
         }
         jitterBuffer = pending;
+        holdSinceNs = 0;
 
-        switch (pending) {
-            case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
-                windowNs = 2_000_000_000L;
-                coverage = 0.98;
-                decayDivisor = 32;
-                break;
-            case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
-            case PreferenceConfiguration.JITTER_BUFFER_INSTANT:
-                windowNs = 2_000_000_000L;
-                coverage = 0.90;
-                decayDivisor = 32;
-                break;
-            case PreferenceConfiguration.JITTER_BUFFER_SMOOTH:
-                windowNs = 30_000_000_000L;
-                coverage = 0.999;
-                decayDivisor = 4096;
-                break;
-            case PreferenceConfiguration.JITTER_BUFFER_BALANCED:
-            default:
-                windowNs = 10_000_000_000L;
-                coverage = 0.99;
-                decayDivisor = 512;
-                break;
+        if (pending == PreferenceConfiguration.JITTER_BUFFER_BALANCED) {
+            headroomNs = 4_000_000L;
+            maxWaitVsyncs = 3;
+            pullHoldNs = 3_000_000_000L;
+        }
+        else {
+            headroomNs = 0;
+            maxWaitVsyncs = 2;
+            pullHoldNs = 3_000_000_000L;
+        }
+    }
+
+    /**
+     * Records a vsync, from Choreographer: its frame time less the app vsync offset.
+     */
+    synchronized void onVsync(long vsyncNs) {
+        if (lastVsyncNs != 0) {
+            if (vsyncNs <= lastVsyncNs) {
+                return;
+            }
+            // Count the vsyncs since the last callback, including any whose callbacks we missed
+            vsyncIndex += Math.max(1, (vsyncNs - lastVsyncNs + periodNs / 2) / periodNs);
+        }
+        lastVsyncNs = vsyncNs;
+
+        int tail = (vsyncHead + vsyncCount) % VSYNC_WINDOW;
+        vsyncIndexes[tail] = vsyncIndex;
+        vsyncTimes[tail] = vsyncNs;
+        if (vsyncCount < VSYNC_WINDOW) {
+            vsyncCount++;
+        }
+        else {
+            vsyncHead = (vsyncHead + 1) % VSYNC_WINDOW;
+        }
+
+        // The mean period across the window. Its ends are the callbacks' times, which jitter by
+        // a fraction of a millisecond: over a few hundred vsyncs, that's parts per million.
+        if (vsyncCount >= MIN_VSYNCS_FOR_PERIOD) {
+            long vsyncs = vsyncIndexes[tail] - vsyncIndexes[vsyncHead];
+            if (vsyncs > 0) {
+                long measured = (vsyncTimes[tail] - vsyncTimes[vsyncHead]) / vsyncs;
+                if (Math.abs(measured - periodNs) * 10 < periodNs) {
+                    periodNs = measured;
+                }
+            }
         }
     }
 
@@ -109,73 +155,121 @@ class HostFrameTimeline {
      * Records a decoded frame and returns the System.nanoTime() at which it should be shown,
      * for MediaCodec.releaseOutputBuffer(index, renderTimestampNs).
      */
-    long onFrameDecoded(long hostPtsNs, long nowNs) {
+    synchronized long onFrameDecoded(long hostPtsNs, long nowNs) {
         applyPendingJitterBuffer();
 
-        if (count > 0 && (hostPtsNs < lastPtsNs - MAX_PTS_BACKSTEP_NS || hostPtsNs > lastPtsNs + MAX_PTS_GAP_NS)) {
-            // The stream restarted
-            count = 0;
-        }
+        updateSlot(hostPtsNs);
+        long delta = hostPtsNs - lastPtsNs;
+        boolean continuous = lastPtsNs != 0 && delta > 0 && delta <= MAX_PTS_GAP_NS;
         lastPtsNs = hostPtsNs;
 
-        boolean first = count == 0;
-        if (first) {
-            startNs = nowNs;
-            warmedUp = false;
-        }
-        boolean warmingUp = nowNs - startNs < WARMUP_NS;
-        int tail = (head + count) % CAPACITY;
-        arrivalNs[tail] = nowNs;
-        transitNs[tail] = nowNs - hostPtsNs;
-        if (count < CAPACITY) {
-            count++;
-        }
-        else {
-            head = (head + 1) % CAPACITY;
-        }
-        while (count > 1 && arrivalNs[head] < nowNs - windowNs) {
-            head = (head + 1) % CAPACITY;
-            count--;
+        if (lastVsyncNs == 0) {
+            // No vsyncs yet: as soon as possible
+            return nowNs + presentLatencyNs;
         }
 
-        for (int i = 0; i < count; i++) {
-            scratch[i] = transitNs[(head + i) % CAPACITY];
+        // The earliest the frame could be shown: the first vsync at least the headroom after it
+        // was decoded
+        long readyNs = nowNs + headroomNs;
+        long earliestNs = firstVsyncFrom(readyNs);
+
+        long assignedNs;
+        if (!anchored || !continuous) {
+            // Start (or start over) at the first vsync the frame can make
+            assignedNs = earliestNs;
+            anchored = true;
+            carry = 0;
+            holdSinceNs = 0;
         }
-        Arrays.sort(scratch, 0, count);
-        // Once there are enough samples for a percentile, leave out at least the two slowest:
-        // with few samples, the percentile is otherwise just the slowest frame
-        int index = count - 1;
-        if (count >= 8) {
-            double effectiveCoverage = Math.min(coverage, 1.0 - 2.0 / count);
-            if (warmingUp) {
-                effectiveCoverage = Math.min(effectiveCoverage, WARMUP_COVERAGE);
+        else {
+            // The vsync after the last frame's, as many slots on as the host timestamps moved
+            long slotPeriodNs = slotVsyncs * periodNs;
+            double slots = carry + (double) delta / slotPeriodNs;
+            long step = Math.max(1, Math.round(slots));
+            carry = (slots - step) * CARRY_KEEP;
+            assignedNs = nearestVsync(lastAssignedNs + step * slotPeriodNs);
+
+            long roomNs = assignedNs - readyNs;
+            if (roomNs < 0) {
+                // Too late for its vsync: the first one it can make, and the frames after it follow
+                assignedNs = earliestNs;
+                lateFrames++;
+                holdSinceNs = 0;
             }
-            index = (int) Math.ceil(effectiveCoverage * (count - 1));
+            else if (roomNs >= maxWaitVsyncs * periodNs) {
+                // Waiting too long (frames bunched up after a stall, or the host running fast)
+                long excess = roomNs / periodNs - (maxWaitVsyncs - 1);
+                assignedNs = Math.max(assignedNs - excess * periodNs, lastAssignedNs);
+                pulls++;
+                holdSinceNs = 0;
+            }
+            else if (roomNs >= periodNs + periodNs / PULL_MARGIN_DIVISOR) {
+                // Could have made the vsync before its own. Once every frame could for long
+                // enough, move a vsync sooner. SurfaceFlinger drops the frame this one then
+                // shares a vsync with.
+                if (holdSinceNs == 0) {
+                    holdSinceNs = nowNs;
+                }
+                else if (nowNs - holdSinceNs >= pullHoldNs) {
+                    assignedNs = Math.max(assignedNs - periodNs, lastAssignedNs);
+                    pulls++;
+                    holdSinceNs = 0;
+                }
+            }
+            else {
+                holdSinceNs = 0;
+            }
         }
-        long target = scratch[index];
+        lastAssignedNs = assignedNs;
 
-        // Take more delay right away when frames start arriving later, and give it back slowly
-        if (first || target > offsetNs) {
-            offsetNs = target;
-        }
-        else if (!warmingUp && !warmedUp) {
-            // End of the warm-up: straight to what the stream has shown since
-            offsetNs = target;
-        }
-        else {
-            offsetNs -= (offsetNs - target) / decayDivisor;
-        }
-        if (!warmingUp) {
-            warmedUp = true;
-        }
+        return assignedNs + presentLatencyNs - periodNs / 2;
+    }
 
-        // Instant: as soon as possible. Stamped with now rather than shown without a time, so
-        // SurfaceFlinger drops it if a newer frame is also due at the vsync. The timeline goes
-        // on learning, for switching back.
-        if (jitterBuffer == PreferenceConfiguration.JITTER_BUFFER_INSTANT) {
-            return nowNs;
-        }
+    // Frames that couldn't make their vsync, moving the schedule a vsync or more later
+    synchronized long getLateFrames() {
+        return lateFrames;
+    }
 
-        return hostPtsNs + offsetNs + presentLatencyNs;
+    // Times the schedule moved sooner
+    synchronized long getPulls() {
+        return pulls;
+    }
+
+    private long nearestVsync(long timeNs) {
+        return lastVsyncNs + Math.round((double) (timeNs - lastVsyncNs) / periodNs) * periodNs;
+    }
+
+    // The first vsync at or after timeNs, and after the last vsync seen
+    private long firstVsyncFrom(long timeNs) {
+        if (timeNs <= lastVsyncNs + periodNs) {
+            return lastVsyncNs + periodNs;
+        }
+        return lastVsyncNs + (timeNs - lastVsyncNs + periodNs - 1) / periodNs * periodNs;
+    }
+
+    // How many vsyncs each frame should stay on screen, from the spacing of host timestamps
+    private void updateSlot(long hostPtsNs) {
+        if (lastPtsNs != 0) {
+            long delta = hostPtsNs - lastPtsNs;
+            if (delta > 0 && delta < MAX_PTS_GAP_NS) {
+                ptsDeltas[(ptsDeltaHead + ptsDeltaCount) % SLOT_DELTA_WINDOW] = delta;
+                if (ptsDeltaCount < SLOT_DELTA_WINDOW) {
+                    ptsDeltaCount++;
+                }
+                else {
+                    ptsDeltaHead = (ptsDeltaHead + 1) % SLOT_DELTA_WINDOW;
+                }
+            }
+        }
+        if (ptsDeltaCount < MIN_SLOT_DELTAS) {
+            return;
+        }
+        System.arraycopy(ptsDeltas, 0, sortedDeltas, 0, ptsDeltaCount);
+        Arrays.sort(sortedDeltas, 0, ptsDeltaCount);
+        long median = sortedDeltas[ptsDeltaCount / 2];
+        long vsyncs = (median + periodNs / 2) / periodNs;
+        if (vsyncs >= 1 && vsyncs <= 8 && Math.abs(median - vsyncs * periodNs) * 100 <= periodNs * 15) {
+            slotVsyncs = vsyncs;
+        }
     }
 }
