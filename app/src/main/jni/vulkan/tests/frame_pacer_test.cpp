@@ -46,6 +46,25 @@ struct Scenario {
     bool presentAhead = false;
     double guardMs = 2;
     unsigned seed = 1;
+
+    // PyroWave: with decodeMs above 0, each frame's last packet comes transitMs after its host
+    // timestamp and its first spreadMs before that, and it's decoded decodeMs (plus up to about
+    // twice decodeJitterMs) after its last, or after the frame before it if that's later: one
+    // decode at a time, so a decoder near its limit has frames wait behind each other
+    double decodeMs = 0;
+    double decodeJitterMs = 0;
+    double spreadMs = 1.5;
+    // Frames still arriving at their deadline are cut short then, with at least cutMinPercent
+    // of them in, cutMarginMs before the pacer's cut-off (as VulkanRenderer does)
+    bool cutting = false;
+    int cutMinPercent = 30;
+    double cutMarginMs = 2;
+    // This share of frames have their last packet come stragglerMs late, after the first
+    // stragglerFromS; with stragglerWhole, their first packet too
+    double stragglerShare = 0;
+    double stragglerMs = 0;
+    bool stragglerWhole = false;
+    double stragglerFromS = 0;
 };
 
 struct Result {
@@ -65,11 +84,15 @@ struct Result {
     // late and pulls over a window of the stream (see countFrom/countTo)
     uint64_t lateIn = 0;
     uint64_t pullsIn = 0;
+    int cuts = 0;  // Frames cut short
 };
 
 struct Frame {
     int64_t ptsNs;
     int64_t arrivalNs;
+    int64_t firstPacketNs = 0;
+    int64_t lastPacketNs = 0;
+    int64_t decodeNs = 0;
 };
 
 double median(std::vector<double> v) {
@@ -84,6 +107,8 @@ Result run(const Scenario& s, double countFromS = 2, double countToS = 1e9) {
     const int64_t endNs = startNs + static_cast<int64_t>(s.seconds * 1e9);
     std::mt19937 rng(s.seed);
     std::normal_distribution<double> jitter(0, s.jitterMs * 1e6);
+    std::uniform_real_distribution<double> uniform(0, 1);
+    std::normal_distribution<double> unit(0, 1);
 
     // The host's frames and when each finishes decoding here
     std::vector<Frame> frames;
@@ -105,20 +130,60 @@ Result run(const Scenario& s, double countFromS = 2, double countToS = 1e9) {
             spikeIndex++;
         }
         int64_t arrival = static_cast<int64_t>(hostNs + std::max(transit, 1e6));
+        int64_t firstPacket = 0, lastPacket = 0, decode = 0;
+        if (s.decodeMs > 0) {
+            decode = static_cast<int64_t>((s.decodeMs + std::fabs(unit(rng)) * s.decodeJitterMs) * 1e6);
+            lastPacket = arrival;
+            firstPacket = lastPacket - static_cast<int64_t>(s.spreadMs * 1e6);
+            // Evenly spread, so a run of luck doesn't leave seconds without one
+            if (t >= s.stragglerFromS && s.stragglerShare > 0 &&
+                    frames.size() % static_cast<size_t>(std::lround(1.0 / s.stragglerShare)) == 0) {
+                lastPacket += static_cast<int64_t>(s.stragglerMs * 1e6);
+                if (s.stragglerWhole) firstPacket += static_cast<int64_t>(s.stragglerMs * 1e6);
+            }
+            arrival = lastPacket + decode;  // For the order only: decoded as delivered (decoded())
+        }
         if (s.stallAtS >= 0 && t >= s.stallAtS && t < s.stallAtS + s.stallMs / 1e3) {
             arrival = std::max(arrival, startNs + static_cast<int64_t>((s.stallAtS + s.stallMs / 1e3) * 1e9 + s.transitMs * 1e6));
         }
         // The decoder delivers in order
         arrival = std::max(arrival, lastArrival + 100'000);
         lastArrival = arrival;
-        frames.push_back({static_cast<int64_t>(hostNs), arrival});
+        frames.push_back({static_cast<int64_t>(hostNs), arrival, firstPacket, lastPacket, decode});
         hostNs += interval;
     }
 
-    FramePacer pacer(PacingMode::HostTimed, 144, 6'944'444, s.jitterBuffer);
+    // Told the nominal rate (144 Hz for 143.655), which the pacer then measures exactly
+    const double nominalHz = static_cast<double>(std::lround(s.refreshHz));
+    FramePacer pacer(PacingMode::HostTimed, static_cast<int>(nominalHz), static_cast<int64_t>(std::llround(1e9 / nominalHz)),
+                     s.jitterBuffer);
     pacer.setPresentAhead(s.presentAhead);
     pacer.setPresentGuardNs(static_cast<int64_t>(s.guardMs * 1e6));
     const int64_t guardNs = pacer.presentGuardNs();
+
+    // The cut-off, as VulkanRenderer::updatePartialDeadline() works it out from the frame that
+    // just arrived: frames still arriving then are cut short and decoded from there
+    bool haveDeadline = false;
+    int64_t deadlineOffsetNs = 0;
+    int64_t lastDecodedNs = 0;
+    const int64_t cutMarginNs = static_cast<int64_t>(s.cutMarginMs * 1e6);
+    // Its decode, as things stand: cut short at its deadline if it would still be arriving then,
+    // and after the frame before it is decoded. Returns whether it was cut.
+    auto decoded = [&](size_t i) {
+        Frame& f = frames[i];
+        if (f.lastPacketNs == 0) return false;
+        bool cut = false;
+        if (s.cutting && haveDeadline) {
+            const int64_t cutNs = f.ptsNs + deadlineOffsetNs - cutMarginNs;
+            if (cutNs < f.lastPacketNs && cutNs > f.firstPacketNs &&
+                    (cutNs - f.firstPacketNs) * 100 >= static_cast<int64_t>(s.cutMinPercent) * (f.lastPacketNs - f.firstPacketNs)) {
+                f.lastPacketNs = cutNs;
+                cut = true;
+            }
+        }
+        f.arrivalNs = std::max(f.lastPacketNs, lastDecodedNs) + f.decodeNs;
+        return cut;
+    };
 
     struct Waiting {
         FrameTiming timing;
@@ -147,7 +212,15 @@ Result run(const Scenario& s, double countFromS = 2, double countToS = 1e9) {
     const int64_t callbackLateNs = 400'000;
     for (int64_t vsync = startNs; vsync < endNs; vsync += periodNs) {
         const int64_t callbackNs = vsync + callbackLateNs;
-        while (next < frames.size() && frames[next].arrivalNs <= callbackNs) {
+        while (next < frames.size()) {
+            // Cut short at its deadline, if it would still be arriving then
+            Frame saved = frames[next];
+            const bool cut = decoded(next);
+            if (frames[next].arrivalNs > callbackNs) {
+                frames[next] = saved;  // Looked at again at the next vsync, with that deadline
+                break;
+            }
+            if (cut && frames[next].arrivalNs >= countFromNs) r.cuts++;
             const double t = (frames[next].arrivalNs - startNs) / 1e9;
             if (s.switchAtS >= 0 && !switched && t >= s.switchAtS) {
                 pacer.setJitterBuffer(s.switchTo);
@@ -155,6 +228,13 @@ Result run(const Scenario& s, double countFromS = 2, double countToS = 1e9) {
             }
             FrameTiming timing {frames[next].ptsNs, frames[next].arrivalNs, 0};
             pacer.onFrameArrived(timing);
+            if (s.decodeMs > 0) {
+                pacer.addReadyCost(timing.arrivalNs - std::max(frames[next].lastPacketNs, lastDecodedNs));
+                int64_t offsetNs = 0;
+                haveDeadline = pacer.partialDeadlineOffsetNs(timing, &offsetNs);
+                deadlineOffsetNs = offsetNs;
+            }
+            lastDecodedNs = timing.arrivalNs;
             queue.push_back({timing, next});
             while (queue.size() > pacer.maxQueued()) {
                 queue.erase(queue.begin());
@@ -237,10 +317,10 @@ void check(bool ok, const std::string& what) {
 }
 
 void report(const Scenario& s, const Result& r) {
-    printf("  %s%s: %d shown, %d uneven, %llu late, %llu pulled, %d queue drops, wait p50 %.1f max %.1f ms\n",
+    printf("  %s%s: %d shown, %d uneven, %llu late, %llu pulled, %d queue drops, %d cut, wait p50 %.1f max %.1f ms\n",
            s.name.c_str(), s.presentAhead ? " (present ahead)" : "", r.shown, r.uneven,
-           static_cast<unsigned long long>(r.late), static_cast<unsigned long long>(r.pulls), r.queueDrops, r.waitP50Ms,
-           r.maxWaitMs);
+           static_cast<unsigned long long>(r.late), static_cast<unsigned long long>(r.pulls), r.queueDrops, r.cuts,
+           r.waitP50Ms, r.maxWaitMs);
 }
 
 std::string fmt(const char* format, double a, double b = 0) {
@@ -416,6 +496,69 @@ int main() {
             check(r.waitP50AfterSwitchMs <= r.waitP50BeforeSwitchMs + 0.5, "the wait doesn't grow");
             check(r.maxWaitMs < 3 * periodMs + 4, "no frame waits past Balanced's cap");
         }
+    }
+
+    // PyroWave frames cut short at their deadline (VulkanRenderer::updatePartialDeadline()).
+    // 1.5% of frames have their last packets come 5 ms late, too late for their vsync: cut
+    // short, they're shown on time, where shown whole they move frames a vsync later, and the
+    // hold never sees 3 s without one to move them back.
+    for (bool ahead : {false, true}) {
+        printf("\n=== PyroWave cutting, %s ===\n", ahead ? "presenting ahead" : "shown at the vsync callback");
+        const double period120 = 1.0 / 119.712;
+        const double periodMs120 = period120 * 1e3;
+        Scenario base;
+        base.refreshHz = 119.712;
+        base.hostInterval = [=](double) { return period120; };
+        base.presentAhead = ahead;
+        base.transitMs = 0.5;
+        base.jitterMs = 0.3;
+        base.decodeMs = 2.5;
+        base.spreadMs = 1.5;
+        base.stragglerShare = 0.015;
+        base.stragglerMs = 5;
+        base.stragglerFromS = 4;
+
+        Scenario whole = base;
+        whole.name = "Late packets, shown whole";
+        Scenario cut = base;
+        cut.name = "Late packets, cut short";
+        cut.cutting = true;
+        Scenario smoother = cut;
+        smoother.name = "Late packets, cut short with 20% in";
+        smoother.cutMinPercent = 20;
+        const Result rw = run(whole, 6);
+        const Result rc = run(cut, 6);
+        const Result rs = run(smoother, 6);
+        report(whole, rw);
+        report(cut, rc);
+        report(smoother, rs);
+        check(rc.late <= 1 && rc.cuts > 0, fmt("cut short, they're on time (%.0f late, %.0f cut)", static_cast<double>(rc.late), rc.cuts));
+        check(rc.waitP50Ms < rw.waitP50Ms - periodMs120 * 0.6,
+              fmt("and frames stay a vsync sooner than shown whole (wait p50 %.1f against %.1f ms)", rc.waitP50Ms, rw.waitP50Ms));
+        check(rc.uneven <= 2, fmt("evenly (%.0f uneven)", rc.uneven));
+        check(rs.cuts >= rc.cuts, fmt("a lower minimum cuts no fewer (%.0f against %.0f)", rs.cuts, rc.cuts));
+
+        // A decoder near its limit (a Pixel 10 Pro at 120 fps, about 8 ms a decode): frames
+        // wait behind each other, which cutting can't help. Cutting mustn't make it worse.
+        Scenario busyWhole = base;
+        busyWhole.name = "Busy decoder, shown whole";
+        busyWhole.transitMs = 2.5;
+        busyWhole.decodeMs = 7.8;
+        busyWhole.decodeJitterMs = 0.6;
+        busyWhole.stragglerShare = 0;
+        busyWhole.spikes = {{3.0, 12.0}};
+        busyWhole.seconds = 60;
+        Scenario busyCut = busyWhole;
+        busyCut.name = "Busy decoder, cut short";
+        busyCut.cutting = true;
+        const Result rbw = run(busyWhole, 8);
+        const Result rbc = run(busyCut, 8);
+        report(busyWhole, rbw);
+        report(busyCut, rbc);
+        check(rbc.late + rbc.pulls <= rbw.late + rbw.pulls + 2,
+              fmt("with a busy decoder, no back and forth (%.0f late and pulled, against %.0f)",
+                  static_cast<double>(rbc.late + rbc.pulls), static_cast<double>(rbw.late + rbw.pulls)));
+        check(rbc.uneven <= rbw.uneven + 2, fmt("and no less even (%.0f uneven, against %.0f)", rbc.uneven, rbw.uneven));
     }
 
     printf("\n%s: %d check%s failed\n", failures ? "FAILED" : "PASSED", failures, failures == 1 ? "" : "s");

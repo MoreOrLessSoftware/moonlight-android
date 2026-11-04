@@ -39,7 +39,7 @@ struct RendererConfig {
     float displayRefreshHz = 60.0f;
     bool pyrowave = false;     // The stream is PyroWave, decoded by the renderer rather than MediaCodec
     bool pyrowaveCenterChroma = false;  // From the nonary host: 4:2:0 chroma sited at the center
-    int pyrowaveLateFrames = 2;  // PreferenceConfiguration.PYROWAVE_LATE_FRAMES_*
+    int pyrowaveLateFrames = 1;  // PreferenceConfiguration.PYROWAVE_LATE_FRAMES_* (0 off, 1 balanced, 2 smoother)
     bool frontBuffer = false;    // A front buffer aligned to the scan, where the device has one
     bool pyrowaveGpuBoost = false;  // Keep the GPU busy between PyroWave decodes (GpuKeepBusy)
     std::string codec;           // h264, hevc, av1 or pyrowave, for pacer traces

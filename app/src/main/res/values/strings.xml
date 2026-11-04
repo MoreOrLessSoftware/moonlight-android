@@ -297,12 +297,10 @@
     <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
     <string name="title_video_format">Video codec</string>
     <string name="title_pyrowave_late_frames">PyroWave late frames</string>
-    <string name="summary_pyrowave_late_frames">Only used with the PyroWave codec and host frame timing pacing: configure how much blurriness you want to accept for a smoother stream</string>
-    <string name="pyrowave_late_frames_off">Off (least blur)</string>
-    <string name="pyrowave_late_frames_sharp">Sharper</string>
+    <string name="summary_pyrowave_late_frames">Only used with the PyroWave codec and host frame timing pacing: show frames still arriving when they\'re due, or that lost packets, partly blurred rather than late or not at all</string>
+    <string name="pyrowave_late_frames_off">Off (no blur)</string>
     <string name="pyrowave_late_frames_balanced">Balanced (Recommended)</string>
-    <string name="pyrowave_late_frames_smooth">Smoother</string>
-    <string name="pyrowave_late_frames_smoothest">Smoothest (most blur)</string>
+    <string name="pyrowave_late_frames_smooth">Smoother (more blur)</string>
     <string name="title_pyrowave_gpu_boost">PyroWave GPU boost</string>
     <string name="summary_pyrowave_gpu_boost">Only used with the PyroWave codec: gives the GPU light work between frames so it keeps its clock up, making decoding faster and steadier where the GPU would otherwise slow down between frames. Uses more power and runs warmer, so drains the battery faster</string>
     <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>

@@ -470,27 +470,20 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
     //
     // The same trade applies to frames that lost packets: shown blurrier with less of them, or
     // dropped, which on a link that lost about a frame in 130 (a Pixel 10 Pro at 60 fps) was
-    // about half of its stutters. Off and Sharper keep PyroWave's default of nine tenths.
+    // about half of its stutters. Off keeps PyroWave's default of nine tenths.
+    //
+    // Smoother shows more blurred frames rather than hold one on screen. It cuts no earlier than
+    // Balanced: with frames rarely behind the pacer's schedule, cutting earlier only blurred
+    // frames that would have arrived whole in time.
     switch (config.pyrowaveLateFrames) {
     case 0:  // Off
         partialEnabled_ = false;
         lostFrameMinPercent_ = 90;
         break;
-    case 1:  // Sharper
-        partialMinPercent_ = 50;
-        partialMarginNs_ = 1'000'000;
-        lostFrameMinPercent_ = 90;
-        break;
-    case 3:  // Smoother
-        partialMinPercent_ = 25;
-        partialMarginNs_ = 3'000'000;
+    case 2:  // Smoother
+        partialMinPercent_ = 20;
+        partialMarginNs_ = 2'000'000;
         lostFrameMinPercent_ = 50;
-        break;
-    case 4:  // Smoothest: any frame with its coarsest levels is shown, however blurred, and
-             // frames are cut early enough to cover most of a slow decode
-        partialMinPercent_ = 10;
-        partialMarginNs_ = 5'000'000;
-        lostFrameMinPercent_ = 0;
         break;
     default:  // Balanced
         partialMinPercent_ = 30;

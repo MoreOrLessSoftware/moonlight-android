@@ -104,6 +104,29 @@ Instant to Low latency.
   decode the stream's resolution and frame rate in time, frames back up in front of the decoder
   (see the `N` and `D` lines) whatever the deadline.
 
+## PyroWave late frames setting
+
+| Setting | Frames still arriving when due | Frames that lost packets shown with |
+|---|---|---|
+| Off | shown late | 90% of them |
+| Balanced (default) | cut short with at least 30% in, 2 ms before the cut-off | 75% |
+| Smoother | cut short with at least 20% in, 2 ms before the cut-off | 50% |
+
+Set in `VulkanRenderer`'s constructor; `debug.moonlight.partial*` properties override them.
+Smoother cuts no earlier than Balanced: with frames rarely behind the schedule, cutting earlier
+(the old Smoother and Smoothest cut 3-5 ms early) only blurred frames that would have arrived
+whole. Stored values from levels since removed migrate: Sharper to Balanced, Smoothest to
+Smoother.
+
+**Tried and dropped: cut assist.** The idea was to let the give-back rule move frames a vsync
+sooner even when a few wouldn't arrive whole by then, counting on cutting them short. Replays
+suggested 96-99% of frames could often go a vsync sooner. On devices it never paid off: what
+kept frames from the earlier vsync was a busy decoder (a Pixel 10 Pro at 120 fps, where cutting
+doesn't get a frame decoded sooner, and judging from packet times alone moved frames sooner and
+straight back), a network burst or lasting slowdown affecting many frames, or the phase of the
+host's frames putting a third of them at the cut-off. Never a steady few percent with late
+final packets, the only case it helps.
+
 ## Direct renderer integration
 
 The direct renderer runs a Choreographer thread in this mode only to feed vsyncs to
@@ -137,7 +160,8 @@ the same vsync are dropped by SurfaceFlinger, keeping the newest.
 
 - **Simulation tests** (`tests/frame_pacer_test.cpp`): synthetic streams (matched and half
   rate, host clock drift either way, spikes, a stall, host gaps, a frame rate change, preset
-  switches), each with and without presenting ahead, checked against the properties above. Run
+  switches, and PyroWave frames with late packets cut short, or stuck behind a decoder near its
+  limit), each with and without presenting ahead, checked against the properties above. Run
   them after any change to the rules. Build commands are at the top of each file.
 
 When reading a trace, separate the causes of uneven frames:

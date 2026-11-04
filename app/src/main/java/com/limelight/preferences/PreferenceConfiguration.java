@@ -167,13 +167,12 @@ public class PreferenceConfiguration {
     public static final int JITTER_BUFFER_BALANCED = 1;
 
     // What to do with a PyroWave frame still arriving when it should be ready to show: show it
-    // late, or cut it short then and show it with what arrived, missing some fine detail. The
-    // presets trade blur for fewer late frames (see VulkanRenderer's constructor).
+    // late, or cut it short then and show it with what arrived, missing some fine detail.
+    // Smoother shows more blurred frames, of late frames and of ones that lost packets, rather
+    // than hold one on screen (see VulkanRenderer's constructor). Matches VulkanRenderer's config.
     public static final int PYROWAVE_LATE_FRAMES_OFF = 0;
-    public static final int PYROWAVE_LATE_FRAMES_SHARP = 1;
-    public static final int PYROWAVE_LATE_FRAMES_BALANCED = 2;
-    public static final int PYROWAVE_LATE_FRAMES_SMOOTH = 3;
-    public static final int PYROWAVE_LATE_FRAMES_SMOOTHEST = 4;
+    public static final int PYROWAVE_LATE_FRAMES_BALANCED = 1;
+    public static final int PYROWAVE_LATE_FRAMES_SMOOTH = 2;
 
     public static final String RES_360P = "640x360";
     public static final String RES_480P = "854x480";
@@ -501,16 +500,18 @@ public class PreferenceConfiguration {
         if (str.equals("off")) {
             return PYROWAVE_LATE_FRAMES_OFF;
         }
-        else if (str.equals("sharp")) {
-            return PYROWAVE_LATE_FRAMES_SHARP;
-        }
-        else if (str.equals("smooth")) {
+        else if (str.equals("smooth") || str.equals("smoothest")) {
+            // Smoothest, since removed, migrates to Smoother so the setting shows what's in use
+            if (!str.equals("smooth")) {
+                prefs.edit().putString(PYROWAVE_LATE_FRAMES_PREF_STRING, "smooth").apply();
+            }
             return PYROWAVE_LATE_FRAMES_SMOOTH;
         }
-        else if (str.equals("smoothest")) {
-            return PYROWAVE_LATE_FRAMES_SMOOTHEST;
-        }
         else {
+            // Balanced, and Sharper, since removed, which migrates to it
+            if (!str.equals("balanced")) {
+                prefs.edit().putString(PYROWAVE_LATE_FRAMES_PREF_STRING, "balanced").apply();
+            }
             return PYROWAVE_LATE_FRAMES_BALANCED;
         }
     }
