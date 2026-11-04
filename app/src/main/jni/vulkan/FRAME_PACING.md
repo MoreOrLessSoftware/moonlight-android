@@ -92,6 +92,13 @@ Instant to Low latency.
 - Partial frames (PyroWave): `partialDeadlineOffsetNs()` sets the deadline to the frame's assigned
   vsync less the present guard and the 90th percentile of recent decode costs. A frame still
   arriving then is cut rather than shown late, so it doesn't move the schedule.
+  Since late frames move the schedule a vsync later, frames are rarely behind it, and only those
+  caught in a burst are cut: at 120 fps, about 5 a minute where the old pacer, which scheduled
+  frames by a percentile of past transit times, cut 90-160 a minute and showed them blurred.
+  The decode cost is measured from a frame's last packet, so it includes any wait for the
+  decoder: on a device whose GPU can't decode the stream's resolution and frame rate in time,
+  frames back up in front of the decoder, the cost reads 50-100+ ms, the deadline falls far too
+  early, and almost nothing is cut (nor would cutting help).
 
 ## Direct renderer integration
 
