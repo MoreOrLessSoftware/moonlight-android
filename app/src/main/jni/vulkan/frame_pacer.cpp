@@ -133,7 +133,8 @@ int64_t FramePacer::firstVsyncFromNs(int64_t timeNs) const {
 }
 
 // How many vsyncs each frame should stay on screen, from the spacing of host timestamps: one
-// when the host's frame rate matches our refresh rate, two for 60 fps on 120 Hz
+// when the host's frame rate matches our refresh rate, two for 60 fps on 120 Hz, and one when
+// it's no whole number of vsyncs (100 fps on 144 Hz), so frames chain on the finest grid
 void FramePacer::updateSlot(int64_t hostPtsNs) {
     if (lastPtsNs_ != 0) {
         const int64_t delta = hostPtsNs - lastPtsNs_;
@@ -153,6 +154,11 @@ void FramePacer::updateSlot(int64_t hostPtsNs) {
     const int64_t vsyncs = (median + periodNs_ / 2) / periodNs_;
     if (vsyncs >= 1 && vsyncs <= 8 && std::llabs(median - vsyncs * periodNs_) * 100 <= periodNs_ * 15) {
         slotVsyncs_ = vsyncs;
+    }
+    else {
+        // Kept at a slot that no longer fits, frames chained too far apart and had to be pulled
+        // back over and over (a game going from 72 to 100 fps on 144 Hz)
+        slotVsyncs_ = 1;
     }
 }
 

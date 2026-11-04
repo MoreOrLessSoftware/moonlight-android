@@ -247,7 +247,8 @@ class HostFrameTimeline {
         return lastVsyncNs + (timeNs - lastVsyncNs + periodNs - 1) / periodNs * periodNs;
     }
 
-    // How many vsyncs each frame should stay on screen, from the spacing of host timestamps
+    // How many vsyncs each frame should stay on screen, from the spacing of host timestamps: one
+    // when it's no whole number of vsyncs
     private void updateSlot(long hostPtsNs) {
         if (lastPtsNs != 0) {
             long delta = hostPtsNs - lastPtsNs;
@@ -270,6 +271,10 @@ class HostFrameTimeline {
         long vsyncs = (median + periodNs / 2) / periodNs;
         if (vsyncs >= 1 && vsyncs <= 8 && Math.abs(median - vsyncs * periodNs) * 100 <= periodNs * 15) {
             slotVsyncs = vsyncs;
+        }
+        else {
+            // No whole number of vsyncs: chain on the finest grid (see jni/vulkan/frame_pacer.cpp)
+            slotVsyncs = 1;
         }
     }
 }
