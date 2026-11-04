@@ -150,7 +150,8 @@ public:
     // Frames still arriving when they should be ready are cut short then, where the decoder can
     // show what arrived (PyroWave), rather than shown late (LiSetPartialFrameDeadline()).
     //
-    // How long a frame took from its last packet to being ready to show (decoded)
+    // How long a frame took to be ready to show (decoded) once the decoder was free for it: from
+    // its last packet, or the frame before it being decoded if that was later
     void addReadyCost(int64_t costNs);
 
     // HostTimed: how long after a frame's host timestamp its last packet must be in for it to be

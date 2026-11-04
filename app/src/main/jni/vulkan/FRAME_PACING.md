@@ -95,10 +95,14 @@ Instant to Low latency.
   Since late frames move the schedule a vsync later, frames are rarely behind it, and only those
   caught in a burst are cut: at 120 fps, about 5 a minute where the old pacer, which scheduled
   frames by a percentile of past transit times, cut 90-160 a minute and showed them blurred.
-  The decode cost is measured from a frame's last packet, so it includes any wait for the
-  decoder: on a device whose GPU can't decode the stream's resolution and frame rate in time,
-  frames back up in front of the decoder, the cost reads 50-100+ ms, the deadline falls far too
-  early, and almost nothing is cut (nor would cutting help).
+  The decode cost is each frame's own decode, from when the decoder was free for it: its last
+  packet, or the frame before it being decoded if later. Measured from the last packet alone, it
+  took in the wait behind frames that arrived together, and the percentile set every frame's
+  deadline for that wait (on a Pixel 10 Pro at 120 fps, 35 ms before frames were due where a
+  cut frame took 11 ms), cutting frames that would have arrived whole in time.
+  Cutting can't help frames late because the decoder is slow: on a device whose GPU can't
+  decode the stream's resolution and frame rate in time, frames back up in front of the decoder
+  (see the `N` and `D` lines) whatever the deadline.
 
 ## Direct renderer integration
 

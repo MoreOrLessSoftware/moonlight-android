@@ -1405,6 +1405,7 @@ void VulkanRenderer::enqueueFrame(FramePtr frame) {
         if (frame->lastPacketUs != 0) {
             updatePartialDeadline(*frame);
         }
+        lastDecodedNs_ = frame->timing.arrivalNs;
         trace_.frame(frame->timing, pending_.size() + 1, queueOverflowDrops_);
         pending_.push_back(std::move(frame));
         while (pending_.size() > pacer_.maxQueued()) {
@@ -1434,12 +1435,19 @@ void VulkanRenderer::enqueueFrame(FramePtr frame) {
 // link the stream nearly fills, the last packets of some frames come late even though their
 // first come on time. The deadline is the frame's due time less how long frames take from their
 // last packet to being decoded (FramePacer::partialDeadlineOffsetNs()). Under mutex_.
+//
+// That's each frame's own decode, from when the decoder was free for it: its last packet, or the
+// frame before it being decoded, whichever was later. Counted from the last packet alone, it
+// took in the wait behind frames that arrived together, and the percentile set every frame's
+// deadline for that wait: on a Pixel 10 Pro at 120 fps, 35 ms before frames were due where a cut
+// frame took 11 ms to decode, so frames were cut that would have arrived whole in time.
 void VulkanRenderer::updatePartialDeadline(const VideoFrame& frame) {
     // moonlight-common-c's clock is CLOCK_MONOTONIC_RAW, which runs a little apart from ours
     const int64_t commonToLocalNs = nowNs() - static_cast<int64_t>(LiGetMicroseconds()) * 1000;
     const int64_t lastPacketNs = frame.lastPacketUs * 1000 + commonToLocalNs;
-    if (frame.timing.arrivalNs >= lastPacketNs) {
-        pacer_.addReadyCost(frame.timing.arrivalNs - lastPacketNs);
+    const int64_t decodeFromNs = std::max(lastPacketNs, lastDecodedNs_);
+    if (frame.timing.arrivalNs >= decodeFromNs) {
+        pacer_.addReadyCost(frame.timing.arrivalNs - decodeFromNs);
     }
 
     int64_t offsetNs, readyByNs, readyCostNs;

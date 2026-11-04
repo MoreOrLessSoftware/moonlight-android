@@ -533,6 +533,9 @@ private:
     // The deadline frames still arriving are cut short at (LiSetPartialFrameDeadline()), worked
     // out as frames arrive and handed to moonlight-common-c with the next frame submitted
     void updatePartialDeadline(const VideoFrame& frame);
+    // When the last frame came out of the decoder, for how long the next took once the decoder
+    // was free for it (updatePartialDeadline())
+    int64_t lastDecodedNs_ = 0;
     bool partialDeadlineEnabled_ = false;
     int64_t partialDeadlineOffsetUs_ = 0;
     // What moonlight-common-c was last told. Only on its decoder thread. Taken as set at first,
