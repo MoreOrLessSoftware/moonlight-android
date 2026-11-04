@@ -2933,8 +2933,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 hideSystemUi(1000);
 
-                // The stream's settings, now that the codec the host chose is known (the renderer
-                // and frame pacing were shown while connecting)
+                // The stream's settings, now that the codec the host chose is known (the renderer,
+                // frame pacing and bitrate were shown while connecting)
                 Toast.makeText(Game.this, describeStream(), Toast.LENGTH_LONG).show();
 
                 // The decoder is set up by now, so a Vulkan renderer that failed to start
@@ -3049,11 +3049,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
 
-            // The renderer and frame pacing are known from the settings, so they show while
-            // connecting; the stream's details follow once the host has chosen its codec
+            // The renderer, frame pacing and bitrate are known from the settings, so they show
+            // while connecting; the stream's details follow once the host has chosen its codec
             announcedRendererName = decoderRenderer.getRendererName();
             Toast.makeText(Game.this, announcedRendererName + " Renderer \u2022 Pacing: " +
-                    describeFramePacing(), Toast.LENGTH_LONG).show();
+                    describeFramePacing() + " \u2022 " + prefConfig.bitrate / 1000 + " Mbps", Toast.LENGTH_LONG).show();
 
             // Measure the display's actual refresh rate first, now that its mode is set, so the
             // host can be asked for a frame rate that lines up with our vsyncs
@@ -3107,19 +3107,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         String hostRateText = "";
         if (streamConfig.getClientRefreshRateUhz() > 0) {
             hostRateText = String.format(Locale.getDefault(), " (%.4f Hz%s)", streamConfig.getClientRefreshRateUhz() / 1e6,
-                    hostClockCorrected ? ", host clock calibrated" : "");
+                    hostClockCorrected ? ", calibrated" : "");
         }
         else if (streamConfig.getClientRefreshRateX100() > 0) {
             hostRateText = String.format(Locale.getDefault(), " (%.2f Hz)", streamConfig.getClientRefreshRateX100() / 100.0);
         }
         return String.format(Locale.getDefault(),
-                "%dx%d @ %d FPS%s \u2022 %s \u2022 %d Mbps",
+                "%dx%d @ %d FPS%s \u2022 %s",
                 prefConfig.width,
                 prefConfig.height,
                 prefConfig.fps,
                 hostRateText,
-                describeVideoFormat(decoderRenderer.getActiveVideoFormat()),
-                prefConfig.bitrate / 1000);
+                describeVideoFormat(decoderRenderer.getActiveVideoFormat()));
     }
 
     // Frame pacing for the stream start toast, with the jitter buffer when the mode has one.
