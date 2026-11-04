@@ -1,5 +1,6 @@
 package com.limelight.binding.video;
 
+import com.limelight.LimeLog;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import java.util.Arrays;
@@ -23,6 +24,9 @@ import java.util.Arrays;
  * vsync whose expected present time is at or after the buffer's timestamp, about a refresh after
  * it latches it, so each frame is stamped half a vsync before the present of its assigned vsync:
  * well clear of the vsyncs either side, so timing jitter doesn't move it to one of them.
+ *
+ * Logs the preset whenever it's set, and a summary every 10 s, both starting "Host frame timing"
+ * (this renderer writes no pacer trace).
  */
 class HostFrameTimeline {
     // A host timestamp further from the last than this starts the schedule over
@@ -75,6 +79,15 @@ class HostFrameTimeline {
     private long lateFrames;
     private long pulls;
 
+    // The 10 s summary (logSummary())
+    private static final long SUMMARY_INTERVAL_NS = 10_000_000_000L;
+    private long summaryStartNs;
+    private int summaryFrames;
+    private long summaryWaitSumNs;
+    private long summaryWaitMaxNs;
+    private long summaryLateAtStart;
+    private long summaryPullsAtStart;
+
     /**
      * @param displayRefreshHz current display refresh rate
      * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
@@ -100,6 +113,8 @@ class HostFrameTimeline {
         if (pending == jitterBuffer) {
             return;
         }
+        LimeLog.info("Host frame timing: jitter buffer " + (jitterBuffer < 0 ? "" : "changed to ") +
+                (pending == PreferenceConfiguration.JITTER_BUFFER_BALANCED ? "Balanced" : "Low latency"));
         jitterBuffer = pending;
         holdSinceNs = 0;
 
@@ -222,7 +237,45 @@ class HostFrameTimeline {
         }
         lastAssignedNs = assignedNs;
 
+        // How long the frame waits for its vsync, headroom included
+        long waitNs = assignedNs - nowNs;
+        summaryFrames++;
+        summaryWaitSumNs += waitNs;
+        summaryWaitMaxNs = Math.max(summaryWaitMaxNs, waitNs);
+        logSummary(nowNs);
+
         return assignedNs + presentLatencyNs - periodNs / 2;
+    }
+
+    // Every 10 s: frames, the wait for their vsyncs, the late frames and pulls since the last
+    // summary (each about one frame held a vsync long or short), the slot, the measured refresh
+    // rate and the preset
+    private void logSummary(long nowNs) {
+        if (summaryStartNs == 0) {
+            summaryStartNs = nowNs;
+            summaryLateAtStart = lateFrames;
+            summaryPullsAtStart = pulls;
+            return;
+        }
+        long elapsedNs = nowNs - summaryStartNs;
+        if (elapsedNs < SUMMARY_INTERVAL_NS) {
+            return;
+        }
+        double seconds = elapsedNs / 1e9;
+        LimeLog.info(String.format(java.util.Locale.ROOT,
+                "Host frame timing: %.0fs: %d frames (%.2f fps), wait mean %.1f max %.1f ms, %d late, %d pulled, " +
+                        "%d vsync%s per frame, vsync %.3f Hz, %s",
+                seconds, summaryFrames, summaryFrames / seconds,
+                summaryFrames > 0 ? summaryWaitSumNs / 1e6 / summaryFrames : 0.0, summaryWaitMaxNs / 1e6,
+                lateFrames - summaryLateAtStart, pulls - summaryPullsAtStart,
+                slotVsyncs, slotVsyncs == 1 ? "" : "s", 1e9 / periodNs,
+                jitterBuffer == PreferenceConfiguration.JITTER_BUFFER_BALANCED ? "Balanced" : "Low latency"));
+        summaryStartNs = nowNs;
+        summaryFrames = 0;
+        summaryWaitSumNs = 0;
+        summaryWaitMaxNs = 0;
+        summaryLateAtStart = lateFrames;
+        summaryPullsAtStart = pulls;
     }
 
     // Frames that couldn't make their vsync, moving the schedule a vsync or more later

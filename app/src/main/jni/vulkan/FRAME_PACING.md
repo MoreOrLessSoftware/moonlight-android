@@ -107,8 +107,14 @@ the same vsync are dropped by SurfaceFlinger, keeping the newest.
 
 - **Overlay (Vulkan)**: wait, measured refresh rate, vsyncs per frame, and running counts of late
   frames and pulls.
-- **Logcat** (`VulkanPacer`, every 10 s): frames, short/long holds, skips, wait, late and pulled
-  totals.
+- **Logcat, Vulkan** (`VulkanPacer`, every 10 s): frames, short/long holds, skips, wait, late
+  and pulled totals. A preset switch logs `Jitter buffer changed to N`.
+- **Logcat, direct renderer** (`com.limelight.LimeLog`, lines starting `Host frame timing`): the
+  preset at start and on every switch, and every 10 s the frames, mean and max wait, late frames
+  and pulls in that window, vsyncs per frame, measured refresh rate and preset. This renderer
+  writes no trace. `adb shell dumpsys SurfaceFlinger --latency '<SurfaceView layer>'` gives the
+  last 128 frames' requested and actual present times: each should be shown half a vsync after
+  its requested time, and a vsync after the last.
 - **Traces**: `adb shell setprop debug.moonlight.pacer_trace 1`, or `tools/pacer-trace.sh` (format
   in `pacer_trace.h`). In V lines, `locked` is whether a schedule is running, `scheduleDelayNs` is
   the newest frame's wait, and `slotParity`, `transitBufferNs` and `driftPpm` are 0. The `C`
