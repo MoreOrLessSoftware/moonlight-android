@@ -67,8 +67,8 @@ rate difference requires.
 
 | Preset | Headroom | Wait cap | Give-back hold | Typical wait (144 Hz) |
 |---|---|---|---|---|
-| Low latency (default) | 0 | under 2 vsyncs | 3 s | p50 7.5-8 ms, max under 2 vsyncs |
-| Balanced | 4 ms | under 3 vsyncs | 3 s | p50 about 14 ms, max under 3 vsyncs |
+| Low latency | 0 | under 2 vsyncs | 3 s | p50 7.5-8 ms, max under 2 vsyncs |
+| Balanced (default) | 4 ms | under 3 vsyncs | 3 s | p50 about 14 ms, max under 3 vsyncs |
 
 Defined in `JitterBufferPreset::forJitterBuffer()` and `HostFrameTimeline.applyPendingJitterBuffer()`.
 They can be switched mid-stream from the overlay menu. The schedule then moves to the new preset's
