@@ -52,9 +52,10 @@ Each frame, as it arrives (`FramePacer::onFrameArrived()`, `HostFrameTimeline.on
    (One frame held a vsync long.)
 4. **Wait cap**: if room is the preset's `maxWaitVsyncs` or more, the frame is moved sooner until
    it's under the cap: frames bunched up after a stall, or a host running fast.
-5. **Give back**: if every frame for the preset's `pullHoldNs` had room of at least a vsync and a
-   quarter, the frame moves a vsync sooner. Any frame with less resets the hold. (With a frame a
-   vsync, this frame replaces the one assigned that vsync: one frame skipped.)
+5. **Give back**: if every frame for the preset's `pullHoldNs` had room of at least a vsync plus a
+   fraction (`period / pullMarginDivisor`, 1/8 in Low latency, 1/4 in Balanced), the frame moves
+   a vsync sooner. Any frame with less resets the hold. (With a frame a vsync, this frame replaces
+   the one assigned that vsync: one frame skipped.)
 
 Rules 4 and 5 never move a frame before the previous frame's vsync. A frame given the same vsync
 replaces the previous one.
@@ -65,10 +66,10 @@ rate difference requires.
 
 ## Presets
 
-| Preset | Headroom | Wait cap | Give-back hold | Typical wait (144 Hz) |
-|---|---|---|---|---|
-| Low latency | 0 | under 2 vsyncs | 3 s | p50 7.5-8 ms, max under 2 vsyncs |
-| Balanced (default) | 4 ms | under 3 vsyncs | 3 s | p50 about 14 ms, max under 3 vsyncs |
+| Preset | Headroom | Wait cap | Give-back hold | Give-back margin | Typical wait (144 Hz) |
+|---|---|---|---|---|---|
+| Low latency | 0 | under 2 vsyncs | 1 s | +1/8 vsync | p50 7-7.5 ms, max under 2 vsyncs |
+| Balanced (default) | 4 ms | under 3 vsyncs | 3 s | +1/4 vsync | p50 about 14 ms, max under 3 vsyncs |
 
 Defined in `JitterBufferPreset::forJitterBuffer()` and `HostFrameTimeline.applyPendingJitterBuffer()`.
 They can be switched mid-stream from the overlay menu. The schedule then moves to the new preset's

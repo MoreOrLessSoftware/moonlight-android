@@ -43,6 +43,8 @@ struct JitterBufferPreset {
     int64_t maxWaitVsyncs;
     // How long every frame must have had a vsync to spare before frames move a vsync sooner
     int64_t pullHoldNs;
+    // Extra margin beyond 1 vsync needed to qualify for pull hold (divisor of period: 4 = +0.25 vsync, 8 = +0.125 vsync)
+    int64_t pullMarginDivisor = 4;
 
     static JitterBufferPreset forJitterBuffer(JitterBuffer jitterBuffer);
 };

@@ -31,8 +31,6 @@ import java.util.Arrays;
 class HostFrameTimeline {
     // A host timestamp further from the last than this starts the schedule over
     private static final long MAX_PTS_GAP_NS = 250_000_000L;
-    // Frames move a vsync sooner only with this fraction of a vsync to spare beyond it
-    private static final int PULL_MARGIN_DIVISOR = 4;
     // How much of the part of a slot that host timestamps were early or late is carried to the
     // next frame (see jni/vulkan/frame_pacer.cpp)
     private static final double CARRY_KEEP = 0.5;
@@ -61,6 +59,7 @@ class HostFrameTimeline {
     private long headroomNs;
     private long maxWaitVsyncs;
     private long pullHoldNs;
+    private int pullMarginDivisor = 4;
     private int jitterBuffer = -1;
     // The preset to switch to, set from any thread (setJitterBuffer())
     private volatile int pendingJitterBuffer;
@@ -122,11 +121,13 @@ class HostFrameTimeline {
             headroomNs = 4_000_000L;
             maxWaitVsyncs = 3;
             pullHoldNs = 3_000_000_000L;
+            pullMarginDivisor = 4;
         }
         else {
             headroomNs = 0;
             maxWaitVsyncs = 2;
-            pullHoldNs = 3_000_000_000L;
+            pullHoldNs = 1_000_000_000L;
+            pullMarginDivisor = 8;
         }
     }
 
@@ -218,7 +219,7 @@ class HostFrameTimeline {
                 pulls++;
                 holdSinceNs = 0;
             }
-            else if (roomNs >= periodNs + periodNs / PULL_MARGIN_DIVISOR) {
+            else if (roomNs >= periodNs + periodNs / pullMarginDivisor) {
                 // Could have made the vsync before its own. Once every frame could for long
                 // enough, move a vsync sooner. SurfaceFlinger drops the frame this one then
                 // shares a vsync with.

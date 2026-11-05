@@ -633,7 +633,7 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     presentAhead_ = (hasDisplayTimingExt_ || (frontBufferAligned_ && hasSharedPresentExt_)) &&
             pacer_.mode() == PacingMode::HostTimed;
     pacer_.setPresentAhead(presentAhead_);
-    pacer_.setPresentGuardNs(presentScheduler_.guardNs());
+    pacer_.setPresentGuardNs(frontBufferAligned_ && hasSharedPresentExt_ ? alignedRenderCostNs() : presentScheduler_.guardNs());
 
     char configuration[512];
     snprintf(configuration, sizeof(configuration),
@@ -1604,6 +1604,19 @@ void VulkanRenderer::scheduleAlignedDraw() {
     alignedVsyncNs_ = vsyncNs;
 }
 
+int64_t VulkanRenderer::alignedRenderCostNs() const {
+    if (fixedAlignedLeadNs_ >= 0) {
+        return fixedAlignedLeadNs_;
+    }
+    if (drawSubmitNs_.size() < 8) {
+        return kAlignedDefaultLeadNs;
+    }
+    std::vector<int64_t> sorted(drawSubmitNs_.begin(), drawSubmitNs_.end());
+    const auto p90 = sorted.begin() + (sorted.size() - 1) * 9 / 10;
+    std::nth_element(sorted.begin(), p90, sorted.end());
+    return *p90 + kAlignedGpuStartNs;
+}
+
 int64_t VulkanRenderer::alignedLeadNs() const {
     // Only the offset's phase within a refresh matters: one negative or over a refresh long
     // still puts the scan the same distance before a frame time
@@ -1612,16 +1625,7 @@ int64_t VulkanRenderer::alignedLeadNs() const {
     if (periodNs > 0) {
         offsetNs = (offsetNs % periodNs + periodNs) % periodNs;
     }
-    if (fixedAlignedLeadNs_ >= 0) {
-        return fixedAlignedLeadNs_ + offsetNs;
-    }
-    if (drawSubmitNs_.size() < 8) {
-        return kAlignedDefaultLeadNs + offsetNs;
-    }
-    std::vector<int64_t> sorted(drawSubmitNs_.begin(), drawSubmitNs_.end());
-    const auto p90 = sorted.begin() + (sorted.size() - 1) * 9 / 10;
-    std::nth_element(sorted.begin(), p90, sorted.end());
-    return *p90 + kAlignedGpuStartNs + offsetNs;
+    return alignedRenderCostNs() + offsetNs;
 }
 
 int VulkanRenderer::onAlignedTimerThunk(int fd, int, void* data) {
@@ -1712,9 +1716,9 @@ void VulkanRenderer::onVsync(int64_t frameTimeNanos) {
     trackVsyncPeriod(frameTimeNanos);
     if (frontBufferPaced_) {
         // A frame is committed to a scan only if it can be drawn in time for it
-        const int64_t leadNs = alignedLeadNs();
+        const int64_t guardNs = alignedRenderCostNs();
         std::lock_guard<std::mutex> lock(mutex_);
-        pacer_.setPresentGuardNs(leadNs);
+        pacer_.setPresentGuardNs(guardNs);
     }
 
     FramePtr frame;

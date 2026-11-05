@@ -34,9 +34,9 @@ namespace {
 //   14.8 ms. A 30 s hold took 72 fps down to 4 uneven frames for 20.7 ms.
 JitterBufferPreset JitterBufferPreset::forJitterBuffer(JitterBuffer jitterBuffer) {
     if (jitterBuffer == JitterBuffer::Balanced) {
-        return {4'000'000, 3, 3'000'000'000};
+        return {4'000'000, 3, 3'000'000'000, 4};
     }
-    return {0, 2, 3'000'000'000};
+    return {0, 2, 1'000'000'000, 8};
 }
 
 FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, JitterBuffer jitterBuffer)
@@ -213,7 +213,7 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
             pulls_++;
             holdSinceNs_ = 0;
         }
-        else if (roomNs >= periodNs_ + periodNs_ / kPullMarginDivisor) {
+        else if (roomNs >= periodNs_ + periodNs_ / preset_.pullMarginDivisor) {
             // Could have made the vsync before its own. Once every frame could for long enough,
             // move a vsync sooner. With a frame a vsync, the frame assigned that vsync is
             // replaced by this one.

@@ -247,6 +247,7 @@ private:
     // Front buffer aligned to the scan (debug.moonlight.front_buffer 2): sets the timer for the
     // draw that finishes as the next scan it can make starts
     void scheduleAlignedDraw();
+    int64_t alignedRenderCostNs() const;
     int64_t alignedLeadNs() const;
     void trackVsyncPeriod(int64_t frameTimeNanos);
 
