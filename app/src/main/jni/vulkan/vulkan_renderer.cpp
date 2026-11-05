@@ -11,11 +11,13 @@
 #include <poll.h>
 #include <sched.h>
 #include <sys/eventfd.h>
+#include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
 #include <android/log.h>
 #include <android/looper.h>
+#include <linux/sync_file.h>
 
 #include "shaders_spv.h"
 
@@ -150,6 +152,26 @@ namespace {
         timespec ts {};
         clock_gettime(CLOCK_MONOTONIC, &ts);
         return static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+    }
+
+    // When a signalled sync file's fences signalled (the last of them), as the kernel stamped
+    // it on CLOCK_MONOTONIC, or 0 if it can't say
+    int64_t fenceSignalNs(int fd) {
+        constexpr uint32_t kMaxFences = 8;
+        sync_file_info info {};
+        if (ioctl(fd, SYNC_IOC_FILE_INFO, &info) != 0 || info.num_fences == 0 || info.num_fences > kMaxFences) {
+            return 0;
+        }
+        sync_fence_info fences[kMaxFences] {};
+        info.sync_fence_info = reinterpret_cast<uintptr_t>(fences);
+        if (ioctl(fd, SYNC_IOC_FILE_INFO, &info) != 0 || info.status != 1) {
+            return 0;
+        }
+        uint64_t latestNs = 0;
+        for (uint32_t i = 0; i < info.num_fences; i++) {
+            latestNs = std::max<uint64_t>(latestNs, fences[i].timestamp_ns);
+        }
+        return static_cast<int64_t>(latestNs);
     }
 
     bool hasExtension(const std::vector<VkExtensionProperties>& extensions, const char* name) {
@@ -1305,12 +1327,29 @@ void VulkanRenderer::onImageAvailable() {
             }
             return;
         }
+        // For traces: when the image was acquired, whether its fence had to be waited for, and
+        // when the fence signalled, to tell the decoder still writing it from our wait to wake
+        const int64_t acquiredNs = nowNs();
+        PacerTrace::ImageFence fenceState = PacerTrace::ImageFence::None;
+        int64_t signaledNs = 0;
         if (fenceFd >= 0) {
             pollfd fence {fenceFd, POLLIN, 0};
             int ready;
             do {
-                ready = poll(&fence, 1, static_cast<int>(kFenceTimeoutNs / 1'000'000));
+                ready = poll(&fence, 1, 0);
             } while (ready < 0 && errno == EINTR);
+            if (ready == 0) {
+                fenceState = PacerTrace::ImageFence::Waited;
+                do {
+                    ready = poll(&fence, 1, static_cast<int>(kFenceTimeoutNs / 1'000'000));
+                } while (ready < 0 && errno == EINTR);
+            }
+            else {
+                fenceState = PacerTrace::ImageFence::Signaled;
+            }
+            if (ready > 0 && traceRecording_.load(std::memory_order_relaxed)) {
+                signaledNs = fenceSignalNs(fenceFd);
+            }
             close(fenceFd);
             if (ready <= 0) {
                 ALOGE("Timed out waiting for the decoder to write a frame");
@@ -1330,6 +1369,10 @@ void VulkanRenderer::onImageAvailable() {
         ndk_->AImage_getTimestamp(image, &frame->timing.hostPtsNs);
         if (ndk_->AImage_getCropRect(image, &frame->crop) != AMEDIA_OK) {
             frame->crop = {0, 0, 0, 0};
+        }
+        if (traceRecording_.load(std::memory_order_relaxed)) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            trace_.imageFence(frame->timing.hostPtsNs, acquiredNs, fenceState, signaledNs, frame->timing.arrivalNs);
         }
 
         enqueueFrame(std::move(frame));

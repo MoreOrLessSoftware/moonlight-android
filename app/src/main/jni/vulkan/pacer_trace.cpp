@@ -149,6 +149,12 @@ void PacerTrace::alignedLead(int64_t nowNs, int64_t leadNs, int64_t submitNs, in
           static_cast<long long>(submitNs), static_cast<long long>(gpuNs), static_cast<long long>(spareNs));
 }
 
+void PacerTrace::imageFence(int64_t hostPtsNs, int64_t acquiredNs, ImageFence fence, int64_t signaledNs,
+                            int64_t arrivalNs) {
+    write("M,%lld,%lld,%d,%lld,%lld\n", static_cast<long long>(hostPtsNs), static_cast<long long>(acquiredNs),
+          static_cast<int>(fence), static_cast<long long>(signaledNs), static_cast<long long>(arrivalNs));
+}
+
 void PacerTrace::presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs) {
     write("P,%llu,%lld,%lld,%lld\n", static_cast<unsigned long long>(presentId), static_cast<long long>(actualNs),
           static_cast<long long>(earliestNs), static_cast<long long>(marginNs));

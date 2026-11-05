@@ -114,6 +114,16 @@ namespace vkr {
 //                                    percentile of ready costs, CLOCK_MONOTONIC minus
 //                                    moonlight-common-c's clock, and the offset after a frame's
 //                                    host timestamp handed to moonlight-common-c (on its clock)
+//   M,hostPtsNs,acquiredNs,fence,signaledNs,arrivalNs
+//                                    a MediaCodec frame taken from the image reader, before its
+//                                    F line: when it was acquired; fence 0 if it came without
+//                                    one, 1 if its fence had signalled by then, 2 if it was
+//                                    waited for; when the fence signalled, as the kernel stamped
+//                                    it (0 if unknown, and only while tracing); and its arrival
+//                                    (F's arrivalNs). Waited for, signaledNs - acquiredNs is the
+//                                    decoder still writing it and arrivalNs - signaledNs our
+//                                    wait to wake; signalled already, acquiredNs - signaledNs is
+//                                    how long the finished image waited for us to take it.
 //   B,nowNs,leadNs,submitNs,gpuNs,spareNs
 //                                    an aligned front buffer's draw lead, learned from GPU
 //                                    timestamps, moved by 50 us or more: how long before the scan
@@ -150,6 +160,8 @@ public:
     // When a present's rendering ran on the GPU, on the GPU's clock
     void gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEndNs, int64_t acquiredNs, int64_t drawnNs);
     void alignedLead(int64_t nowNs, int64_t leadNs, int64_t submitNs, int64_t gpuNs, int64_t spareNs);
+    enum class ImageFence { None = 0, Signaled = 1, Waited = 2 };
+    void imageFence(int64_t hostPtsNs, int64_t acquiredNs, ImageFence fence, int64_t signaledNs, int64_t arrivalNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t queuedNs, int64_t commonToLocalNs,
                   int64_t hostProcessingNs, uint32_t rttMs);
     void decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs,
