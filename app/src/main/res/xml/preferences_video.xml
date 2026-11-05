@@ -62,9 +62,21 @@
             android:title="@string/title_enable_hdr"
             android:summary="@string/summary_enable_hdr"
             android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_full_range"
+            android:title="@string/title_full_range"
+            android:summary="@string/summary_full_range"
+            android:defaultValue="false" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_advanced_settings"
         android:key="category_advanced_settings">
+        <com.limelight.preferences.HelpListPreference
+            android:key="video_renderer"
+            android:title="@string/title_video_renderer"
+            android:entries="@array/video_renderer_names"
+            android:entryValues="@array/video_renderer_values"
+            android:summary="@string/summary_video_renderer"
+            android:defaultValue="auto" />
         <CheckBoxPreference
             android:key="checkbox_reduce_refresh_rate"
             android:title="@string/title_checkbox_reduce_refresh_rate"
@@ -89,13 +101,6 @@
             android:summary="@string/summary_pyrowave_gpu_boost"
             android:defaultValue="false" />
         <com.limelight.preferences.HelpListPreference
-            android:key="video_renderer"
-            android:title="@string/title_video_renderer"
-            android:entries="@array/video_renderer_names"
-            android:entryValues="@array/video_renderer_values"
-            android:summary="@string/summary_video_renderer"
-            android:defaultValue="auto" />
-        <com.limelight.preferences.HelpListPreference
             android:key="spatial_dithering"
             android:title="@string/title_spatial_dithering"
             android:entries="@array/spatial_dithering_names"
@@ -112,6 +117,9 @@
             android:key="checkbox_ultra_low_latency"
             android:summary="@string/summary_checkbox_ultra_low_latency"
             android:title="@string/title_checkbox_ultra_low_latency" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_host_specific_settings"
+        android:key="category_host_specific_settings">
         <com.limelight.preferences.FecListPreference
             android:key="list_fec_percent"
             android:title="@string/title_fec_percent"
@@ -126,10 +134,5 @@
             android:entryValues="@array/video_send_rate_values"
             android:summary="@string/summary_video_send_rate"
             android:defaultValue="0" />
-        <CheckBoxPreference
-            android:key="checkbox_full_range"
-            android:title="@string/title_full_range"
-            android:summary="@string/summary_full_range"
-            android:defaultValue="false" />
     </PreferenceCategory>
 </PreferenceScreen>
