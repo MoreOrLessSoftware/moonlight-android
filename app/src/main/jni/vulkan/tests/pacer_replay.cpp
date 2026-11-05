@@ -3,6 +3,10 @@
 // have paced it. Not part of the app build; build and run on the host with:
 //   g++ -std=c++17 -O2 -I.. ../frame_pacer.cpp pacer_replay.cpp -o pacer_replay
 //   ./pacer_replay pacer-20260928-081500.csv [--events 40]
+//   ./pacer_replay trace.csv --arrival-offset 2.5 --summary
+//     replays with every frame arriving 2.5 ms later (negative: sooner), as steering the host's
+//     phase would make them, and prints one line: the wait from arrival to vsync, uneven frames,
+//     late frames and pulls. tools/pacer-trace.sh sweep runs it over a range of offsets.
 // or use tools/pacer-trace.sh, which builds it and runs it on pulled traces.
 
 #include "frame_pacer.h"
@@ -21,6 +25,10 @@
 using namespace vkr;
 
 namespace {
+
+// --summary: only the one line at the end is printed
+bool gQuiet = false;
+#define say(...) do { if (!gQuiet) printf(__VA_ARGS__); } while (0)
 
 struct Config {
     int mode = 4;
@@ -342,7 +350,8 @@ struct DeviceTiming {
 int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer low|balanced]"
-                        " [--present-ahead on|off] [--present-guard ms]\n", argv[0]);
+                        " [--present-ahead on|off] [--present-guard ms] [--arrival-offset ms] [--summary]\n",
+                argv[0]);
         return 2;
     }
     size_t maxEvents = 25;
@@ -350,7 +359,19 @@ int main(int argc, char** argv) {
     int jitterBufferOverride = -1;
     int presentAheadOverride = -1;
     int64_t presentGuardOverride = -1;
-    for (int i = 2; i + 1 < argc; i++) {
+    int64_t arrivalOffsetNs = 0;
+    for (int i = 2; i < argc; i++) {
+        if (strcmp(argv[i], "--summary") == 0) {
+            gQuiet = true;
+        }
+        if (i + 1 >= argc) {
+            continue;
+        }
+        // Every frame arriving this much later (negative: sooner), as steering the host's
+        // phase would shift them
+        if (strcmp(argv[i], "--arrival-offset") == 0) {
+            arrivalOffsetNs = static_cast<int64_t>(atof(argv[i + 1]) * 1e6);
+        }
         if (strcmp(argv[i], "--events") == 0) {
             maxEvents = static_cast<size_t>(atoi(argv[i + 1]));
         }
@@ -409,7 +430,36 @@ int main(int argc, char** argv) {
     }
     fclose(file);
 
-    printf("%s", config.text.c_str());
+    // Shifted arrivals are replayed in time order: a frame arriving later comes after vsyncs it
+    // used to precede. Each event is placed at when it happened on the device (a vsync when its
+    // callback ran), and others with the event before them. Unshifted, the recorded order stands.
+    if (arrivalOffsetNs != 0) {
+        std::vector<std::pair<int64_t, size_t>> order;
+        int64_t key = 0;
+        for (size_t i = 0; i < events.size(); i++) {
+            const auto& f = events[i];
+            if (f[0] == "F" && f.size() >= 6) {
+                key = toInt(f[1]) + arrivalOffsetNs;
+            }
+            else if (f[0] == "V" && f.size() >= 12) {
+                key = toInt(f[1]) + (f.size() >= 14 ? toInt(f[12]) : 0);
+            }
+            else if (f[0] == "A" && f.size() >= 6) {
+                key = toInt(f[1]);
+            }
+            order.push_back({key, i});
+        }
+        std::stable_sort(order.begin(), order.end(),
+                         [](const auto& a, const auto& b) { return a.first < b.first; });
+        std::vector<std::vector<std::string>> sorted;
+        sorted.reserve(events.size());
+        for (const auto& o : order) {
+            sorted.push_back(std::move(events[o.second]));
+        }
+        events = std::move(sorted);
+    }
+
+    say("%s", config.text.c_str());
 
     Tally recorded {"Recorded on the device"};
     Tally replayed {"Replayed through the current pacer"};
@@ -418,10 +468,10 @@ int main(int argc, char** argv) {
     static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth", "lowest latency", "minimum"};
     auto currentPreset = [](int recorded) { return recorded == 2 ? 1 : recorded; };
     const int jitterBuffer = jitterBufferOverride >= 0 ? jitterBufferOverride : currentPreset(config.jitterBuffer);
-    printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 5],
+    say("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 5],
            kJitterBufferNames[jitterBuffer]);
     const bool presentAhead = presentAheadOverride >= 0 ? presentAheadOverride != 0 : config.presentAhead != 0;
-    printf("Presenting frames as they arrive: %s on the device, %s in the replay\n", config.presentAhead ? "on" : "off",
+    say("Presenting frames as they arrive: %s on the device, %s in the replay\n", config.presentAhead ? "on" : "off",
            presentAhead ? "on" : "off");
     // How long presented-ahead frames waited in the replay before their vsync: the time the GPU
     // and compositor get to finish them
@@ -465,7 +515,7 @@ int main(int argc, char** argv) {
         else if (f[0] == "J" && f.size() >= 2) {
             // The session changed its jitter buffer, unless the replay was asked for one
             const int changed = static_cast<int>(toInt(f[1]));
-            printf("Jitter buffer changed to %s on the device%s\n", kJitterBufferNames[changed % 5],
+            say("Jitter buffer changed to %s on the device%s\n", kJitterBufferNames[changed % 5],
                    jitterBufferOverride >= 0 ? " (kept in the replay)" : "");
             if (jitterBufferOverride < 0) {
                 pacer.setJitterBuffer(static_cast<JitterBuffer>(currentPreset(changed)));
@@ -473,7 +523,7 @@ int main(int argc, char** argv) {
         }
         else if (f[0] == "F" && f.size() >= 6) {
             FrameTiming timing;
-            timing.arrivalNs = toInt(f[1]);
+            timing.arrivalNs = toInt(f[1]) + arrivalOffsetNs;
             timing.hostPtsNs = toInt(f[2]);
             device.arrival[timing.hostPtsNs] = timing.arrivalNs;
             pacer.onFrameArrived(timing);
@@ -573,14 +623,14 @@ int main(int argc, char** argv) {
                     const int64_t held = explainLastShown >= 0 ? pacer.vsyncIndex() - explainLastShown : pacer.slotVsyncs();
                     if ((held != pacer.slotVsyncs() || choice > 0) && pacer.anchored() && explained < explain) {
                         explained++;
-                        printf("t=%.3f s: held %lld (slot %lld), wait %.1f ms, %llu late, %llu pulled\n",
+                        say("t=%.3f s: held %lld (slot %lld), wait %.1f ms, %llu late, %llu pulled\n",
                                (vsyncNs - explainFirstNs) / 1e9, (long long) held, (long long) pacer.slotVsyncs(),
                                pacer.waitNs() / 1e6, (unsigned long long) pacer.lateFrames(),
                                (unsigned long long) pacer.pulls());
                         for (const VsyncState& h : history) {
-                            printf("    vsync %+7.1f ms: %s%s\n", (h.vsyncNs - vsyncNs) / 1e6,
+                            say("    vsync %+7.1f ms: %s%s\n", (h.vsyncNs - vsyncNs) / 1e6,
                                    h.choice >= 0 ? "showed #" : "nothing", h.choice >= 0 ? std::to_string(h.choice).c_str() : "");
-                            printf("        queue:%s\n", h.queue.empty() ? " empty" : h.queue.c_str());
+                            say("        queue:%s\n", h.queue.empty() ? " empty" : h.queue.c_str());
                         }
                     }
                     explainLastShown = pacer.vsyncIndex();
@@ -613,7 +663,7 @@ int main(int argc, char** argv) {
     }
     recorded.queueDrops = lastRecordedDrops;
     if (presentAhead) {
-        printf("Replay presented %llu frames as they arrived and %llu at their vsync; time before their vsync: %s\n",
+        say("Replay presented %llu frames as they arrived and %llu at their vsync; time before their vsync: %s\n",
                (unsigned long long) aheadCount, (unsigned long long) atVsyncCount,
                percentiles(aheadSlack, false).c_str());
         size_t under2 = 0, under3 = 0;
@@ -621,15 +671,15 @@ int main(int argc, char** argv) {
             under2 += slack < 2'000'000;
             under3 += slack < 3'000'000;
         }
-        printf("  presented less than 2 ms before their vsync: %zu, less than 3 ms: %zu\n", under2, under3);
+        say("  presented less than 2 ms before their vsync: %zu, less than 3 ms: %zu\n", under2, under3);
     }
 
-    printf("\n");
-    recorded.print(maxEvents);
-    printf("\n");
-    device.print();
-    printf("\n");
-    replayed.print(maxEvents);
+    say("\n");
+    if (!gQuiet) recorded.print(maxEvents);
+    say("\n");
+    if (!gQuiet) device.print();
+    say("\n");
+    if (!gQuiet) replayed.print(maxEvents);
     if (!shownWait.empty()) {
         // The median over each 20 s, after the first 3 s while the pacer settles
         std::map<int64_t, std::vector<int64_t>> byWindow;
@@ -643,17 +693,27 @@ int main(int argc, char** argv) {
             sum += static_cast<double>(w.second);
         }
         if (!all.empty()) {
-            printf("  arrival -> scheduled vsync (replay): mean %.2f ms, %s\n", sum / all.size() / 1e6,
+            say("  arrival -> scheduled vsync (replay): mean %.2f ms, %s\n", sum / all.size() / 1e6,
                    percentiles(all, false).c_str());
-            printf("    median per 20 s:");
+            if (gQuiet) {
+                std::sort(all.begin(), all.end());
+                auto at = [&](double q) { return all[static_cast<size_t>(q * (all.size() - 1))] / 1e6; };
+                const double seconds = (replayed.lastVsyncNs - replayed.firstVsyncNs) / 1e9;
+                printf("offset %+6.2f ms  wait mean %5.2f p50 %5.2f p90 %5.2f p99 %5.2f ms  uneven %5.1f/min"
+                       "  late %4llu  pulled %4llu\n",
+                       arrivalOffsetNs / 1e6, sum / all.size() / 1e6, at(0.5), at(0.9), at(0.99),
+                       seconds > 0 ? (replayed.heldShort + replayed.heldLong + replayed.skipped) * 60.0 / seconds : 0.0,
+                       (unsigned long long) pacer.lateFrames(), (unsigned long long) pacer.pulls());
+            }
+            say("    median per 20 s:");
             for (auto& entry : byWindow) {
                 std::sort(entry.second.begin(), entry.second.end());
-                printf(" %.1f", entry.second[entry.second.size() / 2] / 1e6);
+                say(" %.1f", entry.second[entry.second.size() / 2] / 1e6);
             }
-            printf("\n");
+            say("\n");
         }
     }
-    printf("\n%" PRIu64 " of %" PRIu64 " vsync decisions differ between the device and the replay%s\n",
+    say("\n%" PRIu64 " of %" PRIu64 " vsync decisions differ between the device and the replay%s\n",
            decisionsDiffering, recorded.vsyncs,
            decisionsDiffering ? " (expected if the pacer changed since the trace was recorded)" : "");
     return 0;

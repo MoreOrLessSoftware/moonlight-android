@@ -9,6 +9,11 @@
 #   tools/pacer-trace.sh analyze [file...]
 #                                        analyse traces (the newest pulled one by default), and
 #                                        replay them through the pacer as it is in this checkout
+#   tools/pacer-trace.sh sweep [file...] replay traces (the newest by default) with every frame
+#                                        arriving earlier or later, a step at a time over a
+#                                        vsync either way, as steering the host's phase would:
+#                                        wait, uneven frames, late frames and pulls per offset.
+#                                        SWEEP_STEP sets the step in ms (default 0.5).
 #   tools/pacer-trace.sh presets         list the Quick Launch presets (debuggable builds only)
 #   tools/pacer-trace.sh run <preset> [seconds] [--prop name=value]... [--keep-app]
 #                                        unattended: start a stream from a Quick Launch preset
@@ -180,6 +185,34 @@ cmd_session() {
     cmd_off
     cmd_pull --clear
     cmd_analyze
+}
+
+cmd_sweep() {
+    local files=("$@")
+    if [ ${#files[@]} -eq 0 ]; then
+        local newest
+        newest="$(ls -t "$OUT"/pacer-*.csv 2>/dev/null | head -n 1 || true)"
+        if [ -z "$newest" ]; then
+            echo "No traces in $OUT; run '$0 pull' first" >&2
+            return 1
+        fi
+        files=("$newest")
+    fi
+    local tool step="${SWEEP_STEP:-0.5}"
+    tool="$(replay_tool)"
+    for f in "${files[@]}"; do
+        # A vsync either way: the phase only matters within one
+        local period
+        period="$(sed -n 's/^C,.*periodNs=\([0-9]*\).*/\1/p' "$f" | head -n 1)"
+        local reach
+        reach="$(awk -v p="${period:-6944444}" -v s="$step" 'BEGIN { printf "%.2f", int(p / 1e6 / s + 0.5) * s }')"
+        echo "=== $f (offsets from -$reach to +$reach ms; later is positive)"
+        local o
+        for o in $(awk -v r="$reach" -v s="$step" 'BEGIN { for (x = -r; x <= r + s / 2; x += s) printf "%.2f\n", x }'); do
+            "$tool" "$f" --arrival-offset "$o" --summary
+        done
+        echo
+    done
 }
 
 cmd_presets() {
@@ -386,11 +419,12 @@ cmd_run() {
 case "${1:-}" in
     on) cmd_on ;;
     presets) cmd_presets ;;
+    sweep) shift; cmd_sweep "$@" ;;
     run) shift; cmd_run "$@" ;;
     off) cmd_off ;;
     live) cmd_live ;;
     pull) shift; cmd_pull "$@" ;;
     analyze) shift; cmd_analyze "$@" ;;
     session) cmd_session ;;
-    *) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
