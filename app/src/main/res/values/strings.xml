@@ -367,13 +367,13 @@
     <string name="videorenderer_vulkan_front_buffer">Vulkan (front buffer)</string>
 
     <string name="title_video_renderer">Video renderer</string>
-    <string name="summary_video_renderer">Vulkan adds dithering and native frame pacing. Front buffer skips the system compositor queue for lower latency when frame pacing is Host-synced frame timing or Prefer lowest latency.</string>
+    <string name="summary_video_renderer">Vulkan adds native frame pacing with custom jitter buffer. Front buffer skips the system compositor queue for lower latency when frame pacing is Host-synced frame timing or Prefer lowest latency.</string>
 
     <string name="dithering_off">Off</string>
     <string name="dithering_low">Low</string>
     <string name="dithering_high">High</string>
 
-    <string name="title_spatial_dithering">Vulkan Spatial Dithering</string>
+    <string name="title_spatial_dithering">Vulkan spatial dithering</string>
     <string name="summary_spatial_dithering">Adds fine moving noise that hides color banding, most visible in HDR gradients (Vulkan renderer only)</string>
 
     <string name="title_frame_pacing">Video frame pacing</string>
@@ -392,7 +392,7 @@
     <string name="summary_video_send_rate">How fast the host sends each video frame\'s packets. A frame is only shown once all of it arrives, so a faster rate gets frames here sooner, but bursts faster than the slowest link (often Wi-Fi) can carry pile up in its buffers and arrive late or not at all. It\'s the rate within a frame, not the stream\'s bitrate, so keep it well above that. Requires this fork\'s Sunshine.</string>
     <string name="video_send_rate_host">Host setting</string>
     <string name="video_send_rate_custom_entry">Custom (%1$s Mbps)</string>
-    <string name="summary_jitter_buffer">Only used with host frame timing pacing: configure how much latency you want to accept for a smoother stream</string>
+    <string name="summary_jitter_buffer">Used with Host-synced frame timing. Balanced adds a small cushion to absorb network and encode jitter; Low latency presents frames as soon as possible.</string>
     <string name="jitter_buffer_low_latency">Low latency</string>
     <string name="jitter_buffer_balanced">Balanced</string>
     <string name="pacing_host_timed">Host-synced frame timing</string>
