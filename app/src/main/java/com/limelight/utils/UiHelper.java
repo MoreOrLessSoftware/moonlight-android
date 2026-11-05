@@ -29,6 +29,7 @@ public class UiHelper {
 
     private static final int TV_VERTICAL_PADDING_DP = 15;
     private static final int TV_HORIZONTAL_PADDING_DP = 15;
+    private static final int SETTINGS_MAX_WIDTH_DP = 960;
 
     private static void setGameModeStatus(Context context, boolean streaming, boolean interruptible) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -146,11 +147,25 @@ public class UiHelper {
     }
 
     // Pads a settings fragment's list so it scrolls behind the navigation bar
-    // but its last setting can still scroll clear of it
+    // but its last setting can still scroll clear of it, and narrows the items
+    // in landscape so they don't stretch across the whole screen
     public static void applyPreferenceListPadding(View fragmentView) {
         View list = fragmentView.findViewById(android.R.id.list);
         if (list instanceof ViewGroup) {
             ((ViewGroup) list).setClipToPadding(false);
+            list.setScrollBarStyle(View.SCROLLBARS_OUTSIDE_OVERLAY);
+            list.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    int width = right - left;
+                    int maxWidthPx = (int) (SETTINGS_MAX_WIDTH_DP * v.getResources().getDisplayMetrics().density);
+                    int side = Math.max(0, (width - maxWidthPx) / 2);
+                    if (v.getPaddingLeft() != side || v.getPaddingRight() != side) {
+                        v.setPadding(side, v.getPaddingTop(), side, v.getPaddingBottom());
+                    }
+                }
+            });
             applyStatusBarPadding(list);
         }
         else {
