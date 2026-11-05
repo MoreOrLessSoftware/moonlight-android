@@ -87,6 +87,34 @@
             android:summary="@string/summary_checkbox_absolute_mouse_mode"
             android:defaultValue="false" />
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_overlay_menu"
+        android:key="category_overlay_menu">
+        <com.limelight.preferences.HelpListPreference
+            android:key="overlay_trigger_button"
+            android:title="@string/title_overlay_trigger_button"
+            android:summary="@string/summary_overlay_trigger_button"
+            android:entries="@array/overlay_trigger_button_names"
+            android:entryValues="@array/overlay_trigger_button_values"
+            android:defaultValue="select" />
+        <com.limelight.preferences.HelpListPreference
+            android:key="overlay_hold_duration"
+            android:title="@string/title_overlay_hold_duration"
+            android:summary="@string/summary_overlay_hold_duration"
+            android:entries="@array/overlay_hold_duration_names"
+            android:entryValues="@array/overlay_hold_duration_values"
+            android:defaultValue="1500" />
+        <Preference
+            android:key="overlay_custom_commands"
+            android:title="@string/title_overlay_custom_commands"
+            android:summary="@string/summary_overlay_custom_commands" />
+        <com.limelight.preferences.HelpListPreference
+            android:key="left_edge_swipe_action"
+            android:title="@string/title_left_edge_swipe_action"
+            android:summary="@string/summary_left_edge_swipe_action"
+            android:entries="@array/left_edge_swipe_action_names"
+            android:entryValues="@array/left_edge_swipe_action_values"
+            android:defaultValue="brightness" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_on_screen_controls_settings"
         android:key="category_onscreen_controls">
         <CheckBoxPreference
@@ -133,33 +161,5 @@
             android:positiveButtonText="@string/yes"
             android:negativeButtonText="@string/no"
             />
-    </PreferenceCategory>
-    <PreferenceCategory android:title="@string/category_overlay_menu"
-        android:key="category_overlay_menu">
-        <com.limelight.preferences.HelpListPreference
-            android:key="overlay_trigger_button"
-            android:title="@string/title_overlay_trigger_button"
-            android:summary="@string/summary_overlay_trigger_button"
-            android:entries="@array/overlay_trigger_button_names"
-            android:entryValues="@array/overlay_trigger_button_values"
-            android:defaultValue="select" />
-        <com.limelight.preferences.HelpListPreference
-            android:key="overlay_hold_duration"
-            android:title="@string/title_overlay_hold_duration"
-            android:summary="@string/summary_overlay_hold_duration"
-            android:entries="@array/overlay_hold_duration_names"
-            android:entryValues="@array/overlay_hold_duration_values"
-            android:defaultValue="1500" />
-        <Preference
-            android:key="overlay_custom_commands"
-            android:title="@string/title_overlay_custom_commands"
-            android:summary="@string/summary_overlay_custom_commands" />
-        <com.limelight.preferences.HelpListPreference
-            android:key="left_edge_swipe_action"
-            android:title="@string/title_left_edge_swipe_action"
-            android:summary="@string/summary_left_edge_swipe_action"
-            android:entries="@array/left_edge_swipe_action_names"
-            android:entryValues="@array/left_edge_swipe_action_values"
-            android:defaultValue="brightness" />
     </PreferenceCategory>
 </PreferenceScreen>
