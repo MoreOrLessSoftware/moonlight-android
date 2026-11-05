@@ -389,7 +389,9 @@
     <string name="summary_video_send_rate">How fast the host sends each video frame\'s packets. A frame is only shown once all of it arrives, so a faster rate gets frames here sooner, but bursts faster than the slowest link (often Wi-Fi) can carry pile up in its buffers and arrive late or not at all. It\'s the rate within a frame, not the stream\'s bitrate, so keep it well above that. Requires this fork\'s Sunshine.</string>
     <string name="video_send_rate_host">Host setting</string>
     <string name="video_send_rate_custom_entry">Custom (%1$s Mbps)</string>
-    <string name="summary_jitter_buffer">Used with Host-synced frame timing. Balanced adds a small cushion to absorb network and encode jitter; Low latency presents frames as soon as possible.</string>
+    <string name="summary_jitter_buffer">Used with Host-synced frame timing. Balanced adds a small cushion to absorb network and encode jitter; Low latency, Lowest latency, and Minimum present frames progressively sooner.</string>
+    <string name="jitter_buffer_minimum">Minimum</string>
+    <string name="jitter_buffer_lowest_latency">Lowest latency</string>
     <string name="jitter_buffer_low_latency">Low latency</string>
     <string name="jitter_buffer_balanced">Balanced</string>
     <string name="pacing_host_timed">Host-synced frame timing</string>

@@ -567,8 +567,11 @@ public class MediaCodecHelper {
             }
 
             // If this decoder officially supports FEATURE_LowLatency, we will just use that alone
-            // for try 0. Otherwise, we'll include it as best effort with other options.
+            // (with realtime priority) for try 0. Otherwise, we'll include it as best effort with other options.
             if (!ultraLowLatency && decoderSupportsAndroidRLowLatency(decoderInfo, videoFormat.getString(MediaFormat.KEY_MIME))) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, true);
+                }
                 return true;
             }
         }
@@ -594,6 +597,9 @@ public class MediaCodecHelper {
         if (tryNumber < 3) {
             if (MediaCodecHelper.decoderSupportsMaxOperatingRate(decoderInfo.getName())) {
                 setNewOption |= safeSet(videoFormat, MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE, tryNumber, true);
+                if (tryNumber < 2) {
+                    setNewOption |= safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, true);
+                }
             }
             else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 setNewOption |= safeSet(videoFormat, MediaFormat.KEY_PRIORITY, 0, tryNumber, true);

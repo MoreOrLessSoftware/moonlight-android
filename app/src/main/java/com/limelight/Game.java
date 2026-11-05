@@ -3039,7 +3039,17 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     private String describeJitterBuffer() {
-        return prefConfig.jitterBuffer == PreferenceConfiguration.JITTER_BUFFER_BALANCED ? "Balanced" : "Low latency";
+        switch (prefConfig.jitterBuffer) {
+            case PreferenceConfiguration.JITTER_BUFFER_BALANCED:
+                return "Balanced";
+            case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
+                return "Lowest latency";
+            case PreferenceConfiguration.JITTER_BUFFER_MINIMUM:
+                return "Minimum";
+            case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
+            default:
+                return "Low latency";
+        }
     }
 
     private void startConnection(double measuredRefreshHz) {

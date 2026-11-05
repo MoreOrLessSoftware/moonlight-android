@@ -33,10 +33,17 @@ namespace {
 //   neither changed the uneven frames, which weren't late arrivals; the wait went from 8.1 to
 //   14.8 ms. A 30 s hold took 72 fps down to 4 uneven frames for 20.7 ms.
 JitterBufferPreset JitterBufferPreset::forJitterBuffer(JitterBuffer jitterBuffer) {
-    if (jitterBuffer == JitterBuffer::Balanced) {
-        return {4'000'000, 3, 3'000'000'000, 4};
+    switch (jitterBuffer) {
+        case JitterBuffer::Balanced:
+            return {4'000'000, 3, 3'000'000'000, 16, 1};
+        case JitterBuffer::LowestLatency:
+            return {0, 2, 1'000'000'000, 16, 2};
+        case JitterBuffer::Minimum:
+            return {0, 1, 0, 16, 1};
+        case JitterBuffer::LowLatency:
+        default:
+            return {0, 2, 2'000'000'000, 16, 1};
     }
-    return {0, 2, 2'000'000'000, 4};
 }
 
 FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, JitterBuffer jitterBuffer)
@@ -56,6 +63,7 @@ void FramePacer::setJitterBuffer(JitterBuffer jitterBuffer) {
     preset_ = JitterBufferPreset::forJitterBuffer(jitterBuffer);
     holdSinceNs_ = 0;
     holdMinRoomNs_ = 0;
+    consecutiveLate_ = 0;
 }
 
 void FramePacer::setVsyncPeriod(int64_t periodNs) {
@@ -193,10 +201,12 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
     if (!anchored_ || !continuous) {
         // Start (or start over) at the first vsync the frame can make
         assignedNs = earliestNs;
+        lastAssignedNs_ = earliestNs;
         anchored_ = true;
         carry_ = 0;
         holdSinceNs_ = 0;
         holdMinRoomNs_ = 0;
+        consecutiveLate_ = 0;
     }
     else {
         // The vsync after the last frame's, as many slots on as the host timestamps moved
@@ -204,52 +214,69 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
         const double slots = carry_ + static_cast<double>(delta) / static_cast<double>(slotPeriodNs);
         const int64_t step = std::max<int64_t>(1, std::llround(slots));
         carry_ = (slots - static_cast<double>(step)) * kCarryKeep;
-        assignedNs = nearestVsyncNs(lastAssignedNs_ + step * slotPeriodNs);
+        const int64_t plannedNs = nearestVsyncNs(lastAssignedNs_ + step * slotPeriodNs);
 
-        const int64_t roomNs = assignedNs - readyNs;
+        const int64_t roomNs = plannedNs - readyNs;
         const int64_t waitNs = roomNs + preset_.headroomNs;
-        const int64_t marginNs = periodNs_ / preset_.pullMarginDivisor;
+        const int64_t marginNs = preset_.pullMarginDivisor > 0 ? periodNs_ / preset_.pullMarginDivisor : 0;
         if (roomNs < 0) {
-            // Too late for its vsync: the first one it can make, and the frames after it follow
-            assignedNs = earliestNs;
+            // Too late for its vsync: the first one it can make. If the preset requires multiple
+            // consecutive late frames before shifting the schedule (and this frame is only a
+            // single vsync late), keep the schedule anchor on plannedNs so the next on-time frame
+            // stays on the original cadence.
+            assignedNs = std::max(earliestNs, lastTargetNs_);
             lateFrames_++;
+            consecutiveLate_++;
             holdSinceNs_ = 0;
             holdMinRoomNs_ = 0;
-        }
-        else if (waitNs >= preset_.maxWaitVsyncs * periodNs_) {
-            // Waiting too long (frames bunched up after a stall, cold start decode, or the host running fast)
-            const int64_t excess = waitNs / periodNs_ - (preset_.maxWaitVsyncs - 1);
-            assignedNs = std::max({assignedNs - excess * periodNs_, earliestNs, lastAssignedNs_});
-            pulls_++;
-            holdSinceNs_ = 0;
-            holdMinRoomNs_ = 0;
-        }
-        else if (roomNs >= periodNs_ + marginNs) {
-            // Could have made an earlier vsync. Once every frame could for long enough, move
-            // as many vsyncs sooner as held throughout the window. With a frame a vsync, the
-            // frame assigned that vsync is replaced by this one.
-            if (holdSinceNs_ == 0) {
-                holdSinceNs_ = frame.arrivalNs;
-                holdMinRoomNs_ = roomNs;
+            if (consecutiveLate_ >= preset_.lateStreakToShift ||
+                earliestNs > plannedNs + periodNs_ + periodNs_ / 2) {
+                lastAssignedNs_ = assignedNs;
+                consecutiveLate_ = 0;
             }
             else {
-                holdMinRoomNs_ = std::min(holdMinRoomNs_, roomNs);
-                if (frame.arrivalNs - holdSinceNs_ >= preset_.pullHoldNs) {
-                    const int64_t pullVsyncs = std::max<int64_t>(1, (holdMinRoomNs_ - marginNs) / periodNs_);
-                    assignedNs = std::max({assignedNs - pullVsyncs * periodNs_, earliestNs, lastAssignedNs_});
-                    pulls_++;
-                    holdSinceNs_ = 0;
-                    holdMinRoomNs_ = 0;
-                }
+                lastAssignedNs_ = plannedNs;
             }
         }
         else {
-            holdSinceNs_ = 0;
-            holdMinRoomNs_ = 0;
+            consecutiveLate_ = 0;
+            assignedNs = plannedNs;
+            if (waitNs >= preset_.maxWaitVsyncs * periodNs_) {
+                // Waiting too long (frames bunched up after a stall, cold start decode, or the host running fast)
+                const int64_t excess = waitNs / periodNs_ - (preset_.maxWaitVsyncs - 1);
+                assignedNs = std::max({assignedNs - excess * periodNs_, earliestNs, lastTargetNs_});
+                pulls_++;
+                holdSinceNs_ = 0;
+                holdMinRoomNs_ = 0;
+            }
+            else if (roomNs >= periodNs_ + marginNs) {
+                // Could have made an earlier vsync. Once every frame could for long enough, move
+                // as many vsyncs sooner as held throughout the window. With a frame a vsync, the
+                // frame assigned that vsync is replaced by this one.
+                if (holdSinceNs_ == 0) {
+                    holdSinceNs_ = frame.arrivalNs;
+                    holdMinRoomNs_ = roomNs;
+                }
+                else {
+                    holdMinRoomNs_ = std::min(holdMinRoomNs_, roomNs);
+                    if (frame.arrivalNs - holdSinceNs_ >= preset_.pullHoldNs) {
+                        const int64_t pullVsyncs = std::max<int64_t>(1, (holdMinRoomNs_ - marginNs) / periodNs_);
+                        assignedNs = std::max({assignedNs - pullVsyncs * periodNs_, earliestNs, lastTargetNs_});
+                        pulls_++;
+                        holdSinceNs_ = 0;
+                        holdMinRoomNs_ = 0;
+                    }
+                }
+            }
+            else {
+                holdSinceNs_ = 0;
+                holdMinRoomNs_ = 0;
+            }
+            lastAssignedNs_ = assignedNs;
         }
     }
 
-    lastAssignedNs_ = assignedNs;
+    lastTargetNs_ = assignedNs;
     waitNs_ = assignedNs - (readyNs - preset_.headroomNs);
     frame.targetNs = assignedNs;
 }

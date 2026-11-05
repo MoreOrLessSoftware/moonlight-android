@@ -31,6 +31,8 @@ struct FrameTiming {
 enum class JitterBuffer : int {
     LowLatency = 0,
     Balanced = 1,
+    LowestLatency = 3,
+    Minimum = 4,
 };
 
 // What a jitter buffer preset does in HostTimed pacing (FramePacer)
@@ -43,8 +45,11 @@ struct JitterBufferPreset {
     int64_t maxWaitVsyncs;
     // How long every frame must have had a vsync to spare before frames move a vsync sooner
     int64_t pullHoldNs;
-    // Extra margin beyond 1 vsync needed to qualify for pull hold (divisor of period: 4 = +0.25 vsync)
-    int64_t pullMarginDivisor = 4;
+    // Extra margin beyond 1 vsync needed to qualify for pull hold (divisor of period: 16 = +0.0625 vsync)
+    int64_t pullMarginDivisor = 16;
+    // How many consecutive frames must miss their scheduled vsync by a single vsync before the
+    // schedule shifts later
+    int lateStreakToShift = 1;
 
     static JitterBufferPreset forJitterBuffer(JitterBuffer jitterBuffer);
 };
@@ -74,7 +79,7 @@ public:
 
     // Frames move a vsync sooner only with this fraction of a vsync to spare beyond it, so that
     // they don't go straight back
-    static constexpr int64_t kPullMarginDivisor = 4;
+    static constexpr int64_t kPullMarginDivisor = 16;
     // A host timestamp further from the last than this starts the schedule over
     static constexpr int64_t kMaxPtsGapNs = 250'000'000;
 
@@ -203,10 +208,12 @@ private:
     int64_t presentGuardNs_ = 0;
     bool anchored_ = false;
     int64_t lastPtsNs_ = 0;
-    int64_t lastAssignedNs_ = 0;  // The vsync the last frame was assigned
+    int64_t lastAssignedNs_ = 0;  // The schedule anchor from the last frame
+    int64_t lastTargetNs_ = 0;    // The vsync the last frame was assigned
     double carry_ = 0;            // Part of a slot the host timestamps were ahead or behind
     int64_t holdSinceNs_ = 0;     // Since when every frame had a vsync to spare, or 0
     int64_t holdMinRoomNs_ = 0;   // Smallest roomNs seen during the current hold window
+    int consecutiveLate_ = 0;     // Consecutive frames that missed their scheduled vsync
     int64_t waitNs_ = 0;
     uint64_t lateFrames_ = 0;
     uint64_t pulls_ = 0;

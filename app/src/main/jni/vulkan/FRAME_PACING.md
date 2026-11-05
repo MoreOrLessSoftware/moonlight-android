@@ -67,10 +67,12 @@ rate difference requires.
 
 ## Presets
 
-| Preset | Headroom | Wait cap | Give-back hold | Give-back margin | Typical wait (144 Hz) |
-|---|---|---|---|---|---|
-| Low latency | 0 | under 2 vsyncs | 2 s | +1/4 vsync | p50 7-8.5 ms, max under 2 vsyncs |
-| Balanced (default) | 4 ms | under 3 vsyncs | 3 s | +1/4 vsync | p50 about 13-14 ms, max under 3 vsyncs |
+| Preset | Headroom | Wait cap | Give-back hold | Give-back margin | Late streak to shift | Typical wait (144 Hz) |
+|---|---|---|---|---|---|---|
+| Minimum | 0 | under 1 vsync | 0 s | +1/16 vsync | 1 frame | p50 5-6 ms, max under 1 vsync |
+| Lowest latency | 0 | under 2 vsyncs | 1 s | +1/16 vsync | 2 frames | p50 5.5-7 ms, max under 2 vsyncs |
+| Low latency | 0 | under 2 vsyncs | 2 s | +1/16 vsync | 1 frame | p50 6.5-8.5 ms, max under 2 vsyncs |
+| Balanced (default) | 4 ms | under 3 vsyncs | 3 s | +1/16 vsync | 1 frame | p50 about 13-14 ms, max under 3 vsyncs |
 
 Defined in `JitterBufferPreset::forJitterBuffer()` and `HostFrameTimeline.applyPendingJitterBuffer()`.
 They can be switched mid-stream from the overlay menu. The schedule then moves to the new preset's

@@ -59,7 +59,8 @@ class HostFrameTimeline {
     private long headroomNs;
     private long maxWaitVsyncs;
     private long pullHoldNs;
-    private int pullMarginDivisor = 4;
+    private int pullMarginDivisor = 16;
+    private int lateStreakToShift = 1;
     private int jitterBuffer = -1;
     // The preset to switch to, set from any thread (setJitterBuffer())
     private volatile int pendingJitterBuffer;
@@ -67,9 +68,11 @@ class HostFrameTimeline {
     private boolean anchored;
     private long lastPtsNs;
     private long lastAssignedNs;
+    private long lastTargetNs;
     private double carry;
     private long holdSinceNs;
     private long holdMinRoomNs;
+    private int consecutiveLate;
     private long slotVsyncs = 1;
     private final long[] ptsDeltas = new long[SLOT_DELTA_WINDOW];
     private final long[] sortedDeltas = new long[SLOT_DELTA_WINDOW];
@@ -114,28 +117,59 @@ class HostFrameTimeline {
         pendingJitterBuffer = jitterBuffer;
     }
 
+    private static String describeJitterBuffer(int jb) {
+        switch (jb) {
+            case PreferenceConfiguration.JITTER_BUFFER_BALANCED:
+                return "Balanced";
+            case PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY:
+                return "Lowest latency";
+            case PreferenceConfiguration.JITTER_BUFFER_MINIMUM:
+                return "Minimum";
+            case PreferenceConfiguration.JITTER_BUFFER_LOW_LATENCY:
+            default:
+                return "Low latency";
+        }
+    }
+
     private void applyPendingJitterBuffer() {
         int pending = pendingJitterBuffer;
         if (pending == jitterBuffer) {
             return;
         }
         LimeLog.info("Host frame timing: jitter buffer " + (jitterBuffer < 0 ? "" : "changed to ") +
-                (pending == PreferenceConfiguration.JITTER_BUFFER_BALANCED ? "Balanced" : "Low latency"));
+                describeJitterBuffer(pending));
         jitterBuffer = pending;
         holdSinceNs = 0;
         holdMinRoomNs = 0;
+        consecutiveLate = 0;
 
         if (pending == PreferenceConfiguration.JITTER_BUFFER_BALANCED) {
             headroomNs = 4_000_000L;
             maxWaitVsyncs = 3;
             pullHoldNs = 3_000_000_000L;
-            pullMarginDivisor = 4;
+            pullMarginDivisor = 16;
+            lateStreakToShift = 1;
+        }
+        else if (pending == PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY) {
+            headroomNs = 0;
+            maxWaitVsyncs = 2;
+            pullHoldNs = 1_000_000_000L;
+            pullMarginDivisor = 16;
+            lateStreakToShift = 2;
+        }
+        else if (pending == PreferenceConfiguration.JITTER_BUFFER_MINIMUM) {
+            headroomNs = 0;
+            maxWaitVsyncs = 1;
+            pullHoldNs = 0;
+            pullMarginDivisor = 16;
+            lateStreakToShift = 1;
         }
         else {
             headroomNs = 0;
             maxWaitVsyncs = 2;
             pullHoldNs = 2_000_000_000L;
-            pullMarginDivisor = 4;
+            pullMarginDivisor = 16;
+            lateStreakToShift = 1;
         }
     }
 
@@ -201,10 +235,12 @@ class HostFrameTimeline {
         if (!anchored || !continuous) {
             // Start (or start over) at the first vsync the frame can make
             assignedNs = earliestNs;
+            lastAssignedNs = earliestNs;
             anchored = true;
             carry = 0;
             holdSinceNs = 0;
             holdMinRoomNs = 0;
+            consecutiveLate = 0;
         }
         else {
             // The vsync after the last frame's, as many slots on as the host timestamps moved
@@ -212,51 +248,68 @@ class HostFrameTimeline {
             double slots = carry + (double) delta / slotPeriodNs;
             long step = Math.max(1, Math.round(slots));
             carry = (slots - step) * CARRY_KEEP;
-            assignedNs = nearestVsync(lastAssignedNs + step * slotPeriodNs);
+            long plannedNs = nearestVsync(lastAssignedNs + step * slotPeriodNs);
 
-            long roomNs = assignedNs - readyNs;
+            long roomNs = plannedNs - readyNs;
             long waitForCapNs = roomNs + headroomNs;
-            long marginNs = periodNs / pullMarginDivisor;
+            long marginNs = pullMarginDivisor > 0 ? periodNs / pullMarginDivisor : 0;
             if (roomNs < 0) {
-                // Too late for its vsync: the first one it can make, and the frames after it follow
-                assignedNs = earliestNs;
+                // Too late for its vsync: the first one it can make. If the preset requires
+                // multiple consecutive late frames before shifting the schedule (and this frame is
+                // only a single vsync late), keep the schedule anchor on plannedNs so the next
+                // on-time frame stays on the original cadence.
+                assignedNs = Math.max(earliestNs, lastTargetNs);
                 lateFrames++;
+                consecutiveLate++;
                 holdSinceNs = 0;
                 holdMinRoomNs = 0;
-            }
-            else if (waitForCapNs >= maxWaitVsyncs * periodNs) {
-                // Waiting too long (frames bunched up after a stall, cold start decode, or the host running fast)
-                long excess = waitForCapNs / periodNs - (maxWaitVsyncs - 1);
-                assignedNs = Math.max(Math.max(assignedNs - excess * periodNs, earliestNs), lastAssignedNs);
-                pulls++;
-                holdSinceNs = 0;
-                holdMinRoomNs = 0;
-            }
-            else if (roomNs >= periodNs + marginNs) {
-                // Could have made an earlier vsync. Once every frame could for long enough, move
-                // as many vsyncs sooner as held throughout the window. SurfaceFlinger drops the
-                // frame this one then shares a vsync with.
-                if (holdSinceNs == 0) {
-                    holdSinceNs = nowNs;
-                    holdMinRoomNs = roomNs;
+                if (consecutiveLate >= lateStreakToShift ||
+                        earliestNs > plannedNs + periodNs + periodNs / 2) {
+                    lastAssignedNs = assignedNs;
+                    consecutiveLate = 0;
                 }
                 else {
-                    holdMinRoomNs = Math.min(holdMinRoomNs, roomNs);
-                    if (nowNs - holdSinceNs >= pullHoldNs) {
-                        long pullVsyncs = Math.max(1L, (holdMinRoomNs - marginNs) / periodNs);
-                        assignedNs = Math.max(Math.max(assignedNs - pullVsyncs * periodNs, earliestNs), lastAssignedNs);
-                        pulls++;
-                        holdSinceNs = 0;
-                        holdMinRoomNs = 0;
-                    }
+                    lastAssignedNs = plannedNs;
                 }
             }
             else {
-                holdSinceNs = 0;
-                holdMinRoomNs = 0;
+                consecutiveLate = 0;
+                assignedNs = plannedNs;
+                if (waitForCapNs >= maxWaitVsyncs * periodNs) {
+                    // Waiting too long (frames bunched up after a stall, cold start decode, or the host running fast)
+                    long excess = waitForCapNs / periodNs - (maxWaitVsyncs - 1);
+                    assignedNs = Math.max(Math.max(assignedNs - excess * periodNs, earliestNs), lastTargetNs);
+                    pulls++;
+                    holdSinceNs = 0;
+                    holdMinRoomNs = 0;
+                }
+                else if (roomNs >= periodNs + marginNs) {
+                    // Could have made an earlier vsync. Once every frame could for long enough, move
+                    // as many vsyncs sooner as held throughout the window. SurfaceFlinger drops the
+                    // frame this one then shares a vsync with.
+                    if (holdSinceNs == 0) {
+                        holdSinceNs = nowNs;
+                        holdMinRoomNs = roomNs;
+                    }
+                    else {
+                        holdMinRoomNs = Math.min(holdMinRoomNs, roomNs);
+                        if (nowNs - holdSinceNs >= pullHoldNs) {
+                            long pullVsyncs = Math.max(1L, (holdMinRoomNs - marginNs) / periodNs);
+                            assignedNs = Math.max(Math.max(assignedNs - pullVsyncs * periodNs, earliestNs), lastTargetNs);
+                            pulls++;
+                            holdSinceNs = 0;
+                            holdMinRoomNs = 0;
+                        }
+                    }
+                }
+                else {
+                    holdSinceNs = 0;
+                    holdMinRoomNs = 0;
+                }
+                lastAssignedNs = assignedNs;
             }
         }
-        lastAssignedNs = assignedNs;
+        lastTargetNs = assignedNs;
 
         // How long the frame waits for its vsync, headroom included
         long waitNs = assignedNs - nowNs;
@@ -290,7 +343,7 @@ class HostFrameTimeline {
                 summaryFrames > 0 ? summaryWaitSumNs / 1e6 / summaryFrames : 0.0, summaryWaitMaxNs / 1e6,
                 lateFrames - summaryLateAtStart, pulls - summaryPullsAtStart,
                 slotVsyncs, slotVsyncs == 1 ? "" : "s", 1e9 / periodNs,
-                jitterBuffer == PreferenceConfiguration.JITTER_BUFFER_BALANCED ? "Balanced" : "Low latency"));
+                describeJitterBuffer(jitterBuffer)));
         summaryStartNs = nowNs;
         summaryFrames = 0;
         summaryWaitSumNs = 0;

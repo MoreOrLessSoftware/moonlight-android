@@ -178,10 +178,14 @@
     </string-array>
 
     <string-array name="jitter_buffer_names">
+        <item>@string/jitter_buffer_minimum</item>
+        <item>@string/jitter_buffer_lowest_latency</item>
         <item>@string/jitter_buffer_low_latency</item>
         <item>@string/jitter_buffer_balanced</item>
     </string-array>
     <string-array name="jitter_buffer_values" translatable="false">
+        <item>minimum</item>
+        <item>lowest-latency</item>
         <item>low-latency</item>
         <item>balanced</item>
     </string-array>

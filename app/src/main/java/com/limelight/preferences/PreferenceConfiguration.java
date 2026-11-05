@@ -162,6 +162,8 @@ public class PreferenceConfiguration {
     // vkr::JitterBuffer (jni/vulkan/frame_pacer.h).
     public static final int JITTER_BUFFER_LOW_LATENCY = 0;
     public static final int JITTER_BUFFER_BALANCED = 1;
+    public static final int JITTER_BUFFER_LOWEST_LATENCY = 3;
+    public static final int JITTER_BUFFER_MINIMUM = 4;
 
     // What to do with a PyroWave frame still arriving when it should be ready to show: show it
     // late, or cut it short then and show it with what arrived, missing some fine detail.
@@ -539,13 +541,25 @@ public class PreferenceConfiguration {
     }
 
     public static int parseJitterBuffer(String str) {
-        return "balanced".equals(normalizeJitterBuffer(str)) ? JITTER_BUFFER_BALANCED : JITTER_BUFFER_LOW_LATENCY;
+        String normalized = normalizeJitterBuffer(str);
+        if ("balanced".equals(normalized)) {
+            return JITTER_BUFFER_BALANCED;
+        }
+        else if ("lowest-latency".equals(normalized)) {
+            return JITTER_BUFFER_LOWEST_LATENCY;
+        }
+        else if ("minimum".equals(normalized)) {
+            return JITTER_BUFFER_MINIMUM;
+        }
+        else {
+            return JITTER_BUFFER_LOW_LATENCY;
+        }
     }
 
     /**
-     * A stored jitter buffer value as one of today's ("low-latency" or "balanced"), or null if
-     * it's unset or not one at all. The presets since removed map to the nearest: Smooth to
-     * Balanced, and Lowest latency and Instant to Low latency.
+     * A stored jitter buffer value as one of today's ("minimum", "lowest-latency", "low-latency"
+     * or "balanced"), or null if it's unset or not one at all. Presets since removed map to the
+     * nearest: Smooth to Balanced, and Instant to Minimum.
      */
     public static String normalizeJitterBuffer(String str) {
         if (str == null) {
@@ -556,9 +570,12 @@ public class PreferenceConfiguration {
             case "smooth":
                 return "balanced";
             case "low-latency":
-            case "lowest-latency":
-            case "instant":
                 return "low-latency";
+            case "lowest-latency":
+                return "lowest-latency";
+            case "minimum":
+            case "instant":
+                return "minimum";
             default:
                 return null;
         }

@@ -368,7 +368,10 @@ int main(int argc, char** argv) {
         // Replay with a different jitter buffer than the session used
         if (strcmp(argv[i], "--jitter-buffer") == 0) {
             const char* value = argv[i + 1];
-            jitterBufferOverride = strcmp(value, "balanced") == 0 ? 1 : 0;
+            if (strcmp(value, "balanced") == 0) jitterBufferOverride = 1;
+            else if (strcmp(value, "lowest-latency") == 0) jitterBufferOverride = 3;
+            else if (strcmp(value, "minimum") == 0 || strcmp(value, "instant") == 0) jitterBufferOverride = 4;
+            else jitterBufferOverride = 0;
         }
     }
 
@@ -411,10 +414,9 @@ int main(int argc, char** argv) {
     Tally recorded {"Recorded on the device"};
     Tally replayed {"Replayed through the current pacer"};
 
-    // Traces from before the presets were cut to two have the old ones: Smooth replays as
-    // Balanced, and Lowest latency and Instant as Low latency
-    static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth", "lowest latency", "instant"};
-    auto currentPreset = [](int recorded) { return recorded == 1 || recorded == 2 ? 1 : 0; };
+    // Traces with Smooth (2) replay as Balanced (1)
+    static const char* const kJitterBufferNames[] = {"low latency", "balanced", "smooth", "lowest latency", "minimum"};
+    auto currentPreset = [](int recorded) { return recorded == 2 ? 1 : recorded; };
     const int jitterBuffer = jitterBufferOverride >= 0 ? jitterBufferOverride : currentPreset(config.jitterBuffer);
     printf("Jitter buffer: %s on the device, %s in the replay\n", kJitterBufferNames[config.jitterBuffer % 5],
            kJitterBufferNames[jitterBuffer]);
