@@ -64,6 +64,8 @@ void FramePacer::setJitterBuffer(JitterBuffer jitterBuffer) {
     holdSinceNs_ = 0;
     holdMinRoomNs_ = 0;
     consecutiveLate_ = 0;
+    waitSumNs_ = 0;
+    waitFrames_ = 0;
 }
 
 void FramePacer::setVsyncPeriod(int64_t periodNs) {
@@ -277,7 +279,9 @@ void FramePacer::onFrameArrived(FrameTiming& frame) {
     }
 
     lastTargetNs_ = assignedNs;
-    waitNs_ = assignedNs - (readyNs - preset_.headroomNs);
+    waitNs_ = assignedNs - frame.arrivalNs;
+    waitSumNs_ += waitNs_;
+    waitFrames_++;
     frame.targetNs = assignedNs;
 }
 

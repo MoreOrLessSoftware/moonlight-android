@@ -143,9 +143,18 @@ public:
     bool anchored() const { return anchored_; }
     // Vsyncs each frame is held for, from the spacing of host timestamps
     int64_t slotVsyncs() const { return slotVsyncs_; }
-    // How long the newest frame waits from its arrival (plus the present guard) to its vsync,
-    // headroom included
+    // How long the newest frame waits from its arrival to its vsync, headroom included
     int64_t waitNs() const { return waitNs_; }
+    // Mean waitNs() across frames arrived since the last call (or waitNs() if none)
+    int64_t takeMeanWaitNs() {
+        if (waitFrames_ == 0) {
+            return waitNs_;
+        }
+        const int64_t mean = waitSumNs_ / waitFrames_;
+        waitSumNs_ = 0;
+        waitFrames_ = 0;
+        return mean;
+    }
 
     // Frames the pacer chose not to show
     uint64_t framesSkipped() const { return framesSkipped_; }
@@ -215,6 +224,8 @@ private:
     int64_t holdMinRoomNs_ = 0;   // Smallest roomNs seen during the current hold window
     int consecutiveLate_ = 0;     // Consecutive frames that missed their scheduled vsync
     int64_t waitNs_ = 0;
+    int64_t waitSumNs_ = 0;
+    uint32_t waitFrames_ = 0;
     uint64_t lateFrames_ = 0;
     uint64_t pulls_ = 0;
 

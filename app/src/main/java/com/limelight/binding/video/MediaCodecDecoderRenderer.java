@@ -1703,13 +1703,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
     }
 
-    // Just the buffer's milliseconds from the renderer's pacing headline, "<ms> ms buffer,
+    // Just the wait's milliseconds from the renderer's pacing headline, "<ms> ms wait,
     // <Hz> Hz", or null without one (only host-timed pacing has it)
     private static String pacingBufferMs(String pacingText) {
         if (pacingText == null) {
             return null;
         }
-        int bufferEnd = pacingText.indexOf(" ms buffer");
+        int bufferEnd = pacingText.indexOf(" ms wait");
         int split = pacingText.indexOf('\n');
         if (bufferEnd > 0 && (split < 0 || bufferEnd < split)) {
             return pacingText.substring(0, bufferEnd);

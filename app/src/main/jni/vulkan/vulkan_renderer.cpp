@@ -1217,7 +1217,7 @@ std::string VulkanRenderer::pacingText() {
     char text[96];
     if (pacer_.mode() == PacingMode::HostTimed && pacer_.anchored()) {
         // The display's measured refresh rate, to compare with the host's frame rate
-        snprintf(text, sizeof(text), "%.1f ms wait, %.2f Hz", pacer_.waitNs() / 1e6,
+        snprintf(text, sizeof(text), "%.1f ms wait, %.2f Hz", pacer_.takeMeanWaitNs() / 1e6,
                  1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));
         headline = text;
         snprintf(text, sizeof(text), "%d vsync%s/frame, %llu late, %llu pulled", static_cast<int>(pacer_.slotVsyncs()),
@@ -1666,7 +1666,7 @@ void VulkanRenderer::presentNewest(int64_t targetVsyncNs) {
         }
         trace_.immediate(now, frame->timing.hostPtsNs, presentId, targetVsyncNs);
     }
-    if (renderFrame(frame, presentId, 0, false, 0, true)) {
+    if (renderFrame(frame, presentId, targetVsyncNs, false, 0, true)) {
         presentedFrames_++;
     }
 }
@@ -2243,11 +2243,13 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     perfHint_.reportWork(nowNs() - startNs - (acquiredNs - releasedNs) - (fenceWaited ? fencedNs - fenceWaitNs : 0));
 
     if (!frame->presentCounted && frame->originNs != 0 && (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)) {
-        // Without a report of when it reached the screen, until the present was queued. A frame
-        // drawn again (across a swapchain rebuild) is only counted the first time.
+        // Without a report of when it reached the screen, until the scan it was drawn for (or
+        // when the present was queued if not aligned to one). A frame drawn again (across a
+        // swapchain rebuild) is only counted the first time.
         frame->presentCounted = true;
+        const int64_t presentedNs = std::max(nowNs(), showVsyncNs);
         std::lock_guard<std::mutex> lock(latencyMutex_);
-        countLatency(captureLatency_.presented, nowNs() - frame->originNs, frame->originSynced);
+        countLatency(captureLatency_.presented, presentedNs - frame->originNs, frame->originSynced);
     }
     if (presentId != 0) {
         const int64_t queuedNs = nowNs();
