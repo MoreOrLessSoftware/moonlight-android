@@ -90,7 +90,7 @@ public class PreferenceConfiguration {
     private static final String AUTO_RESUME_STREAM_PREF_STRING = "checkbox_auto_resume_stream";
     private static final String VIDEO_RENDERER_PREF_STRING = "video_renderer";
     private static final String SPATIAL_DITHERING_PREF_STRING = "spatial_dithering";
-    private static final String FRONT_BUFFER_PREF_STRING = "checkbox_front_buffer";
+    private static final String LEGACY_FRONT_BUFFER_PREF_STRING = "checkbox_front_buffer";
     private static final String JITTER_BUFFER_PREF_STRING = "jitter_buffer";
     private static final String PYROWAVE_LATE_FRAMES_PREF_STRING = "pyrowave_late_frames";
     private static final String PYROWAVE_GPU_BOOST_PREF_STRING = "checkbox_pyrowave_gpu_boost";
@@ -105,7 +105,6 @@ public class PreferenceConfiguration {
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
     private static final boolean DEFAULT_ENABLE_ULTRA_LOW_LATENCY = true;
-    private static final boolean DEFAULT_FRONT_BUFFER = true;
     private static final boolean DEFAULT_PYROWAVE_GPU_BOOST = false;
     private static final boolean DEFAULT_STRETCH = false;
     private static final boolean DEFAULT_SOPS = true;
@@ -470,7 +469,7 @@ public class PreferenceConfiguration {
         if (str.equals("direct")) {
             return VideoRendererOption.DIRECT;
         }
-        else if (str.equals("vulkan")) {
+        else if (str.equals("vulkan") || str.equals("vulkan-front-buffer")) {
             return VideoRendererOption.VULKAN;
         }
         else {
@@ -778,8 +777,19 @@ public class PreferenceConfiguration {
             config.audioConfiguration = MoonBridge.AUDIO_CONFIGURATION_STEREO;
         }
 
+        // Migrate the old front buffer checkbox into the video renderer setting
+        if (prefs.contains(LEGACY_FRONT_BUFFER_PREF_STRING)) {
+            boolean legacyFrontBuffer = prefs.getBoolean(LEGACY_FRONT_BUFFER_PREF_STRING, false);
+            SharedPreferences.Editor editor = prefs.edit().remove(LEGACY_FRONT_BUFFER_PREF_STRING);
+            if (legacyFrontBuffer && "vulkan".equals(prefs.getString(VIDEO_RENDERER_PREF_STRING, DEFAULT_VIDEO_RENDERER))) {
+                editor.putString(VIDEO_RENDERER_PREF_STRING, "vulkan-front-buffer");
+            }
+            editor.apply();
+        }
+
         config.videoFormat = getVideoFormatValue(context);
         config.videoRenderer = getVideoRendererValue(context);
+        config.frontBuffer = "vulkan-front-buffer".equals(prefs.getString(VIDEO_RENDERER_PREF_STRING, DEFAULT_VIDEO_RENDERER));
         config.spatialDithering = getSpatialDitheringValue(context);
         config.framePacing = getFramePacingValue(context);
         config.jitterBuffer = getJitterBufferValue(context);
@@ -834,7 +844,6 @@ public class PreferenceConfiguration {
         config.reduceRefreshRate = prefs.getBoolean(REDUCE_REFRESH_RATE_PREF_STRING, DEFAULT_REDUCE_REFRESH_RATE);
         config.actualDisplayRefreshRate = prefs.getString(ACTUAL_DISPLAY_REFRESH_RATE_PREF_STRING, DEFAULT_ACTUAL_DISPLAY_REFRESH_RATE);
         config.fullRange = prefs.getBoolean(FULL_RANGE_PREF_STRING, DEFAULT_FULL_RANGE);
-        config.frontBuffer = prefs.getBoolean(FRONT_BUFFER_PREF_STRING, DEFAULT_FRONT_BUFFER);
         config.pyrowaveGpuBoost = prefs.getBoolean(PYROWAVE_GPU_BOOST_PREF_STRING, DEFAULT_PYROWAVE_GPU_BOOST);
         config.gamepadTouchpadAsMouse = prefs.getBoolean(GAMEPAD_TOUCHPAD_AS_MOUSE_PREF_STRING, DEFAULT_GAMEPAD_TOUCHPAD_AS_MOUSE);
         config.gamepadMotionSensors = prefs.getBoolean(GAMEPAD_MOTION_SENSORS_PREF_STRING, DEFAULT_GAMEPAD_MOTION_SENSORS);
