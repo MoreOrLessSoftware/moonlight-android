@@ -77,17 +77,6 @@
             android:entryValues="@array/video_renderer_values"
             android:summary="@string/summary_video_renderer"
             android:defaultValue="auto" />
-        <CheckBoxPreference
-            android:key="checkbox_reduce_refresh_rate"
-            android:title="@string/title_checkbox_reduce_refresh_rate"
-            android:summary="@string/summary_checkbox_reduce_refresh_rate"
-            android:defaultValue="false" />
-        <com.limelight.preferences.RefreshRatePreference
-            android:key="text_actual_display_refresh_rate"
-            android:title="@string/title_actual_display_refresh_rate"
-            android:summary="@string/summary_actual_display_refresh_rate"
-            android:inputType="numberDecimal"
-            android:defaultValue="0" />
         <com.limelight.preferences.HelpListPreference
             android:key="pyrowave_late_frames"
             android:title="@string/title_pyrowave_late_frames"
@@ -112,6 +101,17 @@
             android:key="checkbox_ultra_low_latency"
             android:summary="@string/summary_checkbox_ultra_low_latency"
             android:title="@string/title_checkbox_ultra_low_latency" />
+        <CheckBoxPreference
+            android:key="checkbox_reduce_refresh_rate"
+            android:title="@string/title_checkbox_reduce_refresh_rate"
+            android:summary="@string/summary_checkbox_reduce_refresh_rate"
+            android:defaultValue="false" />
+        <com.limelight.preferences.RefreshRatePreference
+            android:key="text_actual_display_refresh_rate"
+            android:title="@string/title_actual_display_refresh_rate"
+            android:summary="@string/summary_actual_display_refresh_rate"
+            android:inputType="numberDecimal"
+            android:defaultValue="0" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_host_specific_settings"
         android:key="category_host_specific_settings">
