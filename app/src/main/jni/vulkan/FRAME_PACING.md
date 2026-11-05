@@ -208,8 +208,11 @@ Measured by replaying sessions streamed over Wi-Fi to a 144 Hz tablet:
   400 ppm off its frame rate (branch `phase-steer-wip` here, in moonlight-common-c and in this
   fork's Sunshine) worked in simulation but not on the host: Sunshine moved the game through its
   RTSS frame limit, and every RTSS profile reload, even with the limit unchanged, freezes the
-  game's presents for 40-49 ms and lands its phase anywhere in the frame interval. Steering
-  needs a frame limiter whose rate can change without restarting its timing.
+  game's presents for 40-49 ms and lands its phase anywhere in the frame interval. A single
+  steer a few seconds in (two changes) did land near its aim, but the game's phase then moved by
+  itself, several ms every 15-30 s with nothing changed, so a placement doesn't hold. Steering
+  needs a frame limiter whose rate can change without restarting its timing, and keeps its phase
+  through the game's own hitches.
 
 ## Limitations
 
