@@ -50,12 +50,13 @@ Each frame, as it arrives (`FramePacer::onFrameArrived()`, `HostFrameTimeline.on
 3. **Late**: if room is negative, the frame goes to the first vsync it can make, and the frames
    after it chain from there. The delay grows by a vsync only when a frame actually needs it.
    (One frame held a vsync long.)
-4. **Wait cap**: if room is the preset's `maxWaitVsyncs` or more, the frame is moved sooner until
-   it's under the cap: frames bunched up after a stall, or a host running fast.
+4. **Wait cap**: if wait (`room + headroom`) is the preset's `maxWaitVsyncs` or more, the frame is
+   moved sooner until it's under the cap: frames bunched up after a stall, cold-start decode
+   inflation, or a host running fast.
 5. **Give back**: if every frame for the preset's `pullHoldNs` had room of at least a vsync plus a
-   fraction (`period / pullMarginDivisor`, 1/8 in Low latency, 1/4 in Balanced), the frame moves
-   a vsync sooner. Any frame with less resets the hold. (With a frame a vsync, this frame replaces
-   the one assigned that vsync: one frame skipped.)
+   quarter (`period / pullMarginDivisor`), the frame moves as many vsyncs sooner as held throughout
+   the window. Any frame with less resets the hold. (With a frame a vsync, this frame replaces the
+   one assigned that vsync: one frame skipped.)
 
 Rules 4 and 5 never move a frame before the previous frame's vsync. A frame given the same vsync
 replaces the previous one.
@@ -68,8 +69,8 @@ rate difference requires.
 
 | Preset | Headroom | Wait cap | Give-back hold | Give-back margin | Typical wait (144 Hz) |
 |---|---|---|---|---|---|
-| Low latency | 0 | under 2 vsyncs | 1 s | +1/8 vsync | p50 7-7.5 ms, max under 2 vsyncs |
-| Balanced (default) | 4 ms | under 3 vsyncs | 3 s | +1/4 vsync | p50 about 14 ms, max under 3 vsyncs |
+| Low latency | 0 | under 2 vsyncs | 2 s | +1/4 vsync | p50 7-8.5 ms, max under 2 vsyncs |
+| Balanced (default) | 4 ms | under 3 vsyncs | 3 s | +1/4 vsync | p50 about 13-14 ms, max under 3 vsyncs |
 
 Defined in `JitterBufferPreset::forJitterBuffer()` and `HostFrameTimeline.applyPendingJitterBuffer()`.
 They can be switched mid-stream from the overlay menu. The schedule then moves to the new preset's

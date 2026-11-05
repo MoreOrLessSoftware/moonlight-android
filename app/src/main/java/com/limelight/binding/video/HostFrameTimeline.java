@@ -69,6 +69,7 @@ class HostFrameTimeline {
     private long lastAssignedNs;
     private double carry;
     private long holdSinceNs;
+    private long holdMinRoomNs;
     private long slotVsyncs = 1;
     private final long[] ptsDeltas = new long[SLOT_DELTA_WINDOW];
     private final long[] sortedDeltas = new long[SLOT_DELTA_WINDOW];
@@ -89,11 +90,17 @@ class HostFrameTimeline {
 
     /**
      * @param displayRefreshHz current display refresh rate
+     * @param streamFps target stream frame rate
      * @param jitterBuffer one of PreferenceConfiguration.JITTER_BUFFER_*
      */
-    HostFrameTimeline(float displayRefreshHz, int jitterBuffer) {
+    HostFrameTimeline(float displayRefreshHz, int streamFps, int jitterBuffer) {
         periodNs = displayRefreshHz > 1 ? (long) (1e9 / displayRefreshHz) : 16_666_667L;
         presentLatencyNs = periodNs;
+        long streamIntervalNs = 1_000_000_000L / Math.max(streamFps, 1);
+        long vsyncs = (streamIntervalNs + periodNs / 2) / periodNs;
+        if (vsyncs >= 1 && vsyncs <= 8 && Math.abs(streamIntervalNs - vsyncs * periodNs) * 100 <= periodNs * 15) {
+            slotVsyncs = vsyncs;
+        }
         pendingJitterBuffer = jitterBuffer;
         applyPendingJitterBuffer();
     }
@@ -116,6 +123,7 @@ class HostFrameTimeline {
                 (pending == PreferenceConfiguration.JITTER_BUFFER_BALANCED ? "Balanced" : "Low latency"));
         jitterBuffer = pending;
         holdSinceNs = 0;
+        holdMinRoomNs = 0;
 
         if (pending == PreferenceConfiguration.JITTER_BUFFER_BALANCED) {
             headroomNs = 4_000_000L;
@@ -126,8 +134,8 @@ class HostFrameTimeline {
         else {
             headroomNs = 0;
             maxWaitVsyncs = 2;
-            pullHoldNs = 1_000_000_000L;
-            pullMarginDivisor = 8;
+            pullHoldNs = 2_000_000_000L;
+            pullMarginDivisor = 4;
         }
     }
 
@@ -196,6 +204,7 @@ class HostFrameTimeline {
             anchored = true;
             carry = 0;
             holdSinceNs = 0;
+            holdMinRoomNs = 0;
         }
         else {
             // The vsync after the last frame's, as many slots on as the host timestamps moved
@@ -206,34 +215,45 @@ class HostFrameTimeline {
             assignedNs = nearestVsync(lastAssignedNs + step * slotPeriodNs);
 
             long roomNs = assignedNs - readyNs;
+            long waitForCapNs = roomNs + headroomNs;
+            long marginNs = periodNs / pullMarginDivisor;
             if (roomNs < 0) {
                 // Too late for its vsync: the first one it can make, and the frames after it follow
                 assignedNs = earliestNs;
                 lateFrames++;
                 holdSinceNs = 0;
+                holdMinRoomNs = 0;
             }
-            else if (roomNs >= maxWaitVsyncs * periodNs) {
-                // Waiting too long (frames bunched up after a stall, or the host running fast)
-                long excess = roomNs / periodNs - (maxWaitVsyncs - 1);
-                assignedNs = Math.max(assignedNs - excess * periodNs, lastAssignedNs);
+            else if (waitForCapNs >= maxWaitVsyncs * periodNs) {
+                // Waiting too long (frames bunched up after a stall, cold start decode, or the host running fast)
+                long excess = waitForCapNs / periodNs - (maxWaitVsyncs - 1);
+                assignedNs = Math.max(Math.max(assignedNs - excess * periodNs, earliestNs), lastAssignedNs);
                 pulls++;
                 holdSinceNs = 0;
+                holdMinRoomNs = 0;
             }
-            else if (roomNs >= periodNs + periodNs / pullMarginDivisor) {
-                // Could have made the vsync before its own. Once every frame could for long
-                // enough, move a vsync sooner. SurfaceFlinger drops the frame this one then
-                // shares a vsync with.
+            else if (roomNs >= periodNs + marginNs) {
+                // Could have made an earlier vsync. Once every frame could for long enough, move
+                // as many vsyncs sooner as held throughout the window. SurfaceFlinger drops the
+                // frame this one then shares a vsync with.
                 if (holdSinceNs == 0) {
                     holdSinceNs = nowNs;
+                    holdMinRoomNs = roomNs;
                 }
-                else if (nowNs - holdSinceNs >= pullHoldNs) {
-                    assignedNs = Math.max(assignedNs - periodNs, lastAssignedNs);
-                    pulls++;
-                    holdSinceNs = 0;
+                else {
+                    holdMinRoomNs = Math.min(holdMinRoomNs, roomNs);
+                    if (nowNs - holdSinceNs >= pullHoldNs) {
+                        long pullVsyncs = Math.max(1L, (holdMinRoomNs - marginNs) / periodNs);
+                        assignedNs = Math.max(Math.max(assignedNs - pullVsyncs * periodNs, earliestNs), lastAssignedNs);
+                        pulls++;
+                        holdSinceNs = 0;
+                        holdMinRoomNs = 0;
+                    }
                 }
             }
             else {
                 holdSinceNs = 0;
+                holdMinRoomNs = 0;
             }
         }
         lastAssignedNs = assignedNs;

@@ -39,11 +39,11 @@ struct JitterBufferPreset {
     // frame arriving that much later than the rest to still make its vsync
     int64_t headroomNs;
     // A frame waits less than this many vsyncs from when it could first be shown (its arrival
-    // plus the present guard and the headroom) to the vsync it's assigned
+    // plus the present guard, headroom included in the wait) to the vsync it's assigned
     int64_t maxWaitVsyncs;
     // How long every frame must have had a vsync to spare before frames move a vsync sooner
     int64_t pullHoldNs;
-    // Extra margin beyond 1 vsync needed to qualify for pull hold (divisor of period: 4 = +0.25 vsync, 8 = +0.125 vsync)
+    // Extra margin beyond 1 vsync needed to qualify for pull hold (divisor of period: 4 = +0.25 vsync)
     int64_t pullMarginDivisor = 4;
 
     static JitterBufferPreset forJitterBuffer(JitterBuffer jitterBuffer);
@@ -206,6 +206,7 @@ private:
     int64_t lastAssignedNs_ = 0;  // The vsync the last frame was assigned
     double carry_ = 0;            // Part of a slot the host timestamps were ahead or behind
     int64_t holdSinceNs_ = 0;     // Since when every frame had a vsync to spare, or 0
+    int64_t holdMinRoomNs_ = 0;   // Smallest roomNs seen during the current hold window
     int64_t waitNs_ = 0;
     uint64_t lateFrames_ = 0;
     uint64_t pulls_ = 0;

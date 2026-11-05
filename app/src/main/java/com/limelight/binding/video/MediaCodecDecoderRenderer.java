@@ -342,7 +342,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Only used if the direct renderer ends up in use
         if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_HOST_TIMED) {
-            hostFrameTimeline = new HostFrameTimeline(getDisplayRefreshRate(), prefs.jitterBuffer);
+            hostFrameTimeline = new HostFrameTimeline(getDisplayRefreshRate(), prefs.fps, prefs.jitterBuffer);
         }
 
         this.activeWindowVideoStats = new VideoStats();
