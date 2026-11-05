@@ -166,7 +166,7 @@ class HostFrameTimeline {
         else if (pending == PreferenceConfiguration.JITTER_BUFFER_LOWEST_LATENCY) {
             headroomNs = 0;
             maxWaitVsyncs = 2;
-            pullHoldNs = 1_000_000_000L;
+            pullHoldNs = 1_500_000_000L;
             pullMarginDivisor = 16;
             lateStreakToShift = 2;
         }

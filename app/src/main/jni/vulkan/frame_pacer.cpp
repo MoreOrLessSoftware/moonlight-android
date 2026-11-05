@@ -37,7 +37,7 @@ JitterBufferPreset JitterBufferPreset::forJitterBuffer(JitterBuffer jitterBuffer
         case JitterBuffer::Balanced:
             return {4'000'000, 3, 3'000'000'000, 16, 1};
         case JitterBuffer::LowestLatency:
-            return {0, 2, 1'000'000'000, 16, 2};
+            return {0, 2, 1'500'000'000, 16, 2};
         case JitterBuffer::Minimum:
             return {0, 1, 0, 16, 1};
         case JitterBuffer::LowLatency:

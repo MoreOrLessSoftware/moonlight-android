@@ -70,7 +70,7 @@ rate difference requires.
 | Preset | Headroom | Wait cap | Give-back hold | Give-back margin | Late streak to shift | Typical wait (144 Hz) |
 |---|---|---|---|---|---|---|
 | Minimum | 0 | under 1 vsync | 0 s | +1/16 vsync | 1 frame | p50 5-6 ms, max under 1 vsync |
-| Lowest latency | 0 | under 2 vsyncs | 1 s | +1/16 vsync | 2 frames | p50 5.5-7 ms, max under 2 vsyncs |
+| Lowest latency | 0 | under 2 vsyncs | 1.5 s | +1/16 vsync | 2 frames | p50 5.5-7 ms, max under 2 vsyncs |
 | Low latency | 0 | under 2 vsyncs | 2 s | +1/16 vsync | 1 frame | p50 6.5-8.5 ms, max under 2 vsyncs |
 | Balanced (default) | 4 ms | under 3 vsyncs | 3 s | +1/16 vsync | 1 frame | p50 about 13-14 ms, max under 3 vsyncs |
 
@@ -193,7 +193,9 @@ Measured by replaying sessions streamed over Wi-Fi to a 144 Hz tablet:
   after late frames and halved back after quiet spells did worse than a fixed hold with the same
   mean wait (10.84 ms and 73 a minute, where a fixed hold gives about 67). Even giving each
   session its own best fixed hold, as if its network were known in advance, gained only
-  0.15-0.35 ms of wait at the same smoothness, so the presets' fixed holds stay.
+  0.15-0.35 ms of wait at the same smoothness, so the presets' fixed holds stay. Weighing wait
+  against uneven frames at the curve's own rate, the best single hold was 1.5 s (10.42 ms, 72 a
+  minute), which Lowest latency now uses (it was 1 s).
 - **Late credit** (letting the cap allow an extra vsync after a late frame): cut uneven frames
   during bursts by about 40%, but held latency higher afterwards. Balanced handles bursts better.
 - **Where the remaining delay is**: present guard (about 2 ms), waiting for the next vsync
