@@ -139,9 +139,22 @@ class HostFrameTimeline {
         LimeLog.info("Host frame timing: jitter buffer " + (jitterBuffer < 0 ? "" : "changed to ") +
                 describeJitterBuffer(pending));
         jitterBuffer = pending;
+        anchored = false;
+        lastPtsNs = 0;
+        lastAssignedNs = 0;
+        lastTargetNs = 0;
+        carry = 0;
         holdSinceNs = 0;
         holdMinRoomNs = 0;
         consecutiveLate = 0;
+        lateFrames = 0;
+        pulls = 0;
+        summaryStartNs = 0;
+        summaryFrames = 0;
+        summaryWaitSumNs = 0;
+        summaryWaitMaxNs = 0;
+        summaryLateAtStart = 0;
+        summaryPullsAtStart = 0;
 
         if (pending == PreferenceConfiguration.JITTER_BUFFER_BALANCED) {
             headroomNs = 4_000_000L;

@@ -121,8 +121,8 @@ public:
     // couldn't be
     void setPresentAhead(bool presentAhead) { presentAhead_ = presentAhead; }
 
-    // Switches preset mid-stream. The schedule moves to the new preset's as frames arrive: later
-    // through frames missing their vsync, sooner through the wait cap and pulls.
+    // Switches preset mid-stream, resetting the schedule and counters so it starts afresh as if
+    // the stream had begun with this preset.
     void setJitterBuffer(JitterBuffer jitterBuffer);
     JitterBuffer jitterBuffer() const { return jitterBuffer_; }
     const JitterBufferPreset& preset() const { return preset_; }

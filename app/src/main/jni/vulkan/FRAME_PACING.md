@@ -75,8 +75,8 @@ rate difference requires.
 | Balanced (default) | 4 ms | under 3 vsyncs | 3 s | +1/16 vsync | 1 frame | p50 about 13-14 ms, max under 3 vsyncs |
 
 Defined in `JitterBufferPreset::forJitterBuffer()` and `HostFrameTimeline.applyPendingJitterBuffer()`.
-They can be switched mid-stream from the overlay menu. The schedule then moves to the new preset's
-through the ordinary rules: later through late frames, sooner through the cap and pulls.
+They can be switched mid-stream from the overlay menu, which resets the schedule and counters so the
+new preset starts afresh from the next frame.
 
 Stored values from presets since removed are migrated when read
 (`PreferenceConfiguration.normalizeJitterBuffer()`): Smooth to Balanced, Lowest latency and

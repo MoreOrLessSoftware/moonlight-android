@@ -61,11 +61,21 @@ FramePacer::FramePacer(PacingMode mode, int streamFps, int64_t vsyncPeriodNs, Ji
 void FramePacer::setJitterBuffer(JitterBuffer jitterBuffer) {
     jitterBuffer_ = jitterBuffer;
     preset_ = JitterBufferPreset::forJitterBuffer(jitterBuffer);
+    anchored_ = false;
+    lastPtsNs_ = 0;
+    lastAssignedNs_ = 0;
+    lastTargetNs_ = 0;
+    lastPresentVsyncNs_ = 0;
+    carry_ = 0;
     holdSinceNs_ = 0;
     holdMinRoomNs_ = 0;
     consecutiveLate_ = 0;
+    waitNs_ = 0;
     waitSumNs_ = 0;
     waitFrames_ = 0;
+    framesSkipped_ = 0;
+    lateFrames_ = 0;
+    pulls_ = 0;
 }
 
 void FramePacer::setVsyncPeriod(int64_t periodNs) {
