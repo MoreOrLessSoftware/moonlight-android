@@ -350,7 +350,7 @@ struct DeviceTiming {
 int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s trace.csv [--events N] [--explain N] [--jitter-buffer low|balanced]"
-                        " [--present-ahead on|off] [--present-guard ms] [--arrival-offset ms] [--summary]\n",
+                        " [--present-ahead on|off] [--present-guard ms] [--arrival-offset ms] [--pull-hold ms] [--summary]\n",
                 argv[0]);
         return 2;
     }
@@ -360,6 +360,7 @@ int main(int argc, char** argv) {
     int presentAheadOverride = -1;
     int64_t presentGuardOverride = -1;
     int64_t arrivalOffsetNs = 0;
+    int64_t pullHoldOverride = -1;
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--summary") == 0) {
             gQuiet = true;
@@ -371,6 +372,10 @@ int main(int argc, char** argv) {
         // phase would shift them
         if (strcmp(argv[i], "--arrival-offset") == 0) {
             arrivalOffsetNs = static_cast<int64_t>(atof(argv[i + 1]) * 1e6);
+        }
+        // Replay with another pull hold than the preset's, in ms
+        if (strcmp(argv[i], "--pull-hold") == 0) {
+            pullHoldOverride = static_cast<int64_t>(atof(argv[i + 1]) * 1e6);
         }
         if (strcmp(argv[i], "--events") == 0) {
             maxEvents = static_cast<size_t>(atoi(argv[i + 1]));
@@ -486,6 +491,9 @@ int main(int argc, char** argv) {
     FramePacer pacer(static_cast<PacingMode>(config.mode), config.streamFps, config.periodNs,
                      static_cast<JitterBuffer>(jitterBuffer));
     pacer.setPresentAhead(presentAhead);
+    if (pullHoldOverride >= 0) {
+        pacer.setPullHoldNs(pullHoldOverride);
+    }
     if (presentGuardOverride >= 0) {
         pacer.setPresentGuardNs(presentGuardOverride);
     }
@@ -519,6 +527,9 @@ int main(int argc, char** argv) {
                    jitterBufferOverride >= 0 ? " (kept in the replay)" : "");
             if (jitterBufferOverride < 0) {
                 pacer.setJitterBuffer(static_cast<JitterBuffer>(currentPreset(changed)));
+                if (pullHoldOverride >= 0) {
+                    pacer.setPullHoldNs(pullHoldOverride);
+                }
             }
         }
         else if (f[0] == "F" && f.size() >= 6) {

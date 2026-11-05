@@ -186,6 +186,14 @@ Measured by replaying sessions streamed over Wi-Fi to a 144 Hz tablet:
 - **Lower latency**: shorter holds (0.3-1 s) saved 0.1-0.5 ms of median wait for up to twice
   the uneven frames. Always using the earliest vsync (a wait cap of 1) made 4-100 times as many
   frames uneven. A smaller pull margin changed nothing.
+- **Tried and dropped: an adaptive pull hold.** Replaying 27 sessions (72, 120 and 144 fps, all
+  three presets' recordings) on Lowest latency with `pacer_replay --pull-hold`, each doubling of
+  the hold cost 0.5-0.9 ms of mean wait for about a fifth fewer uneven frames (0.5 s: 9.45 ms and
+  100 a minute; 1 s: 9.86 ms, 87; 2 s: 10.73 ms, 68; 8 s: 11.78 ms, 59). A hold that doubled
+  after late frames and halved back after quiet spells did worse than a fixed hold with the same
+  mean wait (10.84 ms and 73 a minute, where a fixed hold gives about 67). Even giving each
+  session its own best fixed hold, as if its network were known in advance, gained only
+  0.15-0.35 ms of wait at the same smoothness, so the presets' fixed holds stay.
 - **Late credit** (letting the cap allow an extra vsync after a late frame): cut uneven frames
   during bursts by about 40%, but held latency higher afterwards. Balanced handles bursts better.
 - **Where the remaining delay is**: present guard (about 2 ms), waiting for the next vsync

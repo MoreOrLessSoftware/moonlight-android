@@ -126,6 +126,8 @@ public:
     void setJitterBuffer(JitterBuffer jitterBuffer);
     JitterBuffer jitterBuffer() const { return jitterBuffer_; }
     const JitterBufferPreset& preset() const { return preset_; }
+    // Replays only: the preset's pull hold, to compare others (pacer_replay --pull-hold)
+    void setPullHoldNs(int64_t holdNs) { preset_.pullHoldNs = holdNs; }
 
     // With frames presented ahead, how long before its vsync a frame must be ready for that
     // vsync (PresentScheduler::guardNs())
