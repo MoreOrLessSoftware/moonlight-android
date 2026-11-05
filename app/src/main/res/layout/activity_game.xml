@@ -22,30 +22,11 @@
         <requestFocus />
     </com.limelight.ui.StreamView>
 
-    <com.limelight.ui.LatencyMarkerSurface
-        android:id="@+id/latencyMarkerSurface"
-        android:layout_width="1px"
-        android:layout_height="1px"
-        android:layout_gravity="top|left"
-        android:clickable="false"
-        android:focusable="false"
-        android:importantForAccessibility="no"
-        android:visibility="gone" />
-
     <com.limelight.ui.DisplayKeepAwakeView
         android:id="@+id/displayKeepAwake"
         android:layout_width="1px"
         android:layout_height="1px"
         android:layout_gravity="top|left"
-        android:clickable="false"
-        android:focusable="false"
-        android:importantForAccessibility="no"
-        android:visibility="gone" />
-
-    <com.limelight.ui.LatencyMarkerView
-        android:id="@+id/latencyMarker"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
         android:clickable="false"
         android:focusable="false"
         android:importantForAccessibility="no"
