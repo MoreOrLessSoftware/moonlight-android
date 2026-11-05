@@ -12,22 +12,6 @@
             android:summary="@string/summary_seekbar_deadzone"
             android:text="@string/suffix_seekbar_deadzone"
             android:title="@string/title_seekbar_deadzone"/>
-        <CheckBoxPreference
-            android:key="checkbox_multi_controller"
-            android:title="@string/title_checkbox_multi_controller"
-            android:summary="@string/summary_checkbox_multi_controller"
-            android:defaultValue="true" />
-        <CheckBoxPreference
-            android:key="checkbox_usb_driver"
-            android:title="@string/title_checkbox_xb1_driver"
-            android:summary="@string/summary_checkbox_xb1_driver"
-            android:defaultValue="true" />
-        <CheckBoxPreference
-            android:key="checkbox_usb_bind_all"
-            android:dependency="checkbox_usb_driver"
-            android:title="@string/title_checkbox_usb_bind_all"
-            android:summary="@string/summary_checkbox_usb_bind_all"
-            android:defaultValue="false" />
         <com.limelight.preferences.HelpListPreference
             android:key="analog_scrolling"
             android:title="@string/title_analog_scrolling"
@@ -161,5 +145,24 @@
             android:positiveButtonText="@string/yes"
             android:negativeButtonText="@string/no"
             />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_advanced_settings"
+        android:key="category_advanced_settings">
+        <CheckBoxPreference
+            android:key="checkbox_multi_controller"
+            android:title="@string/title_checkbox_multi_controller"
+            android:summary="@string/summary_checkbox_multi_controller"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_usb_driver"
+            android:title="@string/title_checkbox_xb1_driver"
+            android:summary="@string/summary_checkbox_xb1_driver"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_usb_bind_all"
+            android:dependency="checkbox_usb_driver"
+            android:title="@string/title_checkbox_usb_bind_all"
+            android:summary="@string/summary_checkbox_usb_bind_all"
+            android:defaultValue="false" />
     </PreferenceCategory>
 </PreferenceScreen>
