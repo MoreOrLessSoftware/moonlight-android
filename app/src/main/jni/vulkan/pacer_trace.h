@@ -114,6 +114,12 @@ namespace vkr {
 //                                    percentile of ready costs, CLOCK_MONOTONIC minus
 //                                    moonlight-common-c's clock, and the offset after a frame's
 //                                    host timestamp handed to moonlight-common-c (on its clock)
+//   B,nowNs,leadNs,submitNs,gpuNs,spareNs
+//                                    an aligned front buffer's draw lead, learned from GPU
+//                                    timestamps, moved by 50 us or more: how long before the scan
+//                                    its draws start (less the vsync offset), made of the 90th
+//                                    percentiles of recent draws' time to submit and their run
+//                                    on the GPU until drawn, plus the spare
 //
 // Every call must be made with the renderer's lock held.
 class PacerTrace {
@@ -143,6 +149,7 @@ public:
                   uint32_t imageIndex, bool fenceWaited, int64_t releasedNs);
     // When a present's rendering ran on the GPU, on the GPU's clock
     void gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEndNs, int64_t acquiredNs, int64_t drawnNs);
+    void alignedLead(int64_t nowNs, int64_t leadNs, int64_t submitNs, int64_t gpuNs, int64_t spareNs);
     void received(int64_t hostPtsNs, int64_t receiveNs, int64_t enqueueNs, int64_t queuedNs, int64_t commonToLocalNs,
                   int64_t hostProcessingNs, uint32_t rttMs);
     void decoded(int64_t hostPtsNs, int64_t startNs, int64_t queuedNs, int64_t doneNs,

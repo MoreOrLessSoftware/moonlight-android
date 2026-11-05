@@ -144,6 +144,11 @@ void PacerTrace::gpuTimes(uint64_t presentId, int64_t gpuStartNs, int64_t gpuEnd
           static_cast<long long>(drawnNs));
 }
 
+void PacerTrace::alignedLead(int64_t nowNs, int64_t leadNs, int64_t submitNs, int64_t gpuNs, int64_t spareNs) {
+    write("B,%lld,%lld,%lld,%lld,%lld\n", static_cast<long long>(nowNs), static_cast<long long>(leadNs),
+          static_cast<long long>(submitNs), static_cast<long long>(gpuNs), static_cast<long long>(spareNs));
+}
+
 void PacerTrace::presented(uint64_t presentId, int64_t actualNs, int64_t earliestNs, int64_t marginNs) {
     write("P,%llu,%lld,%lld,%lld\n", static_cast<unsigned long long>(presentId), static_cast<long long>(actualNs),
           static_cast<long long>(earliestNs), static_cast<long long>(marginNs));

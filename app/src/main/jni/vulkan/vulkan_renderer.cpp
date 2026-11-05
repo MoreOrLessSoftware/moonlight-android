@@ -532,6 +532,10 @@ VulkanRenderer::VulkanRenderer(const NdkApi* ndk, const RendererConfig& config)
     if (frontBufferAligned_ && __system_property_get("debug.moonlight.front_buffer_lead_us", value) > 0) {
         fixedAlignedLeadNs_ = static_cast<int64_t>(std::clamp(atoi(value), 0, 20000)) * 1000;
     }
+    if (frontBufferAligned_ && __system_property_get("debug.moonlight.front_buffer_spare_us", value) > 0) {
+        alignedSpareNs_ = static_cast<int64_t>(std::clamp(atoi(value), 0, 5000)) * 1000;
+        ALOGI("Front buffer lead spare %lld us", static_cast<long long>(alignedSpareNs_ / 1000));
+    }
     if (frontBufferRequested_) {
         ALOGI("Front buffer asked for%s", frontBufferAligned_ ? ", aligned to the scan" : "");
     }
@@ -646,7 +650,10 @@ bool VulkanRenderer::init(ANativeWindow* output) {
     trace_.start(config_.traceDirectory, configuration);
     traceRecording_ = trace_.recording();
 
-    if (trace_.recording() && timestampValidBits_ > 0 && timestampPeriodNs_ > 0 && vk_.vkCreateQueryPool &&
+    // Timed for traces, and for learning how long before the scan an aligned front buffer's
+    // draws must start (alignedRenderCostNs())
+    const bool learnLead = frontBufferAligned_ && hasSharedPresentExt_ && fixedAlignedLeadNs_ < 0;
+    if ((trace_.recording() || learnLead) && timestampValidBits_ > 0 && timestampPeriodNs_ > 0 && vk_.vkCreateQueryPool &&
             vk_.vkDestroyQueryPool && vk_.vkGetQueryPoolResults && vk_.vkCmdResetQueryPool && vk_.vkCmdWriteTimestamp) {
         VkQueryPoolCreateInfo queryInfo {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
         queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
@@ -1613,13 +1620,35 @@ int64_t VulkanRenderer::alignedRenderCostNs() const {
     if (fixedAlignedLeadNs_ >= 0) {
         return fixedAlignedLeadNs_;
     }
-    if (drawSubmitNs_.size() < 8) {
+    if (drawSubmitNs_.size() < kAlignedMinSamples) {
         return kAlignedDefaultLeadNs;
     }
-    std::vector<int64_t> sorted(drawSubmitNs_.begin(), drawSubmitNs_.end());
+    const int64_t submitNs = percentile90(drawSubmitNs_);
+    if (drawGpuNs_.size() < kAlignedMinSamples) {
+        return submitNs + kAlignedGpuStartNs;
+    }
+    return submitNs + percentile90(drawGpuNs_) + alignedSpareNs_;
+}
+
+int64_t VulkanRenderer::percentile90(const std::deque<int64_t>& samples) {
+    std::vector<int64_t> sorted(samples.begin(), samples.end());
     const auto p90 = sorted.begin() + (sorted.size() - 1) * 9 / 10;
     std::nth_element(sorted.begin(), p90, sorted.end());
-    return *p90 + kAlignedGpuStartNs;
+    return *p90;
+}
+
+void VulkanRenderer::traceAlignedLead() {
+    // Written when it moves by more than this, to keep the trace small
+    constexpr int64_t kStepNs = 50'000;
+    if (drawSubmitNs_.size() < kAlignedMinSamples || drawGpuNs_.size() < kAlignedMinSamples) {
+        return;
+    }
+    const int64_t leadNs = alignedRenderCostNs();
+    if (std::abs(leadNs - tracedLeadNs_) < kStepNs) {
+        return;
+    }
+    tracedLeadNs_ = leadNs;
+    trace_.alignedLead(nowNs(), leadNs, percentile90(drawSubmitNs_), percentile90(drawGpuNs_), alignedSpareNs_);
 }
 
 int64_t VulkanRenderer::alignedLeadNs() const {
@@ -1946,8 +1975,8 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     slotFrames_[slot].reset();
     const int64_t releasedNs = nowNs();
 
-    // The fence covers the last present rendered in this slot, so its timestamps are written
-    if (gpuTiming_ && slotPresentIds_[slot] != 0) {
+    // The fence covers the last frame rendered in this slot, so its timestamps are written
+    if (gpuTiming_ && slotTimed_[slot]) {
         uint64_t ticks[kTimestampsPerFrame] = {};
         if (vk_.vkGetQueryPoolResults(device_, timestampPool_, kTimestampsPerFrame * slot, kTimestampsPerFrame,
                                       sizeof(ticks), ticks, sizeof(ticks[0]), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
@@ -1955,10 +1984,32 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
             const auto toNs = [&](uint64_t t) {
                 return static_cast<int64_t>(static_cast<double>(t & mask) * timestampPeriodNs_);
             };
-            std::lock_guard<std::mutex> lock(mutex_);
-            trace_.gpuTimes(slotPresentIds_[slot], toNs(ticks[0]), toNs(ticks[3]), toNs(ticks[1]), toNs(ticks[2]));
+            if (slotLeadSample_[slot]) {
+                // Masked, a counter that wrapped in between still gives the run
+                const int64_t gpuNs = toNs(ticks[2] - ticks[0]);
+                if (gpuNs > 0 && gpuNs < kAlignedMaxGpuNs) {
+                    drawGpuNs_.push_back(gpuNs);
+                    if (drawGpuNs_.size() > kAlignedLeadSamples) {
+                        drawGpuNs_.pop_front();
+                    }
+                }
+            }
+            // Present ids are only kept while tracing
+            const bool traceLead = slotLeadSample_[slot] && traceRecording_.load(std::memory_order_relaxed);
+            if (slotPresentIds_[slot] != 0 || traceLead) {
+                std::lock_guard<std::mutex> lock(mutex_);
+                if (slotPresentIds_[slot] != 0) {
+                    trace_.gpuTimes(slotPresentIds_[slot], toNs(ticks[0]), toNs(ticks[3]), toNs(ticks[1]),
+                                    toNs(ticks[2]));
+                }
+                if (traceLead) {
+                    traceAlignedLead();
+                }
+            }
         }
     }
+    slotTimed_[slot] = false;
+    slotLeadSample_[slot] = false;
     slotPresentIds_[slot] = 0;
 
     uint32_t imageIndex = 0;
@@ -2040,7 +2091,12 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vk_.vkBeginCommandBuffer(cmd, &beginInfo);
 
-    const bool timed = gpuTiming_ && presentId != 0;
+    // An aligned front buffer's draws are timed for its lead, except PyroWave's on the decode's
+    // own device, whose timestamps take in waiting for the decode (see kAlignedGpuStartNs)
+    const bool leadSample = gpuTiming_ && frontBufferAligned_ && frontBuffer_ && fixedAlignedLeadNs_ < 0 &&
+            (!planar || pyrowave_->ownDevice());
+    const bool traced = gpuTiming_ && presentId != 0 && traceRecording_.load(std::memory_order_relaxed);
+    const bool timed = leadSample || traced;
     if (timed) {
         vk_.vkCmdResetQueryPool(cmd, timestampPool_, kTimestampsPerFrame * slot, kTimestampsPerFrame);
         vk_.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timestampPool_, kTimestampsPerFrame * slot);
@@ -2183,9 +2239,9 @@ bool VulkanRenderer::renderFrame(const FramePtr& frame, uint64_t presentId, int6
             drawSubmitNs_.pop_front();
         }
     }
-    if (timed) {
-        slotPresentIds_[slot] = presentId;
-    }
+    slotTimed_[slot] = timed;
+    slotLeadSample_[slot] = leadSample;
+    slotPresentIds_[slot] = traced ? presentId : 0;
 
     VkPresentInfoKHR present {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
     present.waitSemaphoreCount = 1;

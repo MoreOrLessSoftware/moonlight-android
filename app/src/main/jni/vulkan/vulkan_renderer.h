@@ -249,6 +249,9 @@ private:
     void scheduleAlignedDraw();
     int64_t alignedRenderCostNs() const;
     int64_t alignedLeadNs() const;
+    static int64_t percentile90(const std::deque<int64_t>& samples);
+    // Writes the learned lead and its parts to the trace when it has moved. Under mutex_.
+    void traceAlignedLead();
     void trackVsyncPeriod(int64_t frameTimeNanos);
 
     static void onImageAvailableThunk(void* context, AImageReader* reader);
@@ -428,14 +431,17 @@ private:
     FramePtr slotFrames_[kFramesInFlight];
     uint64_t frameCounter_ = 0;
 
-    // While tracing, timestamps of each frame's rendering on the GPU: its start, after taking
-    // the decoder's buffer, after drawing, and its end (after handing the buffer back). Also the
-    // present each frame in flight belongs to (0 if none).
+    // While tracing, or learning a front buffer's lead, timestamps of each frame's rendering on
+    // the GPU: its start, after taking the decoder's buffer, after drawing, and its end (after
+    // handing the buffer back). Also, for each frame in flight, whether it was timed, whether its
+    // GPU time counts towards the lead, and the present it belongs to (0 if none, or untraced).
     static constexpr uint32_t kTimestampsPerFrame = 4;
     VkQueryPool timestampPool_ = VK_NULL_HANDLE;
     bool gpuTiming_ = false;
     uint32_t timestampValidBits_ = 0;
     double timestampPeriodNs_ = 0;
+    bool slotTimed_[kFramesInFlight] {};
+    bool slotLeadSample_[kFramesInFlight] {};
     uint64_t slotPresentIds_[kFramesInFlight] {};
     FramePtr current_;
 
@@ -493,9 +499,16 @@ private:
     void drawDueAligned();
     void setAlignedTimer();
     std::deque<int64_t> drawSubmitNs_;
+    // Recent draws' run on the GPU, from its start until drawn (timestamps 0 to 2)
+    std::deque<int64_t> drawGpuNs_;
+    // The lead last written to the trace (B lines)
+    int64_t tracedLeadNs_ = 0;
     // How long before the scan to start drawing, if fixed with
     // adb shell setprop debug.moonlight.front_buffer_lead_us <us>; otherwise learned
     int64_t fixedAlignedLeadNs_ = -1;
+    // Spare added to a lead learned from GPU timestamps; adb shell setprop
+    // debug.moonlight.front_buffer_spare_us <us> to tune it
+    int64_t alignedSpareNs_ = kAlignedSpareNs;
     // Choreographer's frame times are when apps are woken, the display's vsync plus this (with
     // SurfaceFlinger's app phase on an iPlay 70 mini Ultra 0.15 ms at 144 Hz but 1.0 ms at 120 Hz,
     // where a front buffer tore at the edge the scan starts until it was allowed for). Leads
@@ -503,14 +516,19 @@ private:
     std::atomic<int64_t> vsyncOffsetNs_ {0};
     // The vsync period, copied for alignedLeadNs() to take the offset's phase within
     std::atomic<int64_t> offsetPeriodNs_ {0};
-    // Learned, the lead is the 90th percentile of recent draws' time to submit plus this, for
-    // the GPU to start on it and a little to spare. The GPU writes the screen in scan order
-    // several times faster than the display reads it, so a draw starting a little early only
-    // writes rows the last scan has passed, and one starting a little late still overtakes the
-    // scan within the first rows. On an iPlay 70 mini Ultra at 144 Hz (draws taking 1.43 ms on
-    // the GPU and 0.3 ms to submit), leads of 0.8 ms and, at 144 fps, 1.25 ms tore a sliver at
-    // the edge where the scan starts, on every frame (the GPU started within 0.1 ms of the same
-    // time each draw), and a lead of 1.8 ms didn't tear.
+    // Learned, the lead is the 90th percentile of recent draws' time to submit, plus the 90th
+    // percentile of their run on the GPU until drawn (kAlignedSpareNs on top), or without GPU
+    // timestamps kAlignedGpuStartNs. On an iPlay 70 mini Ultra at 144 Hz (draws taking 1.43 ms
+    // on the GPU and 0.3 ms to submit), leads of 0.8 ms and, at 144 fps, 1.25 ms tore a sliver at
+    // the edge where the scan starts, on every frame, though the GPU started within 0.1 ms of the
+    // same time each draw; a lead of 1.8 ms didn't tear. That's submit plus the whole draw: a
+    // tiling GPU sorts the whole frame into tiles before writing any of them, so the first rows
+    // aren't written until near the draw's end. The GPU's run slows as it clocks down (lower
+    // frame rates, heat), which a fixed allowance didn't follow.
+    //
+    // Only draws whose run is the renderer's own count: with PyroWave decoding on the same
+    // device, a draw's timestamps take in waiting for the decode, so those keep the fixed
+    // allowance.
     //
     // A PyroWave stream decodes on the same GPU, which finishes a decode before starting a draw
     // queued behind it: with 4.5 ms decodes at 144 fps, draws started up to 5 ms late and tore
@@ -519,7 +537,11 @@ private:
     // rate (decodes took 8.9 ms at 72 fps), so PyroWave can tear with a front buffer.
     static constexpr int64_t kAlignedGpuStartNs = 1'500'000;
     static constexpr int64_t kAlignedDefaultLeadNs = 1'500'000;
+    static constexpr int64_t kAlignedSpareNs = 150'000;
+    // A GPU run longer than this is a stall, not the draw's cost
+    static constexpr int64_t kAlignedMaxGpuNs = 10'000'000;
     static constexpr size_t kAlignedLeadSamples = 64;
+    static constexpr size_t kAlignedMinSamples = 8;
     // A draw this close to its time when the timer runs is drawn then rather than waited for
     static constexpr int64_t kAlignedTimerSlackNs = 200'000;
 
