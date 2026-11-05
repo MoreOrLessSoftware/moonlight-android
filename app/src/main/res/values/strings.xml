@@ -283,6 +283,7 @@
     <string name="summary_checkbox_host_audio">Play audio from the computer and this device</string>
 
     <string name="category_advanced_settings">Advanced Settings</string>
+    <string name="category_host_specific_settings">Host-Specific Settings</string>
     <string name="category_mouse_touch_settings">Mouse and Touch Settings</string>
     <string name="category_streaming_settings">Streaming Settings</string>
     <string name="settings_tab_video">Video</string>
@@ -302,10 +303,10 @@
     <string name="pyrowave_late_frames_balanced">Balanced (Recommended)</string>
     <string name="pyrowave_late_frames_smooth">Smoother (more blur)</string>
     <string name="title_pyrowave_gpu_boost">PyroWave GPU boost</string>
-    <string name="summary_pyrowave_gpu_boost">Only used with the PyroWave codec: gives the GPU light work between frames so it keeps its clock up, making decoding faster and steadier where the GPU would otherwise slow down between frames. Uses more power and runs warmer, so drains the battery faster</string>
+    <string name="summary_pyrowave_gpu_boost">Only used with the PyroWave codec: gives the GPU light work between frames so it keeps its clock up, making decoding faster and steadier where the GPU would otherwise slow down between frames. Uses more power and runs warmer, so drains the battery faster.</string>
     <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>
     <string name="title_enable_hdr">Enable HDR / 10-bit SDR</string>
-    <string name="summary_enable_hdr">Stream HDR / 10-bit SDR when the game and PC GPU support it. Requires a GPU with HEVC Main 10 encoding support.</string>
+    <string name="summary_enable_hdr">Stream HDR when it\'s enabled on the host, otherwise 10-bit SDR (when supported).</string>
     <string name="title_full_range">Force full range video (Experimental)</string>
     <string name="summary_full_range">This will cause loss of detail in light and dark areas if your device doesn\'t properly display full range video content.</string>
     <string name="title_enable_perf_overlay">Show performance stats while streaming</string>
@@ -361,8 +362,8 @@
     <string name="videoformat_pyrowave">PyroWave (Experimental, high bandwidth)</string>
 
     <string name="videorenderer_auto">Automatic (Recommended)</string>
-    <string name="videorenderer_direct">Direct Surface (Legacy)</string>
-    <string name="videorenderer_vulkan">Vulkan (Experimental)</string>
+    <string name="videorenderer_direct">Direct Surface</string>
+    <string name="videorenderer_vulkan">Vulkan</string>
 
     <string name="title_video_renderer">Video renderer</string>
     <string name="summary_video_renderer">Vulkan adds dithering and native frame pacing. Automatic uses the direct renderer.</string>
@@ -371,7 +372,7 @@
     <string name="dithering_low">Low</string>
     <string name="dithering_high">High</string>
 
-    <string name="title_spatial_dithering">Spatial Dithering (Vulkan)</string>
+    <string name="title_spatial_dithering">Vulkan Spatial Dithering</string>
     <string name="summary_spatial_dithering">Adds fine moving noise that hides color banding, most visible in HDR gradients (Vulkan renderer only)</string>
     <string name="title_front_buffer">Front buffer rendering (Vulkan)</string>
     <string name="summary_front_buffer">Draws each frame straight into the image the display is showing, skipping the system\'s compositor queue for lower latency. Turn off if you see tearing, flickering or corrupted video. (Vulkan renderer only, when frame pacing is Sync to host frame timing or Prefer lowest latency)</string>
@@ -381,7 +382,7 @@
     <string name="pacing_latency">Prefer lowest latency</string>
     <string name="pacing_balanced">Balanced</string>
     <string name="pacing_balanced_alt">Balanced with FPS limit</string>
-    <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
+    <string name="pacing_smoothness">Prefer smoothest video</string>
     <string name="title_jitter_buffer">Jitter buffer</string>
     <string name="title_fec_percent">Error correction</string>
     <string name="summary_fec_percent">Extra packets sent with each video frame to rebuild lost ones. Raise it on lossy connections. Lower it on clean wired ones to save bandwidth and host CPU time. Off sends none, so any lost packet damages its frame. Requires this fork\'s Sunshine.</string>
@@ -395,7 +396,7 @@
     <string name="summary_jitter_buffer">Only used with host frame timing pacing: configure how much latency you want to accept for a smoother stream</string>
     <string name="jitter_buffer_low_latency">Low latency</string>
     <string name="jitter_buffer_balanced">Balanced</string>
-    <string name="pacing_host_timed">Sync to host frame timing (best with the Vulkan renderer)</string>
+    <string name="pacing_host_timed">Host-synced frame timing</string>
 
     <string name="title_analog_scrolling">Use an analog stick to scroll</string>
     <string name="summary_analog_scrolling">Select an analog stick to scroll when in mouse emulation mode</string>

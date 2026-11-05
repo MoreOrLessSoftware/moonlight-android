@@ -3052,7 +3052,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // The renderer, frame pacing and bitrate are known from the settings, so they show
             // while connecting; the stream's details follow once the host has chosen its codec
             announcedRendererName = decoderRenderer.getRendererName();
-            Toast.makeText(Game.this, announcedRendererName + " Renderer \u2022 Pacing: " +
+            Toast.makeText(Game.this, announcedRendererName + " Renderer \u2022 " +
                     describeFramePacing() + " \u2022 " + prefConfig.bitrate / 1000 + " Mbps", Toast.LENGTH_LONG).show();
 
             // Measure the display's actual refresh rate first, now that its mode is set, so the
@@ -3132,7 +3132,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             case PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS:
                 return "Smoothest video";
             case PreferenceConfiguration.FRAME_PACING_HOST_TIMED:
-                return "Sync to host, Buffer: " + describeJitterBuffer();
+                return "Host-synced (" + describeJitterBuffer() + ")";
             case PreferenceConfiguration.FRAME_PACING_BALANCED:
             default:
                 return "Balanced";
