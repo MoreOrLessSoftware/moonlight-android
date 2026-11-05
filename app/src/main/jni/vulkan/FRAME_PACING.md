@@ -190,8 +190,16 @@ Measured by replaying sessions streamed over Wi-Fi to a 144 Hz tablet:
   during bursts by about 40%, but held latency higher afterwards. Balanced handles bursts better.
 - **Where the remaining delay is**: present guard (about 2 ms), waiting for the next vsync
   (half a vsync on average, but set by where the host's frames happen to land against our
-  vsyncs), and the extra vsync the pacer keeps when arrivals sit near a vsync. Steering the host's
-  phase (briefly asking for a slightly different frame rate) would be the way to cut it further.
+  vsyncs), and the extra vsync the pacer keeps when arrivals sit near a vsync.
+- **Tried and parked: steering the host's phase.** Replays with every arrival shifted
+  (`tools/pacer-trace.sh sweep`) found the phase worth 0-2.5 ms of mean wait at 144 Hz,
+  depending on where it happened to land, with the lowest wait right before a cliff of late
+  frames (never the ~7 ms a whole vsync would suggest). A controller asking the host to run up to
+  400 ppm off its frame rate (branch `phase-steer-wip` here, in moonlight-common-c and in this
+  fork's Sunshine) worked in simulation but not on the host: Sunshine moved the game through its
+  RTSS frame limit, and every RTSS profile reload, even with the limit unchanged, freezes the
+  game's presents for 40-49 ms and lands its phase anywhere in the frame interval. Steering
+  needs a frame limiter whose rate can change without restarting its timing.
 
 ## Limitations
 
