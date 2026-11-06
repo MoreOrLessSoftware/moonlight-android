@@ -2959,11 +2959,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     // A stream whose frame rate doesn't divide the display's refresh rate (60 fps at 144 Hz, or
     // 120 fps at 90 Hz) can't be paced evenly: frames stay on screen for different numbers of
-    // vsyncs, or are dropped. Asks whether to go ahead anyway before connecting.
+    // vsyncs, or are dropped. Asks whether to go ahead anyway before connecting. A stream faster
+    // than the display (120 fps at 60 Hz) drops frames by choice, so it isn't asked about, and
+    // nothing is asked with warnings turned off.
     private void confirmRefreshRateThenConnect(double measuredRefreshHz) {
         double refreshHz = measuredRefreshHz > 0 ? measuredRefreshHz : getWindowManager().getDefaultDisplay().getRefreshRate();
         int streamFps = streamConfig.getRefreshRate();
-        if (isFinishing() || DisplayRefreshMeter.streamMatchedRate(refreshHz, streamFps) > 0) {
+        if (isFinishing() || prefConfig.disableWarnings || streamFps > refreshHz ||
+                DisplayRefreshMeter.streamMatchedRate(refreshHz, streamFps) > 0) {
             startConnection(measuredRefreshHz);
             return;
         }
