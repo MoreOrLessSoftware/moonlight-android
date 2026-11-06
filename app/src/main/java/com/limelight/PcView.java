@@ -774,6 +774,18 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
         startComputerUpdates();
     }
 
+    // The name set in Android's settings (Settings.Global.DEVICE_NAME, public from Android 7.1
+    // but stored under the same key on many older devices), else the model
+    private String getPairingDeviceName() {
+        try {
+            String name = android.provider.Settings.Global.getString(getContentResolver(), "device_name");
+            if (name != null && !name.trim().isEmpty()) {
+                return name;
+            }
+        } catch (Exception ignored) {}
+        return Build.MODEL;
+    }
+
     private void doPair(final ComputerDetails computer) {
         if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
             Toast.makeText(PcView.this, getResources().getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show();
@@ -811,6 +823,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks, QuickL
                                 getResources().getString(R.string.pair_pairing_msg)+" "+pinStr+"\n\n"+
                                 getResources().getString(R.string.pair_pairing_help), false);
 
+                        httpConn.setDeviceName(getPairingDeviceName());
                         PairingManager pm = httpConn.getPairingManager();
 
                         PairState pairState = pm.pair(httpConn.getServerInfo(true), pinStr);

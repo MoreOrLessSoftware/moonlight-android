@@ -62,6 +62,7 @@ import okhttp3.ResponseBody;
 
 public class NvHTTP {
     private String uniqueId;
+    private String deviceName = "roth";
     private PairingManager pm;
 
     private static final int DEFAULT_HTTPS_PORT = 47984;
@@ -411,12 +412,26 @@ public class NvHTTP {
     }
 
     private HttpUrl getCompleteUrl(HttpUrl baseUrl, String path, String query) {
-        return baseUrl.newBuilder()
+        HttpUrl.Builder builder = baseUrl.newBuilder()
                 .addPathSegment(path)
-                .query(query)
+                .query(query);
+        if (path.equals("pair")) {
+            // Added on its own rather than in the query string, which doesn't escape & or =
+            // when they appear in the name
+            builder.addQueryParameter("devicename", deviceName);
+        }
+        return builder
                 .addQueryParameter("uniqueid", uniqueId)
                 .addQueryParameter("uuid", UUID.randomUUID().toString())
                 .build();
+    }
+
+    // The name the host shows for this client while pairing. GFE and upstream Moonlight
+    // always sent "roth".
+    public void setDeviceName(String deviceName) {
+        if (deviceName != null && !deviceName.trim().isEmpty()) {
+            this.deviceName = deviceName.trim();
+        }
     }
 
     private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path) throws IOException {
@@ -706,12 +721,12 @@ public class NvHTTP {
 
     String executePairingCommand(String additionalArguments, boolean enableReadTimeout) throws HostHttpResponseException, IOException {
         return openHttpConnectionToString(enableReadTimeout ? httpClientLongConnectTimeout : httpClientLongConnectNoReadTimeout,
-                baseUrlHttp, "pair", "devicename=roth&updateState=1&" + additionalArguments);
+                baseUrlHttp, "pair", "updateState=1&" + additionalArguments);
     }
 
     String executePairingChallenge() throws HostHttpResponseException, IOException {
         return openHttpConnectionToString(httpClientLongConnectTimeout, getHttpsUrl(true),
-                "pair", "devicename=roth&updateState=1&phrase=pairchallenge");
+                "pair", "updateState=1&phrase=pairchallenge");
     }
 
     public void unpair() throws IOException {
