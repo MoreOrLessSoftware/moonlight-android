@@ -161,9 +161,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private float desiredRefreshRate;
     private StreamConfiguration streamConfig;
     private boolean manualRefreshRateX100;
-    // The host was asked for a rate matched to our display (startConnection()), and whether that
-    // allowed for its clock with a rate measured over an earlier stream (HostClockRates)
-    private boolean hostRateMatched;
+    // Whether the rate asked of the host (startConnection()) allowed for its clock with a rate
+    // measured over an earlier stream (HostClockRates)
     private boolean hostClockCorrected;
 
     // The host's clock rate is known once clock sync has spanned 30 s (MoonBridge.getHostClockRate()),
@@ -2582,29 +2581,23 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public void stageComplete(String stage) {
     }
 
-    // Saves the host's clock rate measured over the stream so far, telling the user with `message`
-    // when it's the first for the host or has moved a lot. The rate can't change mid-stream, so
-    // it only helps from the next one. After the first, each stream refines it by a few ppm, which
-    // nobody would notice. Returns whether the rate was known.
-    private boolean saveHostClockRate(String message) {
+    // Saves the host's clock rate measured over the stream so far. The rate can't change
+    // mid-stream, so it only helps from the next one. Returns whether the rate was known.
+    private boolean saveHostClockRate() {
         double[] hostClock = MoonBridge.getHostClockRate();
         if (hostClock == null) {
             return false;
         }
-        if (HostClockRates.save(this, getIntent().getStringExtra(EXTRA_PC_UUID), hostClock[0], hostClock[1]) &&
-                hostRateMatched) {
-            final Context appContext = getApplicationContext();
-            runOnUiThread(() -> Toast.makeText(appContext, message, Toast.LENGTH_LONG).show());
-        }
+        HostClockRates.save(this, getIntent().getStringExtra(EXTRA_PC_UUID), hostClock[0], hostClock[1]);
         return true;
     }
 
-    // During the stream, so that the first one to a host can be restarted to use the rate
+    // During the stream, so the rate is saved even if the stream doesn't end cleanly
     private void checkHostClock() {
         if (!connected) {
             return;
         }
-        if (!saveHostClockRate("Calibrated to this host's clock. Reconnect to match your display's refresh rate more closely.") &&
+        if (!saveHostClockRate() &&
                 SystemClock.uptimeMillis() - hostClockCheckStartMs < HOST_CLOCK_GIVE_UP_MS) {
             hostClockHandler.postDelayed(hostClockCheck, HOST_CLOCK_RETRY_MS);
         }
@@ -2615,7 +2608,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             if (connected) {
                 // Measured over the stream, for the next one to ask for a rate that allows for it
                 hostClockHandler.removeCallbacks(hostClockCheck);
-                saveHostClockRate("Calibrated to this host's clock. Your next stream will match your display's refresh rate more closely.");
+                saveHostClockRate();
             }
             connecting = connected = false;
             updatePipAutoEnter();
@@ -3064,7 +3057,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 String computerUuid = getIntent().getStringExtra(EXTRA_PC_UUID);
                 double hostClockPpm = HostClockRates.get(this, computerUuid);
                 double requestHz = HostClockRates.hostRequestHz(hostRate, hostClockPpm);
-                hostRateMatched = true;
                 hostClockCorrected = HostClockRates.isKnown(this, computerUuid);
                 streamConfig.setClientRefreshRateX100((int) Math.round(requestHz * 100));
                 streamConfig.setClientRefreshRateUhz((int) Math.round(requestHz * 1e6));
