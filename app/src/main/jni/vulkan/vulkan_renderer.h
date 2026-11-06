@@ -331,6 +331,10 @@ private:
     bool hasColorspaceExt_ = false;
     bool hasHdrMetadataExt_ = false;
     bool hasDisplayTimingExt_ = false;
+    // The Shield's (Tegra X1) driver gets the chroma order of the decoder's 10-bit P010 buffers
+    // backwards: sampled as reported, Cb and Cr come out swapped (blue shows orange, yellow shows
+    // cyan). 8-bit NV12 buffers sample correctly.
+    bool swapP010Chroma_ = false;
     // Front-buffer rendering, asked for with adb shell setprop debug.moonlight.front_buffer 1: a
     // single swapchain image the display reads from as we draw into it
     // (VK_KHR_shared_presentable_image), shown on arrival without waiting for the compositor to

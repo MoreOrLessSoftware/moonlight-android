@@ -752,6 +752,8 @@ bool VulkanRenderer::pickDevice() {
                 vk_.vkGetPhysicalDeviceProperties(device, &props);
                 timestampValidBits_ = families[i].timestampValidBits;
                 timestampPeriodNs_ = props.limits.timestampPeriod;
+                // NVIDIA on Android means Tegra
+                swapP010Chroma_ = props.vendorID == 0x10DE;
                 ALOGI("Using %s (Vulkan %u.%u.%u), queue family %u", props.deviceName,
                       VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion),
                       VK_API_VERSION_PATCH(props.apiVersion), i);
@@ -2933,8 +2935,9 @@ bool VulkanRenderer::ensureConversion(const ConversionKey& key) {
 
     conversionKey_ = key;
     haveConversion_ = true;
-    ALOGI("YCbCr conversion: external format %" PRIu64 ", format %d, model %d, range %d, filter %d",
-          key.externalFormat, key.format, key.model, key.range, key.filter);
+    ALOGI("YCbCr conversion: external format %" PRIu64 ", format %d, model %d, range %d, filter %d, components %d %d %d %d",
+          key.externalFormat, key.format, key.model, key.range, key.filter,
+          key.components.r, key.components.g, key.components.b, key.components.a);
     return true;
 }
 
@@ -3084,6 +3087,15 @@ VulkanRenderer::ImportedBuffer* VulkanRenderer::importBuffer(AHardwareBuffer* bu
         key.range = config_.fullRange ? VK_SAMPLER_YCBCR_RANGE_ITU_FULL : VK_SAMPLER_YCBCR_RANGE_ITU_NARROW;
         if (!key.ycbcr) {
             key.components = {};
+        }
+        else if (swapP010Chroma_ && key.format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16) {
+            // Cr is read through R and Cb through B, so swapping what R and B read swaps the
+            // chroma back. Identity has to be spelled out first, since it means a different
+            // channel in each slot.
+            VkComponentSwizzle r = key.components.r == VK_COMPONENT_SWIZZLE_IDENTITY ? VK_COMPONENT_SWIZZLE_R : key.components.r;
+            VkComponentSwizzle b = key.components.b == VK_COMPONENT_SWIZZLE_IDENTITY ? VK_COMPONENT_SWIZZLE_B : key.components.b;
+            key.components.r = b;
+            key.components.b = r;
         }
 
         if (!ensureConversion(key)) {
