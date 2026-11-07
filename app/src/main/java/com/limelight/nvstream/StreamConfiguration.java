@@ -32,6 +32,9 @@ public class StreamConfiguration {
     private int fecPercentage;
     // The video send rate to ask Sunshine for in Mbps, 0 for the host's own setting
     private int videoSendRateMbps;
+    // Ask Sunshine for exactly the slices per frame the decoder wants, rather than the extra
+    // ones it adds to send frames in parts
+    private boolean exactSlicesPerFrame;
     private boolean persistGamepadsAfterDisconnect;
     private boolean enableUltraLowLatency;
 
@@ -141,6 +144,11 @@ public class StreamConfiguration {
 
         public StreamConfiguration.Builder setVideoSendRateMbps(int videoSendRateMbps) {
             config.videoSendRateMbps = videoSendRateMbps;
+            return this;
+        }
+
+        public StreamConfiguration.Builder setExactSlicesPerFrame(boolean exactSlicesPerFrame) {
+            config.exactSlicesPerFrame = exactSlicesPerFrame;
             return this;
         }
 
@@ -265,6 +273,10 @@ public class StreamConfiguration {
 
     public int getVideoSendRateMbps() {
         return videoSendRateMbps;
+    }
+
+    public boolean getExactSlicesPerFrame() {
+        return exactSlicesPerFrame;
     }
 
     public boolean getEnableUltraLowLatency() {

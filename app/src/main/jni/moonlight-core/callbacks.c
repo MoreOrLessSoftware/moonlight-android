@@ -635,7 +635,8 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jbyteArray riAesKey, jbyteArray riAesIv,
                                                            jint videoCapabilities,
                                                            jint colorSpace, jint colorRange,
-                                                           jint fecPercentage, jint videoSendRateMbps) {
+                                                           jint fecPercentage, jint videoSendRateMbps,
+                                                           jboolean exactSlicesPerFrame) {
     SERVER_INFORMATION serverInfo = {
             .address = (*env)->GetStringUTFChars(env, address, 0),
             .serverInfoAppVersion = (*env)->GetStringUTFChars(env, appVersion, 0),
@@ -659,7 +660,8 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
             .colorRange = colorRange,
             // -1 leaves FEC to the host, as LiInitializeStreamConfiguration() does: 0 turns it off
             .fecPercentage = fecPercentage,
-            .videoSendRateMbps = videoSendRateMbps
+            .videoSendRateMbps = videoSendRateMbps,
+            .exactSlicesPerFrame = exactSlicesPerFrame
     };
 
     jbyte* riAesKeyBuf = (*env)->GetByteArrayElements(env, riAesKey, NULL);

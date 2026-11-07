@@ -629,6 +629,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setColorRange(decoderRenderer.getPreferredColorRange())
                 .setFecPercentage(prefConfig.fecPercentage)
                 .setVideoSendRateMbps(prefConfig.videoSendRateMbps)
+                .setExactSlicesPerFrame(prefConfig.exactSlicesPerFrame)
                 .setPersistGamepadsAfterDisconnect(!prefConfig.multiController);
 
         if (refreshRateX100 > 0) {
@@ -643,6 +644,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
         if (prefConfig.videoSendRateMbps > 0) {
             LimeLog.info("Requesting a video send rate of " + prefConfig.videoSendRateMbps + " Mbps");
+        }
+        if (prefConfig.exactSlicesPerFrame) {
+            LimeLog.info("Requesting exactly the decoder's slices per frame");
         }
         streamConfig = config;
 

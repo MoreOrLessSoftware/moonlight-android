@@ -385,7 +385,8 @@ public class MoonBridge {
                                               byte[] riAesKey, byte[] riAesIv,
                                               int videoCapabilities,
                                               int colorSpace, int colorRange,
-                                              int fecPercentage, int videoSendRateMbps);
+                                              int fecPercentage, int videoSendRateMbps,
+                                              boolean exactSlicesPerFrame);
 
     public static native void stopConnection();
 

@@ -3,6 +3,8 @@ package com.limelight.preferences;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.preference.PreferenceManager;
 import android.view.Display;
 
@@ -95,6 +97,7 @@ public class PreferenceConfiguration {
     private static final String PYROWAVE_GPU_BOOST_PREF_STRING = "checkbox_pyrowave_gpu_boost";
     static final String FEC_PERCENT_PREF_STRING = "list_fec_percent";
     static final String VIDEO_SEND_RATE_PREF_STRING = "list_video_send_rate";
+    static final String EXACT_SLICES_PREF_STRING = "checkbox_exact_slices";
 
     // What Sunshine takes for each (see FecListPreference and VideoSendRateListPreference)
     static final int MAX_FEC_PERCENT = 255;
@@ -229,6 +232,8 @@ public class PreferenceConfiguration {
     public int fecPercentage;
     // Video send rate to ask Sunshine for in Mbps, 0 for the host's own setting
     public int videoSendRateMbps;
+    // Ask Sunshine for exactly the slices per frame the decoder wants
+    public boolean exactSlicesPerFrame;
     public boolean absoluteMouseMode;
     public boolean enableAudioFx;
     public boolean reduceRefreshRate;
@@ -531,6 +536,30 @@ public class PreferenceConfiguration {
     }
 
     // An integer setting stored as a string, or unset if it isn't one in the range
+    // Exact slices per frame is on by default where there's an Amlogic decoder. With the extra
+    // slices this fork's Sunshine adds to send frames in parts, Amlogic's HEVC driver hangs, or
+    // kernel-panics the device (seen on the Chromecast with Google TV).
+    static boolean getDefaultExactSlicesPerFrame() {
+        try {
+            for (MediaCodecInfo info : new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos()) {
+                String name = info.getName().toLowerCase(java.util.Locale.ROOT);
+                if (!info.isEncoder() && (name.startsWith("c2.amlogic") || name.startsWith("omx.amlogic"))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    // Stores the device's default for exact slices per frame the first time, so the checkbox
+    // shows it; the XML can't give a default that depends on the device
+    static void setDefaultExactSlicesPerFrame(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        if (!prefs.contains(EXACT_SLICES_PREF_STRING)) {
+            prefs.edit().putBoolean(EXACT_SLICES_PREF_STRING, getDefaultExactSlicesPerFrame()).apply();
+        }
+    }
+
     private static int parseIntInRange(String str, int min, int max, int unset) {
         try {
             int value = Integer.parseInt(str.trim());
@@ -811,6 +840,7 @@ public class PreferenceConfiguration {
         config.fecPercentage = parseIntInRange(prefs.getString(FEC_PERCENT_PREF_STRING, "-1"), 0, MAX_FEC_PERCENT, -1);
         config.videoSendRateMbps = parseIntInRange(prefs.getString(VIDEO_SEND_RATE_PREF_STRING, "0"),
                 MIN_VIDEO_SEND_RATE_MBPS, MAX_VIDEO_SEND_RATE_MBPS, 0);
+        config.exactSlicesPerFrame = prefs.getBoolean(EXACT_SLICES_PREF_STRING, getDefaultExactSlicesPerFrame());
 
         config.analogStickForScrolling = getAnalogStickForScrollingValue(context);
 

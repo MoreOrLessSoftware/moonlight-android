@@ -129,5 +129,10 @@
             android:entryValues="@array/video_send_rate_values"
             android:summary="@string/summary_video_send_rate"
             android:defaultValue="0" />
+        <!-- No defaultValue: it depends on the device, and StreamSettings.setDefaultValues() stores it -->
+        <CheckBoxPreference
+            android:key="checkbox_exact_slices"
+            android:title="@string/title_checkbox_exact_slices"
+            android:summary="@string/summary_checkbox_exact_slices" />
     </PreferenceCategory>
 </PreferenceScreen>

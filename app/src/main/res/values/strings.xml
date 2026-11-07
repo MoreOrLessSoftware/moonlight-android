@@ -385,6 +385,8 @@
     <string name="fec_percent_host">Host setting</string>
     <string name="fec_percent_off">Off</string>
     <string name="fec_percent_custom_entry">Custom (%1$s%%)</string>
+    <string name="title_checkbox_exact_slices">Limit slices encoded per frame</string>
+    <string name="summary_checkbox_exact_slices">Asks the host to encode each frame with exactly the slices this device\'s decoder wants. Some decoders may crash or be unstable when using more slices than supported.</string>
     <string name="title_video_send_rate">Video send rate</string>
     <string name="summary_video_send_rate">How fast the host sends each video frame\'s packets. A frame is only shown once all of it arrives, so a faster rate gets frames here sooner, but bursts faster than the slowest link (often Wi-Fi) can carry pile up in its buffers and arrive late or not at all. It\'s the rate within a frame, not the stream\'s bitrate, so keep it well above that. Requires this fork\'s Sunshine.</string>
     <string name="video_send_rate_host">Host setting</string>

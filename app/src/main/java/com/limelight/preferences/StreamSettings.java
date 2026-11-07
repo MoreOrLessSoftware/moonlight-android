@@ -61,6 +61,7 @@ public class StreamSettings extends Activity {
             // Read every page, since the flag that says defaults were set is shared by all of them
             PreferenceManager.setDefaultValues(context, xmlId, true);
         }
+        PreferenceConfiguration.setDefaultExactSlicesPerFrame(context);
     }
 
     // HACK for Android 9
