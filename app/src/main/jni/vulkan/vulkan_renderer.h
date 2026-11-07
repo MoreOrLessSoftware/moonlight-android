@@ -581,13 +581,15 @@ private:
     // that lost packets must still have to be shown (PyrowaveDecoder::setLostFrameMinBlocks())
     int lostFrameMinPercent_ = 75;
 
-    // Running totals of skipped frames as the overlay last sampled them, for a count over the
-    // last kRecentSkipsNs
-    struct SkipSample {
+    // Running totals of late, pulled and skipped frames as the overlay last sampled them, for
+    // counts over the last kRecentCountsNs
+    struct PacingSample {
         int64_t timeNs;
-        uint64_t total;
+        uint64_t late;
+        uint64_t pulled;
+        uint64_t skipped;
     };
-    std::deque<SkipSample> skipSamples_;
+    std::deque<PacingSample> pacingSamples_;
     bool hdrEnabled_ = false;
     bool hdrChanged_ = false;
     HdrMetadata hdrMetadata_;

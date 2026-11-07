@@ -1874,19 +1874,20 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         sb.append('\n').append(context.getString(R.string.perf_overlay_pacing_buffer, bufferMs));
                     }
                     else if (!basic && pacingText != null) {
-                        // The buffer on the pacing line, and the lock state and skipped frames below
-                        // it, like the stream details below the decoder
-                        int split = pacingText.indexOf('\n');
-                        String headline = split >= 0 ? pacingText.substring(0, split) : pacingText;
-                        String details = split >= 0 ? pacingText.substring(split + 1) : "";
-                        if (!headline.isEmpty()) {
-                            sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, headline));
-                            if (!details.isEmpty()) {
-                                sb.append('\n').append(context.getString(R.string.perf_overlay_pacing_details, details));
+                        // The buffer on the pacing line, the lock state below it like the stream
+                        // details below the decoder, and the recent late, pulled and skipped frames
+                        // below that. Whichever lines are present nest one under the next.
+                        String[] lines = pacingText.split("\n", -1);
+                        int depth = 0;
+                        for (String line : lines) {
+                            if (line.isEmpty()) {
+                                continue;
                             }
-                        }
-                        else if (!details.isEmpty()) {
-                            sb.append('\n').append(context.getString(R.string.perf_overlay_pacing, details));
+                            int format = depth == 0 ? R.string.perf_overlay_pacing
+                                    : depth == 1 ? R.string.perf_overlay_pacing_details
+                                    : R.string.perf_overlay_pacing_recent;
+                            sb.append('\n').append(context.getString(format, line));
+                            depth++;
                         }
                     }
                     if (basic && lastTwo.framesWithCaptureToPresent > 0) {

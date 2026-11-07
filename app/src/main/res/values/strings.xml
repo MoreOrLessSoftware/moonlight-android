@@ -121,6 +121,7 @@
     <string name="perf_overlay_pacing">Frame pacing: %1$s</string>
     <string name="perf_overlay_pacing_buffer">Frame pacing: %1$s ms</string>
     <string name="perf_overlay_pacing_details">└ %1$s</string>
+    <string name="perf_overlay_pacing_recent">   └ %1$s</string>
     <!-- The compact stats, joined in one line along the top. Times are in ms. -->
     <string name="perf_overlay_compact_stream">%1$s @ %2$.2f FPS</string>
     <string name="perf_overlay_capture_latency">Capture to decoded/present: %1$.1f/%2$.1f ms</string>

@@ -85,8 +85,8 @@ namespace {
     constexpr int kLooperIdWake = 1;
     constexpr int kLooperIdAlignedTimer = 2;
 
-    // Window for the overlay's count of skipped frames
-    constexpr int64_t kRecentSkipsNs = 10'000'000'000;
+    // Window for the overlay's counts of late, pulled and skipped frames
+    constexpr int64_t kRecentCountsNs = 10'000'000'000;
 
     // Imported buffers are kept while the decoder keeps cycling through the same ones
     constexpr size_t kMaxImports = 24;
@@ -1229,7 +1229,7 @@ void VulkanRenderer::setJitterBuffer(JitterBuffer jitterBuffer) {
         }
         ALOGI("Jitter buffer changed to %d", static_cast<int>(jitterBuffer));
         dropped.swap(pending_);
-        skipSamples_.clear();
+        pacingSamples_.clear();
         pacer_.setJitterBuffer(jitterBuffer);
         trace_.jitterBuffer(jitterBuffer);
     }
@@ -1248,34 +1248,43 @@ std::string VulkanRenderer::rendererText() {
 std::string VulkanRenderer::pacingText() {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    // Three lines: the headline (the buffer), details (the lock), and the late, pulled and
+    // skipped frames recently. Running totals since the stream started say little about how
+    // it's going now.
     std::string headline;
     std::string details;
+    std::string recent;
     char text[96];
-    if (pacer_.mode() == PacingMode::HostTimed && pacer_.anchored()) {
+    const bool hostTimed = pacer_.mode() == PacingMode::HostTimed && pacer_.anchored();
+    if (hostTimed) {
         // The display's measured refresh rate, to compare with the host's frame rate
         snprintf(text, sizeof(text), "%.1f ms wait, %.2f Hz", pacer_.takeMeanWaitNs() / 1e6,
                  1e9 / static_cast<double>(pacer_.vsyncPeriodNs()));
         headline = text;
-        snprintf(text, sizeof(text), "%d vsync%s/frame, %llu late, %llu pulled", static_cast<int>(pacer_.slotVsyncs()),
-                 pacer_.slotVsyncs() == 1 ? "" : "s", static_cast<unsigned long long>(pacer_.lateFrames()),
-                 static_cast<unsigned long long>(pacer_.pulls()));
+        snprintf(text, sizeof(text), "%d vsync%s/frame", static_cast<int>(pacer_.slotVsyncs()),
+                 pacer_.slotVsyncs() == 1 ? "" : "s");
         details = text;
     }
-    // Frames skipped recently. A running total since the stream started says little about
-    // how it's going now.
     const int64_t now = nowNs();
-    const uint64_t total = pacer_.framesSkipped() + queueOverflowDrops_;
-    skipSamples_.push_back({now, total});
-    while (skipSamples_.size() > 1 && skipSamples_[1].timeNs <= now - kRecentSkipsNs) {
-        skipSamples_.pop_front();
+    pacingSamples_.push_back({now, pacer_.lateFrames(), pacer_.pulls(),
+                              pacer_.framesSkipped() + queueOverflowDrops_});
+    while (pacingSamples_.size() > 1 && pacingSamples_[1].timeNs <= now - kRecentCountsNs) {
+        pacingSamples_.pop_front();
     }
-    const uint64_t skipped = total - skipSamples_.front().total;
-    if (skipped > 0) {
-        snprintf(text, sizeof(text), "%" PRIu64 " skipped in last %d s", skipped,
-                 static_cast<int>(kRecentSkipsNs / 1'000'000'000));
-        details += details.empty() ? text : std::string(", ") + text;
+    const PacingSample& first = pacingSamples_.front();
+    const PacingSample& last = pacingSamples_.back();
+    const uint64_t skipped = last.skipped - first.skipped;
+    const int seconds = static_cast<int>(kRecentCountsNs / 1'000'000'000);
+    if (hostTimed) {
+        snprintf(text, sizeof(text), "%" PRIu64 " late, %" PRIu64 " pulled, %" PRIu64 " skipped in last %d s",
+                 last.late - first.late, last.pulled - first.pulled, skipped, seconds);
+        recent = text;
     }
-    return headline + "\n" + details;
+    else if (skipped > 0) {
+        snprintf(text, sizeof(text), "%" PRIu64 " skipped in last %d s", skipped, seconds);
+        recent = text;
+    }
+    return headline + "\n" + details + "\n" + recent;
 }
 
 void VulkanRenderer::wake(uint32_t flags) {
