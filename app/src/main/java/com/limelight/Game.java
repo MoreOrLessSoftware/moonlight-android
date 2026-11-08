@@ -54,7 +54,6 @@ import android.app.Service;
 import android.app.UiModeManager;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -3338,18 +3337,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onQuitSession() {
-                // Quitting closes the game on the host, losing anything unsaved, so ask first
-                UiHelper.displayQuitConfirmationDialog(Game.this, () -> {
-                    userInitiatedDisconnect = true;
-                    controllerHandler.pendingApplicationQuit = true;
-                    stopConnection();
-                    finish();
-                }, null);
+                // The menu has had the second press that confirms it
+                userInitiatedDisconnect = true;
+                controllerHandler.pendingApplicationQuit = true;
+                stopConnection();
+                finish();
             }
 
             @Override
             public void onChangeStats() {
-                showStatsDialog();
+                showStatsOptions();
             }
 
             @Override
@@ -3372,7 +3369,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onChangeJitterBuffer() {
-                showJitterBufferDialog();
+                showJitterBufferOptions();
             }
 
             @Override
@@ -3398,7 +3395,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     // Picks the jitter buffer for the rest of this session only; the settings are left alone
-    private void showJitterBufferDialog() {
+    private void showJitterBufferOptions() {
         final String[] names = getResources().getStringArray(R.array.jitter_buffer_names);
         final String[] values = getResources().getStringArray(R.array.jitter_buffer_values);
 
@@ -3410,26 +3407,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.overlay_menu_jitter_buffer_title)
-                .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        int jitterBuffer = PreferenceConfiguration.parseJitterBuffer(values[which]);
+        overlayMenuView.showOptions(names, checked, which -> {
+            int jitterBuffer = PreferenceConfiguration.parseJitterBuffer(values[which]);
 
-                        // Kept in prefConfig too, which a renderer made again later in this
-                        // session (as on a new surface) is set up from
-                        prefConfig.jitterBuffer = jitterBuffer;
-                        decoderRenderer.setJitterBuffer(jitterBuffer);
-                        dialog.dismiss();
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+            // Kept in prefConfig too, which a renderer made again later in this
+            // session (as on a new surface) is set up from
+            prefConfig.jitterBuffer = jitterBuffer;
+            decoderRenderer.setJitterBuffer(jitterBuffer);
+        });
     }
 
     // Picks the performance stats mode for the rest of this session only; the settings are left alone
-    private void showStatsDialog() {
+    private void showStatsOptions() {
         final String[] names = getResources().getStringArray(R.array.perf_overlay_mode_names);
         final String[] values = getResources().getStringArray(R.array.perf_overlay_mode_values);
 
@@ -3442,20 +3431,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.overlay_menu_stats_title)
-                .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        // The renderer reads these from prefConfig as it builds each update
-                        prefConfig.setPerfOverlayMode(values[which]);
+        overlayMenuView.showOptions(names, checked, which -> {
+            // The renderer reads these from prefConfig as it builds each update
+            prefConfig.setPerfOverlayMode(values[which]);
 
-                        performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay ? View.VISIBLE : View.GONE);
-                        dialog.dismiss();
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+            performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay ? View.VISIBLE : View.GONE);
+        });
     }
 
     /**

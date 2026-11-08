@@ -165,6 +165,14 @@ public class OverlayMenuButton extends LinearLayout {
         return (int) (ICON_SIZE_DP * density) + 2 * (compact ? padding / 2 : padding);
     }
 
+    /**
+     * Makes the label at least as wide as this text would be, so the button keeps its width
+     * when its label changes to it
+     */
+    public void reserveLabelWidth(String text) {
+        labelView.setMinWidth((int) Math.ceil(labelView.getPaint().measureText(text)));
+    }
+
     public void hideIcon() {
         iconView.setVisibility(GONE);
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) labelView.getLayoutParams();

@@ -63,7 +63,30 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_SEND_GUIDE = 6;
     private static final int ACTION_JITTER_BUFFER = 7;
     private static final int ACTION_BRIGHTNESS = 8;
+    private static final int ACTION_BACK = 9;
     private static final int ACTION_CUSTOM_BASE = 100;
+    private static final int ACTION_OPTION_BASE = 200;
+
+    // How long Quit Session waits for its second press
+    private static final long QUIT_CONFIRM_MS = 3000;
+
+    /** Gets the option picked from an options page (showOptions()) */
+    public interface OptionPicker {
+        void onOptionPicked(int index);
+    }
+
+    // The button whose options are showing in place of the main buttons, or -1 for none. The
+    // options page is asked for by the listener, for the button activated last.
+    private int optionsAction = -1;
+    private int requestedOptionsAction = -1;
+    private String[] optionNames;
+    private int optionChecked = -1;
+    private OptionPicker optionPicker;
+
+    // Quitting closes the game on the host, losing anything unsaved, so Quit Session takes a
+    // second press within a few seconds (the selection moving on takes the question back)
+    private boolean quitConfirmation = false;
+    private final Runnable quitConfirmationTimeout = () -> setQuitConfirmation(false);
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
@@ -152,6 +175,14 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     public void buildMenu() {
+        optionsAction = -1;
+        optionPicker = null;
+        removeCallbacks(quitConfirmationTimeout);
+        quitConfirmation = false;
+        buildButtons();
+    }
+
+    private void buildButtons() {
         activeRegion = Region.VERTICAL;
         verticalIndex = 0;
         horizontalIndex = 0;
@@ -168,6 +199,20 @@ public class OverlayMenuView extends LinearLayout {
 
         float density = getContext().getResources().getDisplayMetrics().density;
         int spacing = (int) (BUTTON_SPACING_DP * density);
+
+        // Add spacing between vertical column and horizontal row
+        ((LinearLayout.LayoutParams) horizontalScrollView.getLayoutParams()).leftMargin = spacing;
+
+        if (optionsAction >= 0) {
+            // The options, with the one in effect marked, and Back
+            for (int i = 0; i < optionNames.length; i++) {
+                addVerticalButton(i == optionChecked ? R.drawable.ic_overlay_radio_checked : R.drawable.ic_overlay_radio_unchecked,
+                        optionNames[i], ACTION_OPTION_BASE + i, i < optionNames.length - 1 ? spacing : 0);
+            }
+            addHorizontalButton(R.drawable.ic_overlay_back,
+                    getContext().getString(R.string.overlay_menu_back), ACTION_BACK, 0);
+            return;
+        }
 
         // Vertical column: top → bottom
         addVerticalButton(R.drawable.ic_overlay_guide,
@@ -187,12 +232,13 @@ public class OverlayMenuView extends LinearLayout {
                     getContext().getString(R.string.overlay_menu_jitter_buffer), ACTION_JITTER_BUFFER, spacing);
         }
         addVerticalButton(R.drawable.ic_overlay_power,
-            getContext().getString(R.string.overlay_menu_quit_session), ACTION_QUIT, spacing);
+            getContext().getString(quitConfirmation ? R.string.overlay_menu_quit_confirm : R.string.overlay_menu_quit_session),
+            ACTION_QUIT, spacing);
+        // Wide enough for its question, so the column doesn't change width when it's asked
+        verticalButtons.get(verticalButtons.size() - 1).reserveLabelWidth(
+            getContext().getString(R.string.overlay_menu_quit_confirm));
         addVerticalButton(R.drawable.ic_overlay_monitor,
             getContext().getString(R.string.overlay_menu_disconnect), ACTION_DISCONNECT, 0);
-
-        // Add spacing between vertical column and horizontal row
-        ((LinearLayout.LayoutParams) horizontalScrollView.getLayoutParams()).leftMargin = spacing;
 
         // Horizontal row: custom commands then Close
         List<CustomCommand> customCommands = commandsManager.getCommands();
@@ -212,8 +258,9 @@ public class OverlayMenuView extends LinearLayout {
     private void addVerticalButton(int iconResId, String label, int action, int bottomMarginPx) {
         OverlayMenuButton button = OverlayMenuButton.create(getContext(), iconResId, label);
 
+        // As wide as the column, which is as wide as its widest button
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         );
         params.bottomMargin = bottomMarginPx;
@@ -319,11 +366,74 @@ public class OverlayMenuView extends LinearLayout {
         this.showBrightness = show;
     }
 
+    /**
+     * Shows options in place of the main buttons, for the button that asked for them (Stats or
+     * Jitter Buffer). Picking one closes the menu and hands it to the picker; B goes back.
+     */
+    public void showOptions(String[] names, int checked, OptionPicker picker) {
+        if (getVisibility() != VISIBLE || requestedOptionsAction < 0 || names.length == 0) {
+            return;
+        }
+
+        optionsAction = requestedOptionsAction;
+        requestedOptionsAction = -1;
+        optionNames = names;
+        optionChecked = checked;
+        optionPicker = picker;
+        setQuitConfirmation(false);
+        buildButtons();
+
+        // On the option in effect
+        setVerticalIndex(checked >= 0 && checked < names.length ? checked : 0);
+    }
+
+    /** Back from options to the main buttons, on the button the options were for */
+    private void showMainButtons() {
+        int from = optionsAction;
+        optionsAction = -1;
+        optionPicker = null;
+        buildButtons();
+
+        int index = verticalActions.indexOf(from);
+        setVerticalIndex(index >= 0 ? index : verticalButtons.size() - 1);
+    }
+
+    private void requestOptions(int action) {
+        if (actionListener == null) {
+            return;
+        }
+
+        requestedOptionsAction = action;
+        if (action == ACTION_STATS) {
+            actionListener.onChangeStats();
+        } else {
+            actionListener.onChangeJitterBuffer();
+        }
+    }
+
+    private void setQuitConfirmation(boolean confirm) {
+        removeCallbacks(quitConfirmationTimeout);
+        if (quitConfirmation == confirm) {
+            return;
+        }
+
+        // Only the label changes; the button keeps its place and its width
+        quitConfirmation = confirm;
+        int index = verticalActions.indexOf(ACTION_QUIT);
+        if (optionsAction < 0 && index >= 0) {
+            verticalButtons.get(index).setLabel(getContext().getString(
+                    confirm ? R.string.overlay_menu_quit_confirm : R.string.overlay_menu_quit_session));
+        }
+        if (confirm) {
+            postDelayed(quitConfirmationTimeout, QUIT_CONFIRM_MS);
+        }
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN) {
             if (!isFullGamepadEvent(event) && event.getRepeatCount() == 0) {
-                closeMenu();
+                goBack();
             }
             return true;
         }
@@ -357,30 +467,32 @@ public class OverlayMenuView extends LinearLayout {
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_B:
-                    closeMenu();
+                    if (event.getRepeatCount() == 0) {
+                        goBack();
+                    }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_X:
-                    if (event.getRepeatCount() == 0) {
+                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
                         activateMouseEmulation();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_Y:
-                    if (event.getRepeatCount() == 0) {
+                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
                         activateKeyboard();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_START:
                 case KeyEvent.KEYCODE_MENU:
-                    if (event.getRepeatCount() == 0) {
+                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
                         activateGuideButton();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_R1:
-                    if (event.getRepeatCount() == 0) {
+                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
                         activateStats();
                     }
                     return true;
@@ -397,7 +509,7 @@ public class OverlayMenuView extends LinearLayout {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (!isFullGamepadEvent(event) && event.getRepeatCount() == 0) {
-                closeMenu();
+                goBack();
             }
             return true;
         }
@@ -476,20 +588,24 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void navigateUp() {
+        setQuitConfirmation(false);
         if (activeRegion == Region.VERTICAL) {
             if (!verticalButtons.isEmpty()) {
                 setVerticalIndex((verticalIndex - 1 + verticalButtons.size()) % verticalButtons.size());
             }
         } else {
-            // From horizontal → Up: jump to button above Disconnect (second-to-last in vertical)
+            // From horizontal → Up: jump to button above Disconnect (second-to-last in vertical),
+            // or from Back to the last option
             clearHorizontalSelection();
             activeRegion = Region.VERTICAL;
-            int target = verticalButtons.size() >= 2 ? verticalButtons.size() - 2 : 0;
+            int target = optionsAction >= 0 ? verticalButtons.size() - 1 :
+                    verticalButtons.size() >= 2 ? verticalButtons.size() - 2 : 0;
             setVerticalIndex(target);
         }
     }
 
     private void navigateDown() {
+        setQuitConfirmation(false);
         if (activeRegion == Region.VERTICAL) {
             if (!verticalButtons.isEmpty()) {
                 setVerticalIndex((verticalIndex + 1) % verticalButtons.size());
@@ -503,6 +619,7 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void navigateLeft() {
+        setQuitConfirmation(false);
         if (activeRegion == Region.HORIZONTAL) {
             if (horizontalIndex > 0) {
                 setHorizontalIndex(horizontalIndex - 1);
@@ -523,6 +640,7 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void navigateRight() {
+        setQuitConfirmation(false);
         if (activeRegion == Region.VERTICAL) {
             if (!horizontalButtons.isEmpty()) {
                 clearVerticalSelection();
@@ -599,14 +717,35 @@ public class OverlayMenuView extends LinearLayout {
 
         boolean shouldCloseMenu = false;
 
+        // Another button takes back Quit Session's question (as touches don't move the selection)
+        if (action != ACTION_QUIT) {
+            setQuitConfirmation(false);
+        }
+
+        if (action == ACTION_BACK) {
+            showMainButtons();
+            return;
+        } else if (action >= ACTION_OPTION_BASE) {
+            // Picking closes the menu, as a choice in a dialog did
+            OptionPicker picker = optionPicker;
+            closeMenu();
+            if (picker != null) {
+                picker.onOptionPicked(action - ACTION_OPTION_BASE);
+            }
+            return;
+        }
+
         if (actionListener != null) {
             if (action == ACTION_DISCONNECT) {
                 actionListener.onDisconnect();
                 shouldCloseMenu = true;
             } else if (action == ACTION_QUIT) {
-                // Closed first, so the confirmation gets the controller and keyboard input
-                closeMenu();
-                actionListener.onQuitSession();
+                if (!quitConfirmation) {
+                    setQuitConfirmation(true);
+                } else {
+                    closeMenu();
+                    actionListener.onQuitSession();
+                }
                 return;
             } else if (action == ACTION_STATS) {
                 activateStats();
@@ -621,9 +760,7 @@ public class OverlayMenuView extends LinearLayout {
                 actionListener.onSendGuideButton();
                 shouldCloseMenu = true;
             } else if (action == ACTION_JITTER_BUFFER) {
-                // Closed first, so the dialog gets the controller and keyboard input
-                closeMenu();
-                actionListener.onChangeJitterBuffer();
+                requestOptions(ACTION_JITTER_BUFFER);
                 return;
             } else if (action == ACTION_BRIGHTNESS) {
                 // Closed first, so the slider gets the controller and remote input
@@ -683,18 +820,16 @@ public class OverlayMenuView extends LinearLayout {
         closeMenu();
     }
 
-    private void activateQuitSession() {
-        if (actionListener != null) {
-            actionListener.onQuitSession();
-        }
-        closeMenu();
+    private void activateStats() {
+        requestOptions(ACTION_STATS);
     }
 
-    private void activateStats() {
-        // Closed first, so the dialog gets the controller and keyboard input
-        closeMenu();
-        if (actionListener != null) {
-            actionListener.onChangeStats();
+    // B or Back: from options to the main buttons, or from the main buttons out of the menu
+    private void goBack() {
+        if (optionsAction >= 0) {
+            showMainButtons();
+        } else {
+            closeMenu();
         }
     }
 
@@ -708,18 +843,6 @@ public class OverlayMenuView extends LinearLayout {
         requestFocus();
 
         post(() -> {
-            // Equalize all vertical button widths to the widest one
-            int maxWidth = 0;
-            for (OverlayMenuButton b : verticalButtons) {
-                maxWidth = Math.max(maxWidth, b.getWidth());
-            }
-            if (maxWidth > 0) {
-                for (OverlayMenuButton b : verticalButtons) {
-                    b.setMinimumWidth(maxWidth);
-                }
-                verticalContainer.requestLayout();
-            }
-
             if (!verticalButtons.isEmpty()) {
                 setVerticalIndex(verticalButtons.size() - 1);
             }
@@ -728,6 +851,11 @@ public class OverlayMenuView extends LinearLayout {
 
     public void hide(Runnable onComplete) {
         setVisibility(GONE);
+        removeCallbacks(quitConfirmationTimeout);
+        quitConfirmation = false;
+        optionsAction = -1;
+        requestedOptionsAction = -1;
+        optionPicker = null;
         if (onComplete != null) {
             onComplete.run();
         }
