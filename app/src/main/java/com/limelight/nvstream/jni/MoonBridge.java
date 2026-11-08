@@ -437,6 +437,9 @@ public class MoonBridge {
 
     public static native int getPendingVideoFrames();
 
+    // Asks the host for a key frame, as when the decoder dropped a frame that later frames reference
+    public static native void requestIdrFrame();
+
     public static native int testClientConnectivity(String testServerHostName, int referencePort, int testFlags);
 
     public static native int getPortFlagsFromStage(int stage);

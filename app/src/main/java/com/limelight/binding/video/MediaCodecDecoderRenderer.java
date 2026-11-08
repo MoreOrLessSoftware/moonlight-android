@@ -134,8 +134,21 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int numFramesIn;
     private int numFramesOut;
 
-    // Decode latency tracking: map PTS(us) -> enqueue time (ns)
+    // Decode latency tracking: map PTS(us) -> enqueue time (ns), for frames not yet out of the
+    // decoder. Written by the input thread and read by the output thread, so locked.
     private final LongSparseArray<Long> enqueueNsByPtsUs = new LongSparseArray<>();
+
+    // When a key frame was last requested for frames the decoder dropped
+    private long lastDroppedFrameIdrMs;
+
+    // A decoder taking frames in but giving none out: how far recovery has gone (0 none yet, 1 a
+    // key frame asked for, 2 flushed, then restarts), and when it last did something. Output
+    // thread only.
+    private static final long OUTPUT_STALL_MS = 500;
+    private static final long OUTPUT_STALL_STEP_MS = 1000;
+    private static final int OUTPUT_STALL_MIN_PENDING = 3;
+    private int outputStallStage;
+    private long outputStallActionMs;
 
     // Where a frame's capture latency counts from, on MoonBridge.getMicroseconds()'s clock: the
     // host's capture with clock sync, or else its first packet arriving less the host's
@@ -903,6 +916,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 nextInputBufferIndex = -1;
                 outputBufferQueue.clear();
 
+                // Frames in the decoder are discarded too, and aren't dropped frames to recover from
+                synchronized (enqueueNsByPtsUs) {
+                    enqueueNsByPtsUs.clear();
+                }
+
                 // If we just need a flush, do so now with all threads quiesced.
                 if (codecRecoveryType.get() == CR_RECOVERY_TYPE_FLUSH) {
                     LimeLog.warning("Flushing decoder");
@@ -1239,6 +1257,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             int lastIndex = outIndex;
 
                             numFramesOut++;
+                            if (outputStallStage > 0) {
+                                LimeLog.info("Decoder output resumed");
+                                outputStallStage = 0;
+                            }
 
                             if (vulkanRenderer != null) {
                                 // The Vulkan renderer paces frames itself, so hand each one over
@@ -1258,6 +1280,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 // Get the last output buffer in the queue
                                 while ((outIndex = videoDecoder.dequeueOutputBuffer(info, 0)) >= 0) {
                                     videoDecoder.releaseOutputBuffer(lastIndex, false);
+
+                                    // The skipped frame came out of the decoder too, so it
+                                    // isn't taken for one it dropped
+                                    updateDecodeLatencyStats(presentationTimeUs);
 
                                     numFramesOut++;
 
@@ -1310,6 +1336,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         } else {
                             switch (outIndex) {
                                 case MediaCodec.INFO_TRY_AGAIN_LATER:
+                                    checkForOutputStall();
                                     break;
                                 case MediaCodec.INFO_OUTPUT_FORMAT_CHANGED:
                                     LimeLog.info("Output format changed");
@@ -1562,8 +1589,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     0, nextInputBuffer.position(),
                     timestampUs, codecFlags);
 
-            // Track enqueue time for this PTS
-            try { enqueueNsByPtsUs.put(timestampUs, System.nanoTime()); } catch (Throwable ignored) {}
+            // Track enqueue time for this PTS. Codec config buffers produce no frame.
+            if ((codecFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
+                synchronized (enqueueNsByPtsUs) {
+                    enqueueNsByPtsUs.put(timestampUs, System.nanoTime());
+                }
+            }
 
             // We need a new buffer now
             nextInputBufferIndex = -1;
@@ -2339,9 +2370,27 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     // Update stats using real decode time: enqueue->dequeue, instead of uptime - PTS
     private void updateDecodeLatencyStats(long presentationTimeUs) {
-        Long enqNs = enqueueNsByPtsUs.get(presentationTimeUs);
+        Long enqNs = null;
+        int dropped = 0;
+        synchronized (enqueueNsByPtsUs) {
+            int index = enqueueNsByPtsUs.indexOfKey(presentationTimeUs);
+            if (index >= 0) {
+                enqNs = enqueueNsByPtsUs.valueAt(index);
+
+                // Frames are decoded in order, so any queued before this one that are still
+                // waiting were dropped by the decoder
+                dropped = index;
+                for (int i = index; i >= 0; i--) {
+                    enqueueNsByPtsUs.removeAt(i);
+                }
+            }
+        }
+
+        if (dropped > 0) {
+            noteDroppedFrames(dropped, presentationTimeUs);
+        }
+
         if (enqNs != null) {
-            enqueueNsByPtsUs.delete(presentationTimeUs);
             long decMs = (System.nanoTime() - enqNs) / 1_000_000L;
             if (decMs >= 0 && decMs < 1000) {
                 activeWindowVideoStats.decoderTimeMs += decMs;
@@ -2350,6 +2399,66 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 }
             }
         }
+    }
+
+    // A decoder can drop a frame without an error, as with a frame missing part of its data that
+    // arrived without packet loss. Nothing else asks for a key frame then, so the frames after it
+    // show corruption until the picture changes enough. At most one request a second, as a
+    // decoder that keeps dropping frames needs the key frame to arrive, not more requests.
+    private void noteDroppedFrames(int dropped, long nextPtsUs) {
+        LimeLog.warning("Decoder dropped " + dropped + " frame(s) without an error, before PTS " + nextPtsUs);
+
+        long nowMs = SystemClock.uptimeMillis();
+        if (lastDroppedFrameIdrMs == 0 || nowMs - lastDroppedFrameIdrMs >= 1000) {
+            lastDroppedFrameIdrMs = nowMs;
+            LimeLog.warning("Requesting a key frame for the dropped frame(s)");
+            MoonBridge.requestIdrFrame();
+        }
+    }
+
+    // A decoder can also stop giving out frames altogether while still taking them in, as
+    // c2.google.av1.decoder did after a frame that arrived missing a tile: no error, no dropped
+    // frame to notice (that needs a frame after it), and no packet loss for moonlight-common-c to
+    // ask for a key frame over, so the picture froze until the stream ended. When the oldest of
+    // several frames in the decoder has waited too long, ask for a key frame, then flush, then
+    // restart the decoder, a step at a time until frames come out again.
+    private void checkForOutputStall() {
+        int pending;
+        long oldestNs;
+        synchronized (enqueueNsByPtsUs) {
+            pending = enqueueNsByPtsUs.size();
+            if (pending < OUTPUT_STALL_MIN_PENDING) {
+                // Too few frames to tell from a decoder holding one back, or the host sending none
+                return;
+            }
+            oldestNs = enqueueNsByPtsUs.valueAt(0);
+        }
+
+        long waitedMs = (System.nanoTime() - oldestNs) / 1_000_000L;
+        long nowMs = SystemClock.uptimeMillis();
+        if (waitedMs < OUTPUT_STALL_MS ||
+                (outputStallStage > 0 && nowMs - outputStallActionMs < OUTPUT_STALL_STEP_MS)) {
+            return;
+        }
+        outputStallActionMs = nowMs;
+
+        String stall = "Decoder has given out no frame for " + waitedMs + " ms with " + pending + " frames in it";
+        if (outputStallStage == 0) {
+            LimeLog.warning(stall + "; requesting a key frame");
+            MoonBridge.requestIdrFrame();
+        }
+        else if (outputStallStage == 1) {
+            // The input thread asks for a key frame after the flush
+            LimeLog.warning(stall + " after a key frame request; flushing it");
+            codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH);
+        }
+        else {
+            LimeLog.warning(stall + " after a flush; restarting it");
+            if (!codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_RESTART)) {
+                codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_FLUSH, CR_RECOVERY_TYPE_RESTART);
+            }
+        }
+        outputStallStage++;
     }
 
     // A frame the host gave no processing time for repeats an earlier one, so it has no capture of
