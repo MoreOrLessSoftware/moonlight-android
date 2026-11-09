@@ -69,6 +69,7 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_JITTER_BUFFER = 7;
     private static final int ACTION_BRIGHTNESS = 8;
     private static final int ACTION_BACK = 9;
+    private static final int ACTION_DISCONNECT_PAGE = 10;
     private static final int ACTION_CUSTOM_BASE = 100;
     private static final int ACTION_OPTION_BASE = 200;
     // The host's command n, the button of the host's group n, and command n of the group showing
@@ -78,9 +79,6 @@ public class OverlayMenuView extends LinearLayout {
 
     // How long a message (like why a host command failed) shows on its button
     private static final long MESSAGE_MS = 4000;
-
-    // How long Quit Session waits for its second press
-    private static final long QUIT_CONFIRM_MS = 3000;
 
     /** Gets the option picked from an options page (showOptions()) */
     public interface OptionPicker {
@@ -104,10 +102,9 @@ public class OverlayMenuView extends LinearLayout {
     private String messageLabel;
     private final Runnable messageTimeout = this::clearMessage;
 
-    // Quitting closes the game on the host, losing anything unsaved, so Quit Session takes a
-    // second press within a few seconds (the selection moving on takes the question back)
-    private boolean quitConfirmation = false;
-    private final Runnable quitConfirmationTimeout = () -> setQuitConfirmation(false);
+    // Disconnect and Quit Session are showing in place of the main buttons. Quitting closes the
+    // game on the host, losing anything unsaved, so getting to it takes this extra step.
+    private boolean disconnectPage = false;
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
@@ -199,11 +196,10 @@ public class OverlayMenuView extends LinearLayout {
         optionsAction = -1;
         optionPicker = null;
         group = -1;
+        disconnectPage = false;
         runningHostAction = -1;
         removeCallbacks(messageTimeout);
         messageAction = -1;
-        removeCallbacks(quitConfirmationTimeout);
-        quitConfirmation = false;
         buildButtons();
     }
 
@@ -252,6 +248,18 @@ public class OverlayMenuView extends LinearLayout {
             return;
         }
 
+        if (disconnectPage) {
+            // Disconnect stays last, where the button that opened this page was, so a repeated
+            // press can only land on the choice that leaves the game running
+            addVerticalButton(R.drawable.ic_overlay_power,
+                    getContext().getString(R.string.overlay_menu_quit_session), ACTION_QUIT, spacing);
+            addVerticalButton(R.drawable.ic_overlay_monitor,
+                    getContext().getString(R.string.overlay_menu_disconnect), ACTION_DISCONNECT, 0);
+            addHorizontalButton(R.drawable.ic_overlay_back,
+                    getContext().getString(R.string.overlay_menu_back), ACTION_BACK, 0);
+            return;
+        }
+
         // Vertical column: top → bottom
         addVerticalButton(R.drawable.ic_overlay_guide,
             getContext().getString(R.string.overlay_menu_guide), ACTION_SEND_GUIDE, spacing);
@@ -269,14 +277,8 @@ public class OverlayMenuView extends LinearLayout {
             addVerticalButton(R.drawable.ic_overlay_jitter_buffer,
                     getContext().getString(R.string.overlay_menu_jitter_buffer), ACTION_JITTER_BUFFER, spacing);
         }
-        addVerticalButton(R.drawable.ic_overlay_power,
-            getContext().getString(quitConfirmation ? R.string.overlay_menu_quit_confirm : R.string.overlay_menu_quit_session),
-            ACTION_QUIT, spacing);
-        // Wide enough for its question, so the column doesn't change width when it's asked
-        verticalButtons.get(verticalButtons.size() - 1).reserveLabelWidth(
-            getContext().getString(R.string.overlay_menu_quit_confirm));
         addVerticalButton(R.drawable.ic_overlay_monitor,
-            getContext().getString(R.string.overlay_menu_disconnect), ACTION_DISCONNECT, 0);
+            getContext().getString(R.string.overlay_menu_disconnect), ACTION_DISCONNECT_PAGE, 0);
 
         // Horizontal row: custom commands, the host's commands, the host's groups, then Close
         List<CustomCommand> customCommands = commandsManager.getCommands();
@@ -435,7 +437,7 @@ public class OverlayMenuView extends LinearLayout {
      */
     public void setHostCommands(HostCommands commands) {
         hostCommands = commands != null ? commands : HostCommands.NONE;
-        if (getVisibility() != VISIBLE || optionsAction >= 0) {
+        if (getVisibility() != VISIBLE || optionsAction >= 0 || disconnectPage) {
             return;
         }
         if (group >= hostCommands.groups.size()) {
@@ -527,14 +529,21 @@ public class OverlayMenuView extends LinearLayout {
         }
         clearMessage();
         group = index;
-        setQuitConfirmation(false);
         buildButtons();
         setVerticalIndex(0);
     }
 
-    // Whether the main buttons are showing (not options or a group's commands)
+    /** Shows Disconnect and Quit Session in place of the main buttons, on Disconnect */
+    private void showDisconnectPage() {
+        clearMessage();
+        disconnectPage = true;
+        buildButtons();
+        setVerticalIndex(verticalButtons.size() - 1);
+    }
+
+    // Whether the main buttons are showing (not options, a group's commands or the disconnect page)
     private boolean isOnMainButtons() {
-        return optionsAction < 0 && group < 0;
+        return optionsAction < 0 && group < 0 && !disconnectPage;
     }
 
     /**
@@ -551,19 +560,20 @@ public class OverlayMenuView extends LinearLayout {
         optionNames = names;
         optionChecked = checked;
         optionPicker = picker;
-        setQuitConfirmation(false);
         buildButtons();
 
         // On the option in effect
         setVerticalIndex(checked >= 0 && checked < names.length ? checked : 0);
     }
 
-    /** Back from options or a group to the main buttons, on the button they were for */
+    /** Back from another page to the main buttons, on the button it was for */
     private void showMainButtons() {
-        int from = group >= 0 ? ACTION_HOST_GROUP_BASE + group : optionsAction;
+        int from = disconnectPage ? ACTION_DISCONNECT_PAGE
+                : group >= 0 ? ACTION_HOST_GROUP_BASE + group : optionsAction;
         optionsAction = -1;
         optionPicker = null;
         group = -1;
+        disconnectPage = false;
         clearMessage();
         buildButtons();
 
@@ -587,24 +597,6 @@ public class OverlayMenuView extends LinearLayout {
             actionListener.onChangeStats();
         } else {
             actionListener.onChangeJitterBuffer();
-        }
-    }
-
-    private void setQuitConfirmation(boolean confirm) {
-        removeCallbacks(quitConfirmationTimeout);
-        if (quitConfirmation == confirm) {
-            return;
-        }
-
-        // Only the label changes; the button keeps its place and its width
-        quitConfirmation = confirm;
-        int index = verticalActions.indexOf(ACTION_QUIT);
-        if (optionsAction < 0 && index >= 0) {
-            verticalButtons.get(index).setLabel(getContext().getString(
-                    confirm ? R.string.overlay_menu_quit_confirm : R.string.overlay_menu_quit_session));
-        }
-        if (confirm) {
-            postDelayed(quitConfirmationTimeout, QUIT_CONFIRM_MS);
         }
     }
 
@@ -642,7 +634,11 @@ public class OverlayMenuView extends LinearLayout {
 
                 case KeyEvent.KEYCODE_BUTTON_A:
                 case KeyEvent.KEYCODE_DPAD_CENTER:
-                    activateSelected();
+                    // A press held on the button that opened the disconnect page doesn't go on
+                    // to choose from it
+                    if (!disconnectPage || event.getRepeatCount() == 0) {
+                        activateSelected();
+                    }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_B:
@@ -767,7 +763,6 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void navigateUp() {
-        setQuitConfirmation(false);
         clearMessage();
         if (activeRegion == Region.VERTICAL) {
             if (!verticalButtons.isEmpty()) {
@@ -785,7 +780,6 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void navigateDown() {
-        setQuitConfirmation(false);
         clearMessage();
         if (activeRegion == Region.VERTICAL) {
             if (!verticalButtons.isEmpty()) {
@@ -800,7 +794,6 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void navigateLeft() {
-        setQuitConfirmation(false);
         clearMessage();
         if (activeRegion == Region.HORIZONTAL) {
             if (horizontalIndex > 0) {
@@ -822,7 +815,6 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void navigateRight() {
-        setQuitConfirmation(false);
         clearMessage();
         if (activeRegion == Region.VERTICAL) {
             if (!horizontalButtons.isEmpty()) {
@@ -915,13 +907,11 @@ public class OverlayMenuView extends LinearLayout {
 
         boolean shouldCloseMenu = false;
 
-        // Another button takes back Quit Session's question (as touches don't move the selection)
-        if (action != ACTION_QUIT) {
-            setQuitConfirmation(false);
-        }
-
         if (action == ACTION_BACK) {
             showMainButtons();
+            return;
+        } else if (action == ACTION_DISCONNECT_PAGE) {
+            showDisconnectPage();
             return;
         } else if (action >= ACTION_GROUP_COMMAND_BASE) {
             if (group >= 0 && group < hostCommands.groups.size()) {
@@ -956,12 +946,8 @@ public class OverlayMenuView extends LinearLayout {
                 actionListener.onDisconnect();
                 shouldCloseMenu = true;
             } else if (action == ACTION_QUIT) {
-                if (!quitConfirmation) {
-                    setQuitConfirmation(true);
-                } else {
-                    closeMenu();
-                    actionListener.onQuitSession();
-                }
+                closeMenu();
+                actionListener.onQuitSession();
                 return;
             } else if (action == ACTION_STATS) {
                 activateStats();
@@ -1049,7 +1035,7 @@ public class OverlayMenuView extends LinearLayout {
         requestOptions(ACTION_STATS);
     }
 
-    // B or Back: from options or a group to the main buttons, or from the main buttons out of the menu
+    // B or Back: from another page to the main buttons, or from the main buttons out of the menu
     private void goBack() {
         if (!isOnMainButtons()) {
             showMainButtons();
@@ -1081,12 +1067,11 @@ public class OverlayMenuView extends LinearLayout {
 
     public void hide(Runnable onComplete) {
         setVisibility(GONE);
-        removeCallbacks(quitConfirmationTimeout);
-        quitConfirmation = false;
         optionsAction = -1;
         requestedOptionsAction = -1;
         optionPicker = null;
         group = -1;
+        disconnectPage = false;
         runningHostAction = -1;
         removeCallbacks(messageTimeout);
         messageAction = -1;

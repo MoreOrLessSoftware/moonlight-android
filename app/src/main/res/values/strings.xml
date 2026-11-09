@@ -458,7 +458,6 @@
     <string name="overlay_menu_guide">Guide (▶)</string>
     <string name="overlay_menu_close">Close (B)</string>
     <string name="overlay_menu_back">Back (B)</string>
-    <string name="overlay_menu_quit_confirm">Press Again to Quit</string>
     <string name="overlay_menu_host_failed">Failed (%1$d)</string>
     <string name="overlay_menu_host_no_answer">No answer from the host</string>
     <string name="overlay_menu_hint">Hold &lt;b&gt;%s&lt;/b&gt; to open menu</string>

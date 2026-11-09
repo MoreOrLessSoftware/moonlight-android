@@ -3348,7 +3348,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onQuitSession() {
-                // The menu has had the second press that confirms it
+                // Confirmed by choosing it on the menu's disconnect page
                 userInitiatedDisconnect = true;
                 controllerHandler.pendingApplicationQuit = true;
                 stopConnection();
