@@ -111,6 +111,10 @@ public class OverlayMenuButton extends LinearLayout {
         labelView.setVisibility(text != null && !text.isEmpty() ? VISIBLE : GONE);
     }
 
+    public String getLabel() {
+        return labelView.getText().toString();
+    }
+
     /**
      * Set whether this button is currently selected
      */
@@ -178,6 +182,18 @@ public class OverlayMenuButton extends LinearLayout {
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) labelView.getLayoutParams();
         params.leftMargin = 0;
         labelView.setLayoutParams(params);
+    }
+
+    /** A button with an icon drawable (or none, for null) */
+    public static OverlayMenuButton create(Context context, Drawable icon, String label) {
+        OverlayMenuButton button = new OverlayMenuButton(context);
+        if (icon != null) {
+            button.setIcon(icon);
+        } else {
+            button.hideIcon();
+        }
+        button.setLabel(label);
+        return button;
     }
 
     public static OverlayMenuButton create(Context context, int iconResId, String label) {

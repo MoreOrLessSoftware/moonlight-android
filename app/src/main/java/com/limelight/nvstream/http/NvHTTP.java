@@ -442,6 +442,30 @@ public class NvHTTP {
     // on the GFE server. Examples of queries that DO require outside action are launch, resume, and quit.
     // The initial pair query does require outside action (user entering a PIN) but subsequent pairing
     // queries do not.
+    /** A response's status and body */
+    public static final class RawResponse {
+        public final int code;
+        public final String body;
+
+        RawResponse(int code, String body) {
+            this.code = code;
+            this.body = body;
+        }
+    }
+
+    /**
+     * Makes an HTTPS request and returns its status and body whatever the status, for answers
+     * whose body matters even with an error status (like Sunshine's JSON answers).
+     */
+    public RawResponse requestHttps(String path, String query) throws IOException {
+        HttpUrl completeUrl = getCompleteUrl(getHttpsUrl(true), path, query);
+        Request request = new Request.Builder().url(completeUrl).get().build();
+        try (Response response = performAndroidTlsHack(httpClientLongConnectTimeout).newCall(request).execute()) {
+            ResponseBody body = response.body();
+            return new RawResponse(response.code(), body != null ? body.string() : "");
+        }
+    }
+
     private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path, String query) throws IOException {
         HttpUrl completeUrl = getCompleteUrl(baseUrl, path, query);
         Request request = new Request.Builder().url(completeUrl).get().build();

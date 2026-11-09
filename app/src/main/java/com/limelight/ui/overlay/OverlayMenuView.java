@@ -1,6 +1,7 @@
 package com.limelight.ui.overlay;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.util.AttributeSet;
 import android.view.Gravity;
@@ -31,6 +32,10 @@ public class OverlayMenuView extends LinearLayout {
         void onChangeJitterBuffer();
         void onShowBrightness();
         void onCustomCommand(CustomCommand command);
+        // A command of the host's; the listener answers with hostCommandFinished()
+        void onHostCommand(HostCommands.Command command);
+        // The menu has opened, as when the host's commands could be asked for again
+        void onMenuShown();
         void onMenuClosed();
     }
 
@@ -66,6 +71,13 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_BACK = 9;
     private static final int ACTION_CUSTOM_BASE = 100;
     private static final int ACTION_OPTION_BASE = 200;
+    // The host's command n, the button of the host's group n, and command n of the group showing
+    private static final int ACTION_HOST_COMMAND_BASE = 1000;
+    private static final int ACTION_HOST_GROUP_BASE = 2000;
+    private static final int ACTION_GROUP_COMMAND_BASE = 3000;
+
+    // How long a message (like why a host command failed) shows on its button
+    private static final long MESSAGE_MS = 4000;
 
     // How long Quit Session waits for its second press
     private static final long QUIT_CONFIRM_MS = 3000;
@@ -82,6 +94,15 @@ public class OverlayMenuView extends LinearLayout {
     private String[] optionNames;
     private int optionChecked = -1;
     private OptionPicker optionPicker;
+
+    // The host's commands and groups, and the group whose commands are showing, or -1
+    private HostCommands hostCommands = HostCommands.NONE;
+    private int group = -1;
+    // The button of the host command running, for its result, and of the message showing
+    private int runningHostAction = -1;
+    private int messageAction = -1;
+    private String messageLabel;
+    private final Runnable messageTimeout = this::clearMessage;
 
     // Quitting closes the game on the host, losing anything unsaved, so Quit Session takes a
     // second press within a few seconds (the selection moving on takes the question back)
@@ -177,6 +198,10 @@ public class OverlayMenuView extends LinearLayout {
     public void buildMenu() {
         optionsAction = -1;
         optionPicker = null;
+        group = -1;
+        runningHostAction = -1;
+        removeCallbacks(messageTimeout);
+        messageAction = -1;
         removeCallbacks(quitConfirmationTimeout);
         quitConfirmation = false;
         buildButtons();
@@ -214,6 +239,19 @@ public class OverlayMenuView extends LinearLayout {
             return;
         }
 
+        if (group >= 0 && group < hostCommands.groups.size()) {
+            // The group's commands, and Back
+            List<HostCommands.Command> commands = hostCommands.groups.get(group).commands;
+            for (int i = 0; i < commands.size() && i < 1000; i++) {
+                HostCommands.Command command = commands.get(i);
+                addVerticalButton(MaterialIcons.drawable(getContext(), command.icon), command.label,
+                        ACTION_GROUP_COMMAND_BASE + i, i < commands.size() - 1 ? spacing : 0);
+            }
+            addHorizontalButton(R.drawable.ic_overlay_back,
+                    getContext().getString(R.string.overlay_menu_back), ACTION_BACK, 0);
+            return;
+        }
+
         // Vertical column: top → bottom
         addVerticalButton(R.drawable.ic_overlay_guide,
             getContext().getString(R.string.overlay_menu_guide), ACTION_SEND_GUIDE, spacing);
@@ -240,11 +278,21 @@ public class OverlayMenuView extends LinearLayout {
         addVerticalButton(R.drawable.ic_overlay_monitor,
             getContext().getString(R.string.overlay_menu_disconnect), ACTION_DISCONNECT, 0);
 
-        // Horizontal row: custom commands then Close
+        // Horizontal row: custom commands, the host's commands, the host's groups, then Close
         List<CustomCommand> customCommands = commandsManager.getCommands();
-        for (CustomCommand command : customCommands) {
-            addHorizontalButton(command.getIconResId(), command.getName(),
-                ACTION_CUSTOM_BASE + horizontalButtons.size(), spacing);
+        for (int i = 0; i < customCommands.size(); i++) {
+            CustomCommand command = customCommands.get(i);
+            addHorizontalButton(command.getIconResId(), command.getName(), ACTION_CUSTOM_BASE + i, spacing);
+        }
+        for (int i = 0; i < hostCommands.commands.size() && i < 1000; i++) {
+            HostCommands.Command command = hostCommands.commands.get(i);
+            addHorizontalButton(MaterialIcons.drawable(getContext(), command.icon), command.label,
+                    ACTION_HOST_COMMAND_BASE + i, spacing);
+        }
+        for (int i = 0; i < hostCommands.groups.size() && i < 1000; i++) {
+            HostCommands.Group hostGroup = hostCommands.groups.get(i);
+            addHorizontalButton(MaterialIcons.drawable(getContext(), hostGroup.iconOrDefault()), hostGroup.label,
+                    ACTION_HOST_GROUP_BASE + i, spacing);
         }
         addHorizontalButton(0,
             getContext().getString(R.string.overlay_menu_close), ACTION_CLOSE, 0);
@@ -256,7 +304,14 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void addVerticalButton(int iconResId, String label, int action, int bottomMarginPx) {
-        OverlayMenuButton button = OverlayMenuButton.create(getContext(), iconResId, label);
+        addVerticalButton(OverlayMenuButton.create(getContext(), iconResId, label), action, bottomMarginPx);
+    }
+
+    private void addVerticalButton(Drawable icon, String label, int action, int bottomMarginPx) {
+        addVerticalButton(OverlayMenuButton.create(getContext(), icon, label), action, bottomMarginPx);
+    }
+
+    private void addVerticalButton(OverlayMenuButton button, int action, int bottomMarginPx) {
 
         // As wide as the column, which is as wide as its widest button
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
@@ -283,7 +338,14 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     private void addHorizontalButton(int iconResId, String label, int action, int rightMarginPx) {
-        OverlayMenuButton button = OverlayMenuButton.create(getContext(), iconResId, label);
+        addHorizontalButton(OverlayMenuButton.create(getContext(), iconResId, label), action, rightMarginPx);
+    }
+
+    private void addHorizontalButton(Drawable icon, String label, int action, int rightMarginPx) {
+        addHorizontalButton(OverlayMenuButton.create(getContext(), icon, label), action, rightMarginPx);
+    }
+
+    private void addHorizontalButton(OverlayMenuButton button, int action, int rightMarginPx) {
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -367,6 +429,115 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     /**
+     * The host's commands, along the row after the custom commands, and its groups, as buttons
+     * after those that open a page of their commands. An open menu shows them at once, keeping
+     * the selected button where it can.
+     */
+    public void setHostCommands(HostCommands commands) {
+        hostCommands = commands != null ? commands : HostCommands.NONE;
+        if (getVisibility() != VISIBLE || optionsAction >= 0) {
+            return;
+        }
+        if (group >= hostCommands.groups.size()) {
+            group = -1;
+        }
+
+        // The same button stays selected where it's still there
+        Region region = activeRegion;
+        int selected = selectedAction();
+        int verticalBefore = verticalIndex;
+        int horizontalBefore = horizontalIndex;
+        clearMessage();
+        runningHostAction = -1;
+        buildButtons();
+
+        List<Integer> actions = region == Region.VERTICAL ? verticalActions : horizontalActions;
+        int index = actions.indexOf(selected);
+        if (region == Region.VERTICAL) {
+            setVerticalIndex(index >= 0 ? index : Math.min(verticalBefore, verticalButtons.size() - 1));
+        } else {
+            activeRegion = Region.HORIZONTAL;
+            setHorizontalIndex(index >= 0 ? index : Math.min(horizontalBefore, horizontalButtons.size() - 1));
+        }
+    }
+
+    /**
+     * The result of the host command the listener was asked to run: the menu closes if it ran and
+     * the command says to, and otherwise a failure shows on its button for a few seconds.
+     */
+    public void hostCommandFinished(boolean ok, boolean closeMenu, String message) {
+        int action = runningHostAction;
+        runningHostAction = -1;
+        if (getVisibility() != VISIBLE) {
+            return;
+        }
+        if (ok) {
+            if (closeMenu) {
+                closeMenu();
+            }
+        } else if (action >= 0) {
+            showMessage(action, message);
+        }
+    }
+
+    private void showMessage(int action, String message) {
+        clearMessage();
+        OverlayMenuButton button = buttonForAction(action);
+        if (button == null) {
+            return;
+        }
+        messageAction = action;
+        messageLabel = button.getLabel();
+        button.setLabel(message);
+        postDelayed(messageTimeout, MESSAGE_MS);
+    }
+
+    private void clearMessage() {
+        removeCallbacks(messageTimeout);
+        if (messageAction >= 0) {
+            OverlayMenuButton button = buttonForAction(messageAction);
+            if (button != null) {
+                button.setLabel(messageLabel);
+            }
+        }
+        messageAction = -1;
+        messageLabel = null;
+    }
+
+    private OverlayMenuButton buttonForAction(int action) {
+        int index = verticalActions.indexOf(action);
+        if (index >= 0) {
+            return verticalButtons.get(index);
+        }
+        index = horizontalActions.indexOf(action);
+        return index >= 0 ? horizontalButtons.get(index) : null;
+    }
+
+    private int selectedAction() {
+        if (activeRegion == Region.VERTICAL) {
+            return verticalIndex >= 0 && verticalIndex < verticalActions.size() ? verticalActions.get(verticalIndex) : -1;
+        }
+        return horizontalIndex >= 0 && horizontalIndex < horizontalActions.size() ? horizontalActions.get(horizontalIndex) : -1;
+    }
+
+    /** Shows a host group's commands in place of the main buttons, with the first selected */
+    private void showGroup(int index) {
+        if (index < 0 || index >= hostCommands.groups.size()) {
+            return;
+        }
+        clearMessage();
+        group = index;
+        setQuitConfirmation(false);
+        buildButtons();
+        setVerticalIndex(0);
+    }
+
+    // Whether the main buttons are showing (not options or a group's commands)
+    private boolean isOnMainButtons() {
+        return optionsAction < 0 && group < 0;
+    }
+
+    /**
      * Shows options in place of the main buttons, for the button that asked for them (Stats or
      * Jitter Buffer). Picking one closes the menu and hands it to the picker; B goes back.
      */
@@ -387,14 +558,22 @@ public class OverlayMenuView extends LinearLayout {
         setVerticalIndex(checked >= 0 && checked < names.length ? checked : 0);
     }
 
-    /** Back from options to the main buttons, on the button the options were for */
+    /** Back from options or a group to the main buttons, on the button they were for */
     private void showMainButtons() {
-        int from = optionsAction;
+        int from = group >= 0 ? ACTION_HOST_GROUP_BASE + group : optionsAction;
         optionsAction = -1;
         optionPicker = null;
+        group = -1;
+        clearMessage();
         buildButtons();
 
-        int index = verticalActions.indexOf(from);
+        int index = horizontalActions.indexOf(from);
+        if (index >= 0) {
+            activeRegion = Region.HORIZONTAL;
+            setHorizontalIndex(index);
+            return;
+        }
+        index = verticalActions.indexOf(from);
         setVerticalIndex(index >= 0 ? index : verticalButtons.size() - 1);
     }
 
@@ -473,26 +652,26 @@ public class OverlayMenuView extends LinearLayout {
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_X:
-                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
+                    if (event.getRepeatCount() == 0 && isOnMainButtons()) {
                         activateMouseEmulation();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_Y:
-                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
+                    if (event.getRepeatCount() == 0 && isOnMainButtons()) {
                         activateKeyboard();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_START:
                 case KeyEvent.KEYCODE_MENU:
-                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
+                    if (event.getRepeatCount() == 0 && isOnMainButtons()) {
                         activateGuideButton();
                     }
                     return true;
 
                 case KeyEvent.KEYCODE_BUTTON_R1:
-                    if (event.getRepeatCount() == 0 && optionsAction < 0) {
+                    if (event.getRepeatCount() == 0 && isOnMainButtons()) {
                         activateStats();
                     }
                     return true;
@@ -589,6 +768,7 @@ public class OverlayMenuView extends LinearLayout {
 
     private void navigateUp() {
         setQuitConfirmation(false);
+        clearMessage();
         if (activeRegion == Region.VERTICAL) {
             if (!verticalButtons.isEmpty()) {
                 setVerticalIndex((verticalIndex - 1 + verticalButtons.size()) % verticalButtons.size());
@@ -598,7 +778,7 @@ public class OverlayMenuView extends LinearLayout {
             // or from Back to the last option
             clearHorizontalSelection();
             activeRegion = Region.VERTICAL;
-            int target = optionsAction >= 0 ? verticalButtons.size() - 1 :
+            int target = !isOnMainButtons() ? verticalButtons.size() - 1 :
                     verticalButtons.size() >= 2 ? verticalButtons.size() - 2 : 0;
             setVerticalIndex(target);
         }
@@ -606,6 +786,7 @@ public class OverlayMenuView extends LinearLayout {
 
     private void navigateDown() {
         setQuitConfirmation(false);
+        clearMessage();
         if (activeRegion == Region.VERTICAL) {
             if (!verticalButtons.isEmpty()) {
                 setVerticalIndex((verticalIndex + 1) % verticalButtons.size());
@@ -620,6 +801,7 @@ public class OverlayMenuView extends LinearLayout {
 
     private void navigateLeft() {
         setQuitConfirmation(false);
+        clearMessage();
         if (activeRegion == Region.HORIZONTAL) {
             if (horizontalIndex > 0) {
                 setHorizontalIndex(horizontalIndex - 1);
@@ -641,6 +823,7 @@ public class OverlayMenuView extends LinearLayout {
 
     private void navigateRight() {
         setQuitConfirmation(false);
+        clearMessage();
         if (activeRegion == Region.VERTICAL) {
             if (!horizontalButtons.isEmpty()) {
                 clearVerticalSelection();
@@ -679,8 +862,23 @@ public class OverlayMenuView extends LinearLayout {
         }
 
         horizontalIndex = index;
-        horizontalButtons.get(index).setSelected(true);
-        horizontalButtons.get(index).requestFocus();
+        OverlayMenuButton button = horizontalButtons.get(index);
+        button.setSelected(true);
+        button.requestFocus();
+
+        // Scrolled into view once it's laid out: a row built just now has no positions yet for
+        // focus to scroll to
+        horizontalScrollView.post(() -> {
+            int left = button.getLeft();
+            int right = button.getRight();
+            int scroll = horizontalScrollView.getScrollX();
+            int width = horizontalScrollView.getWidth();
+            if (right > scroll + width) {
+                horizontalScrollView.smoothScrollTo(right - width, 0);
+            } else if (left < scroll) {
+                horizontalScrollView.smoothScrollTo(left, 0);
+            }
+        });
     }
 
     private void clearVerticalSelection() {
@@ -724,6 +922,24 @@ public class OverlayMenuView extends LinearLayout {
 
         if (action == ACTION_BACK) {
             showMainButtons();
+            return;
+        } else if (action >= ACTION_GROUP_COMMAND_BASE) {
+            if (group >= 0 && group < hostCommands.groups.size()) {
+                List<HostCommands.Command> commands = hostCommands.groups.get(group).commands;
+                int index = action - ACTION_GROUP_COMMAND_BASE;
+                if (index < commands.size()) {
+                    runHostCommand(commands.get(index), action);
+                }
+            }
+            return;
+        } else if (action >= ACTION_HOST_GROUP_BASE) {
+            showGroup(action - ACTION_HOST_GROUP_BASE);
+            return;
+        } else if (action >= ACTION_HOST_COMMAND_BASE) {
+            int index = action - ACTION_HOST_COMMAND_BASE;
+            if (index < hostCommands.commands.size()) {
+                runHostCommand(hostCommands.commands.get(index), action);
+            }
             return;
         } else if (action >= ACTION_OPTION_BASE) {
             // Picking closes the menu, as a choice in a dialog did
@@ -785,6 +1001,15 @@ public class OverlayMenuView extends LinearLayout {
         }
     }
 
+    private void runHostCommand(HostCommands.Command command, int action) {
+        clearMessage();
+        if (actionListener != null) {
+            // The menu stays open until the host answers, so a failure can show on the button
+            runningHostAction = action;
+            actionListener.onHostCommand(command);
+        }
+    }
+
     public void closeMenu() {
         hide(() -> {
             if (actionListener != null) {
@@ -824,9 +1049,9 @@ public class OverlayMenuView extends LinearLayout {
         requestOptions(ACTION_STATS);
     }
 
-    // B or Back: from options to the main buttons, or from the main buttons out of the menu
+    // B or Back: from options or a group to the main buttons, or from the main buttons out of the menu
     private void goBack() {
-        if (optionsAction >= 0) {
+        if (!isOnMainButtons()) {
             showMainButtons();
         } else {
             closeMenu();
@@ -847,6 +1072,11 @@ public class OverlayMenuView extends LinearLayout {
                 setVerticalIndex(verticalButtons.size() - 1);
             }
         });
+
+        // The host's commands can depend on what's running there now
+        if (actionListener != null) {
+            actionListener.onMenuShown();
+        }
     }
 
     public void hide(Runnable onComplete) {
@@ -856,6 +1086,10 @@ public class OverlayMenuView extends LinearLayout {
         optionsAction = -1;
         requestedOptionsAction = -1;
         optionPicker = null;
+        group = -1;
+        runningHostAction = -1;
+        removeCallbacks(messageTimeout);
+        messageAction = -1;
         if (onComplete != null) {
             onComplete.run();
         }

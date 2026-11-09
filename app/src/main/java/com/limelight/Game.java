@@ -37,6 +37,7 @@ import com.limelight.ui.DisplayKeepAwakeView;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamView;
 import com.limelight.ui.overlay.CustomCommand;
+import com.limelight.ui.overlay.HostCommands;
 import com.limelight.ui.overlay.OverlayMenuView;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ServerHelper;
@@ -196,6 +197,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private DisplayKeepAwakeView displayKeepAwakeView;
     private BrightnessSliderView brightnessSliderView;
     private OverlayMenuView overlayMenuView;
+
+    // The host's commands for the overlay menu (Sunshine's client commands), asked for each time
+    // the menu opens. Requests run one at a time, off the UI thread.
+    private final java.util.concurrent.ExecutorService hostCommandsExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private NvHTTP hostCommandsHttp;
+    // Cleared once the host answers without commands (it doesn't have the feature)
+    private boolean hostCommandsSupported = true;
+    private boolean hostCommandsFetching = false;
     private boolean isImeVisible = false;
     private boolean isAndroidTV = false;
 
@@ -1238,6 +1247,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        hostCommandsExecutor.shutdownNow();
 
         // Unregister broadcast receiver
         try {
@@ -3388,9 +3399,114 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             @Override
+            public void onHostCommand(HostCommands.Command command) {
+                runHostCommand(command);
+            }
+
+            @Override
+            public void onMenuShown() {
+                fetchHostCommands();
+            }
+
+            @Override
             public void onMenuClosed() {
                 // Menu closed, no additional action needed
             }
+        });
+    }
+
+    // Made on the executor's thread the first time it's needed
+    private NvHTTP getHostCommandsHttp() throws java.io.IOException {
+        if (hostCommandsHttp == null) {
+            String host = getIntent().getStringExtra(EXTRA_HOST);
+            int port = getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT);
+            int httpsPort = getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0);
+            String uniqueId = getIntent().getStringExtra(EXTRA_UNIQUEID);
+            byte[] derCertData = getIntent().getByteArrayExtra(EXTRA_SERVER_CERT);
+
+            X509Certificate serverCert = null;
+            try {
+                if (derCertData != null) {
+                    serverCert = (X509Certificate) CertificateFactory.getInstance("X.509")
+                            .generateCertificate(new ByteArrayInputStream(derCertData));
+                }
+            } catch (CertificateException e) {
+                e.printStackTrace();
+            }
+
+            hostCommandsHttp = new NvHTTP(new ComputerDetails.AddressTuple(host, port), httpsPort, uniqueId,
+                    serverCert, PlatformBinding.getCryptoProvider(this));
+        }
+        return hostCommandsHttp;
+    }
+
+    // Asks the host for its commands, which the menu shows once they arrive
+    private void fetchHostCommands() {
+        if (!hostCommandsSupported || hostCommandsFetching) {
+            return;
+        }
+        hostCommandsFetching = true;
+
+        hostCommandsExecutor.execute(() -> {
+            HostCommands commands = null;
+            boolean unsupported = false;
+            try {
+                NvHTTP.RawResponse response = getHostCommandsHttp().requestHttps("clientcommands", null);
+                if (response.code == 200) {
+                    commands = HostCommands.fromJson(response.body);
+                }
+                // An answer, but not one with commands: the host doesn't have them
+                unsupported = commands == null;
+                LimeLog.info("Host commands: status " + response.code +
+                        (commands != null ? ", " + commands.commands.size() + " commands, " + commands.groups.size() + " groups" : ""));
+            } catch (Exception e) {
+                // A failed request keeps what the menu has
+                LimeLog.warning("Host commands request failed: " + e);
+            }
+
+            final HostCommands result = commands;
+            final boolean hostUnsupported = unsupported;
+            runOnUiThread(() -> {
+                hostCommandsFetching = false;
+                if (hostUnsupported) {
+                    hostCommandsSupported = false;
+                    overlayMenuView.setHostCommands(HostCommands.NONE);
+                } else if (result != null) {
+                    overlayMenuView.setHostCommands(result);
+                }
+            });
+        });
+    }
+
+    // Runs one of the host's commands on the host, then tells the menu how it went
+    private void runHostCommand(HostCommands.Command command) {
+        LimeLog.info("Running the host's command: " + command.label);
+        hostCommandsExecutor.execute(() -> {
+            boolean ok = false;
+            String message = null;
+            try {
+                NvHTTP.RawResponse response = getHostCommandsHttp().requestHttps("runclientcommand", "id=" + command.id);
+                org.json.JSONObject answer = null;
+                try {
+                    answer = new org.json.JSONObject(response.body);
+                } catch (org.json.JSONException ignored) {
+                }
+                ok = response.code == 200 && answer != null && "ok".equals(answer.optString("status"));
+                if (!ok) {
+                    message = answer != null ? answer.optString("message", "") : "";
+                    if (message.isEmpty()) {
+                        message = getString(R.string.overlay_menu_host_failed, response.code);
+                    }
+                }
+                LimeLog.info("Host command " + command.id + ": status " + response.code + (ok ? "" : ", " + message));
+            } catch (Exception e) {
+                message = getString(R.string.overlay_menu_host_no_answer);
+                LimeLog.warning("Host command " + command.id + " failed: " + e);
+            }
+
+            final boolean succeeded = ok;
+            final String failure = message;
+            runOnUiThread(() -> overlayMenuView.hostCommandFinished(succeeded, command.closeMenu, failure));
         });
     }
 
