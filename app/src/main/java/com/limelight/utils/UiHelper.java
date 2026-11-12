@@ -100,49 +100,80 @@ public class UiHelper {
         }
     }
 
+    private static int getNavigationBarBottomInset(WindowInsets windowInsets) {
+        // Use the whole navigation bar, not just its tappable part. With gesture
+        // navigation nothing there is tappable, but the transparent gesture bar
+        // still covers the bottom of the list.
+        int navBarBottom;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            navBarBottom = windowInsets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+        }
+        else {
+            navBarBottom = windowInsets.getSystemWindowInsetBottom();
+        }
+
+        return Math.max(navBarBottom, windowInsets.getTappableElementInsets().bottom);
+    }
+
+    private static void requestApplyInsetsWhenAttached(View view) {
+        // Requesting insets does nothing until the view is attached, and views
+        // created in a fragment's onCreateView() aren't attached yet
+        if (view.isAttachedToWindow()) {
+            view.requestApplyInsets();
+        }
+        else {
+            view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View v) {
+                    v.removeOnAttachStateChangeListener(this);
+                    v.requestApplyInsets();
+                }
+
+                @Override
+                public void onViewDetachedFromWindow(View v) {
+                }
+            });
+        }
+    }
+
     public static void applyStatusBarPadding(View view) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            final int baseBottomPadding = view.getPaddingBottom();
+
             // This applies the padding that we omitted in notifyNewRootView() on Q
             view.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
-                    // Use the whole navigation bar, not just its tappable part. With gesture
-                    // navigation nothing there is tappable, but the transparent gesture bar
-                    // still covers the bottom of the list.
-                    int navBarBottom;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        navBarBottom = windowInsets.getInsets(WindowInsets.Type.navigationBars()).bottom;
-                    }
-                    else {
-                        navBarBottom = windowInsets.getSystemWindowInsetBottom();
-                    }
-
                     view.setPadding(view.getPaddingLeft(),
                             view.getPaddingTop(),
                             view.getPaddingRight(),
-                            Math.max(navBarBottom, windowInsets.getTappableElementInsets().bottom));
+                            baseBottomPadding + getNavigationBarBottomInset(windowInsets));
                     return windowInsets;
                 }
             });
 
-            // Requesting insets does nothing until the view is attached, and views
-            // created in a fragment's onCreateView() aren't attached yet
-            if (view.isAttachedToWindow()) {
-                view.requestApplyInsets();
-            }
-            else {
-                view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-                    @Override
-                    public void onViewAttachedToWindow(View v) {
-                        v.removeOnAttachStateChangeListener(this);
-                        v.requestApplyInsets();
-                    }
+            requestApplyInsetsWhenAttached(view);
+        }
+    }
 
-                    @Override
-                    public void onViewDetachedFromWindow(View v) {
+    public static void applyStatusBarMargin(View view) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            final int baseBottomMargin = ((ViewGroup.MarginLayoutParams) view.getLayoutParams()).bottomMargin;
+
+            view.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
+                    ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+                    int bottomMargin = baseBottomMargin + getNavigationBarBottomInset(windowInsets);
+                    if (params.bottomMargin != bottomMargin) {
+                        params.bottomMargin = bottomMargin;
+                        view.setLayoutParams(params);
                     }
-                });
-            }
+                    return windowInsets;
+                }
+            });
+
+            requestApplyInsetsWhenAttached(view);
         }
     }
 

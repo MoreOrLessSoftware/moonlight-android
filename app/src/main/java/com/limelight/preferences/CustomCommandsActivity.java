@@ -17,6 +17,7 @@ import android.widget.Toast;
 import com.limelight.R;
 import com.limelight.ui.overlay.CustomCommand;
 import com.limelight.ui.overlay.CustomCommandsManager;
+import com.limelight.utils.UiHelper;
 
 import java.util.List;
 
@@ -34,7 +35,12 @@ public class CustomCommandsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        UiHelper.setLocale(this);
+
         setContentView(R.layout.activity_custom_commands);
+
+        UiHelper.notifyNewRootView(this);
 
         commandsManager = new CustomCommandsManager(this);
 
@@ -42,6 +48,9 @@ public class CustomCommandsActivity extends Activity {
         listView = findViewById(R.id.commands_list);
         emptyView = findViewById(R.id.empty_view);
         addButton = findViewById(R.id.add_button);
+
+        UiHelper.applyStatusBarPadding(listView);
+        UiHelper.applyStatusBarMargin(addButton);
 
         // Setup adapter
         adapter = new CommandsAdapter();
