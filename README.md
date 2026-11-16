@@ -12,7 +12,7 @@ Moonlight X installs next to the original Moonlight (its application ID ends in 
 
 Create shortcuts to specific apps on your PC and apply custom streaming settings (resolution, frame rate, bitrate and so on) to each one. The same app can have several shortcuts, each with a name of your choosing. They can be reordered, show whether they are running, can quit the session, and can be added as shortcuts in Android launchers.
 
-![Quick Launch and app list](./screenshots/v0.8.0/apps_view.png)
+[![Quick Launch and app list](./screenshots/v0.8.0/apps_view.png)](https://raw.githubusercontent.com/MoreOrLessSoftware/moonlight-android/mlsoft-x/screenshots/v0.8.0/apps_view.png)
 
 ### Per-App Settings and Overrides
 
@@ -28,11 +28,11 @@ A menu over the stream, opened by holding a gamepad button (Select, Start, Guide
 - Custom commands: buttons that press key combinations on the host, with a post-action such as Sleep.
 - Host commands: MoreOrLessSoftware Sunshine hosts can define their own [client commands](https://github.com/MoreOrLessSoftware/Sunshine/blob/mlsoft-custom/docs/client_commands.md), including groups for the program in the foreground, and commands added by [plugins](https://github.com/MoreOrLessSoftware/Sunshine/blob/mlsoft-custom/docs/plugins.md). They appear in the menu automatically.
 
-![Overlay Menu](./screenshots/v0.8.0/overlay_menu.png)
+[![Overlay Menu](./screenshots/v0.8.0/overlay_menu.png)](https://raw.githubusercontent.com/MoreOrLessSoftware/moonlight-android/mlsoft-x/screenshots/v0.8.0/overlay_menu.png)
 
 Custom commands are set up in the settings with a name, an icon, modifier checkboxes and a key, and can do something afterwards, such as Sleep:
 
-![Custom command](./screenshots/v0.8.0/custom_command.png)
+[![Custom command](./screenshots/v0.8.0/custom_command.png)](https://raw.githubusercontent.com/MoreOrLessSoftware/moonlight-android/mlsoft-x/screenshots/v0.8.0/custom_command.png)
 
 ### Brightness
 
@@ -48,7 +48,7 @@ A Vulkan video renderer, with an experimental front buffer mode that draws just 
 - Custom resolutions and frame rates replace the Unlock FPS option.
 - Recovery from a decoder that drops frames or stops handing them out.
 
-![Video settings](./screenshots/v0.8.0/settings.png)
+[![Video settings](./screenshots/v0.8.0/settings.png)](https://raw.githubusercontent.com/MoreOrLessSoftware/moonlight-android/mlsoft-x/screenshots/v0.8.0/settings.png)
 
 ### PyroWave
 
@@ -61,7 +61,7 @@ Support for [PyroWave](https://github.com/Themaister/pyrowave), an experimental 
 - The stream's settings, negotiated codec and pacing shown as toasts once connected.
 - Pacer traces, with unattended runs from Quick Launch presets, for analyzing latency against Sunshine's [per-frame trace and CSV](https://github.com/MoreOrLessSoftware/Sunshine#latency-and-frame-pacing).
 
-![Stats](./screenshots/v0.8.0/stats.png)
+[![Stats](./screenshots/v0.8.0/stats.png)](https://raw.githubusercontent.com/MoreOrLessSoftware/moonlight-android/mlsoft-x/screenshots/v0.8.0/stats.png)
 
 ### Decoders and HDR
 
