@@ -1,88 +1,91 @@
-# Moonlight Android
+# Moonlight X
 
-[Moonlight for Android](https://moonlight-stream.org) is an open source client for  [Sunshine](https://github.com/LizardByte/Sunshine).
+Moonlight X is a fork of [Moonlight for Android](https://github.com/moonlight-stream/moonlight-android), the open source client for [Sunshine](https://github.com/LizardByte/Sunshine). It builds on the original with new features, and with fixes and optimizations from [Artemis](https://github.com/ClassicOldSong/moonlight-android) and other developers.
 
-This fork aims to build upon the original Android client with some new features and some existing features, fixes and optimizations from [Artemis](https://github.com/ClassicOldSong/moonlight-android) and other developers.
+It is the Android companion to [MoreOrLessSoftware Moonlight PC](https://github.com/MoreOrLessSoftware/moonlight-qt) and [MoreOrLessSoftware Sunshine](https://github.com/MoreOrLessSoftware/Sunshine). Some features are designed to work with that host, but it should work well with any Sunshine-compatible host. Where a feature needs the host's help, it is linked to the matching part of the Sunshine README.
 
-## New Features
+Moonlight X installs next to the original Moonlight (its application ID ends in `.mlsoft`).
 
-### 1. Quick Launch Apps
+## New In This Fork
 
-You can create shortcuts to specific Sunshine apps and apply custom streaming settings (like resolution, FPS, bitrate, etc) to each shortcut. The same app can be configured to multiple shortcuts:
+### Quick Launch Apps
 
-[![Quick Launch Apps](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/quick-launch.png)](https://youtu.be/3kc8VEu1x7k)
+Create shortcuts to specific apps on your PC and apply custom streaming settings (resolution, frame rate, bitrate and so on) to each one. The same app can have several shortcuts, each with a name of your choosing. They can be reordered, show whether they are running, can quit the session, and can be added as shortcuts in Android launchers.
 
-> [!NOTE]
-> Quick Launch apps can also be added as shortcuts in Android launchers, etc.
+![Quick Launch and app list](./screenshots/v0.8.0/apps_view.png)
 
-### 2. Per-app settings overrides
+### Per-App Settings and Overrides
 
-Each app can now have it's own settings for resolution, FPS, bitrate, frame pacing, etc:
+Each app can have its own settings for resolution, frame rate, bitrate, codec, frame pacing, HDR, the jitter buffer and more, and apps that have them are marked with a gear. The app list has a card view that shows each app's overrides, and a PC's apps replace the PC list when you open it.
 
-[![Per-app settings](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/per-app-settings.png)](https://youtu.be/AYPQj0LOsxk)
+Quick overrides for the codec, bitrate (up to 2500 Mbps, with per-codec values and a Custom button) and performance stats, shown above the apps in the screenshot above, supersede any per-app or Quick Launch setting while they are on.
 
-### 3. Brightness adjustment while streaming
+### Overlay Menu
 
-Tap the left edge of the screen to show a brightness slider and set a custom brightness while streaming (or slide it to the bottom for "Auto" which will use the system brightness):
+A menu over the stream, opened by holding a gamepad button (Select, Start, Guide or LB + RB; the Back button of a remote always works), for a configurable time, with a 3-finger tap, or with a swipe in from the left edge.
 
-[![Brightness adjustment](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/brightness-slider.png)](https://youtu.be/CnanqtRz0FI)
+- Disconnect, Quit Session (asks first), stats, mouse mode, the keyboard (except on Google TV), brightness, and the jitter buffer, changed while streaming.
+- Custom commands: buttons that press key combinations on the host, with a post-action such as Sleep.
+- Host commands: MoreOrLessSoftware Sunshine hosts can define their own [client commands](https://github.com/MoreOrLessSoftware/Sunshine/blob/mlsoft-custom/docs/client_commands.md), including groups for the program in the foreground, and commands added by [plugins](https://github.com/MoreOrLessSoftware/Sunshine/blob/mlsoft-custom/docs/plugins.md). They appear in the menu automatically.
 
-### 4. Overrides for bitrate and performance stats
+![Overlay Menu](./screenshots/v0.8.0/overlay_menu.png)
 
-These overrides will supersede any per-app or Quick Launch settings when enabled:
+Custom commands are set up in the settings with a name, an icon, modifier checkboxes and a key, and can do something afterwards, such as Sleep:
 
-![Quick toggle for performance overlay + bitrate override](https://storage.googleapis.com/moreorlesscorrect/moonlight-x/screenshots/overrides4.png)
+![Custom command](./screenshots/v0.8.0/custom_command.png)
 
-### 5. Ultra low latency flags for Exynos and Amlogic decoders
+### Brightness
 
-Added some additional decoder flags/options to potentially reduce latency on devices with Exynos (tested on Google Pixel 7a), and Amlogic (tested on Chromecast w/Google TV) SoCs.
+Swipe in from the left edge (or use the menu's Brightness button) to set a custom screen brightness while streaming, or slide it to the bottom for Auto, which uses the system brightness. The left edge swipe can instead open the overlay menu or be turned off.
 
-Recommend **Balanced** frame pacing and the **Ultra low latency** option enabled for these devices.
+### Vulkan Renderer and Frame Pacing
 
-### 6. Force HDR (10-bit SDR) streaming on devices that don't support HDR (Experimental)
+A Vulkan video renderer, with an experimental front buffer mode that draws just ahead of the display's scan-out, alongside the original Direct Surface renderer.
 
-Some non-HDR devices can still stream 10-bit SDR if Sunshine sends it. This simple hack bypasses the HEVC decoder check for HDR10 when you have the "Enable HDR" setting activated.
+- **Host-synced frame timing**: frames are shown on the host's own capture cadence instead of the device's vsync alone. A learned schedule, with a jitter buffer of Balanced, Low latency, Lowest latency or Minimum (all changeable mid-stream), balances latency against smoothness. Works best with MoreOrLessSoftware Sunshine, which [captures frames as soon as the desktop presents them](https://github.com/MoreOrLessSoftware/Sunshine#latency-and-frame-pacing).
+- An Instant jitter buffer shows each frame as soon as it is decoded.
+- The device's display refresh rate is measured and a matching frame rate is requested from the host (to the microhertz), with a warning before streaming at a rate the display can't pace evenly.
+- Custom resolutions and frame rates replace the Unlock FPS option.
+- Recovery from a decoder that drops frames or stops handing them out.
 
-### 7. In-Stream Overlay Menu
+![Video settings](./screenshots/v0.8.0/settings.png)
 
-Access quick actions and custom commands during streaming with a customizable overlay menu:
+### PyroWave
 
-**Features:**
-- **Quick Actions**: Disconnect, quit session, toggle stats, mouse mode, and show keyboard (except Google TV)
-- **Custom Commands**: Create custom keyboard shortcuts
-- **Multiple Long-Press Trigger Options**:
-  - Select button (default)
-  - Start button
-  - Guide button (not be supported on all devices)
-  - LB + RB combination
-  - Back button on remote (Shield, CCwGTV, etc - always available)
-- **Customizable Hold Duration**: Choose how long to hold (0.5s to 3s)
-- **Touch Gesture**: 3-finger tap also opens the menu
+Support for [PyroWave](https://github.com/Themaister/pyrowave), an experimental wavelet codec for very low latency at very high bitrates on a wired LAN, decoded in Vulkan compute on devices with Vulkan 1.1. Requires a host that can encode PyroWave, such as [MoreOrLessSoftware Sunshine](https://github.com/MoreOrLessSoftware/Sunshine#pyrowave) (Windows only). Frames that lost packets, or that are still arriving at their deadline, are shown partly decoded rather than dropped (Off, Balanced or Smoother). An optional GPU boost keeps the GPU's clock up between frames.
 
-**Note:** Start button long-press for mouse emulation and 3-button keyboard shortcut have been removed in favor of the quick actions in the overlay menu.
+### Performance Stats
 
-### 8. Improved Stats Overlay
+- Stats modes from Minimal and Basic to a compact one-line view and a detailed one, picked from the overlay menu, with capture to decoded and capture to present latency (using the host's clock, which [Sunshine answers sync requests for](https://github.com/MoreOrLessSoftware/Sunshine#latency-and-frame-pacing)), bitrate measured from the video socket, and frame rate variance.
+- Decode times to one decimal place, and late, pulled and skipped frames on their own line.
+- The stream's settings, negotiated codec and pacing shown as toasts once connected.
+- Pacer traces, with unattended runs from Quick Launch presets, for analyzing latency against Sunshine's [per-frame trace and CSV](https://github.com/MoreOrLessSoftware/Sunshine#latency-and-frame-pacing).
 
-- Tweaked the formatting and simplified labels
-- Added variance between incoming and rendered FPS (will show > 0% when the values differ by 1 or more FPS)
+![Stats](./screenshots/v0.8.0/stats.png)
 
-## Screenshots
+### Decoders and HDR
 
-<img width="2560" height="1600" alt="Screenshot_20260602-085353" src="https://github.com/user-attachments/assets/2da16b54-2685-4c06-a855-76a38de5255f" />
+- Vendor low-latency decoder flags, on by default, for Snapdragon (8 Gen 2+), Exynos, Amlogic and MediaTek, plus Pixel 10 and Tegra fixes. Merged from Artemis, with their revised decode latency calculation (typically a few ms less than Moonlight reports).
+- Force HDR (10-bit SDR) streaming on devices that don't support HDR, bypassing the HEVC decoder check when HDR is enabled. Experimental.
 
-## Features and Improvements Merged from Artemis
+### Other
 
-- Ultra low latency mode with Snapdragon (8 Gen 2+) and MediaTek (MTK) latency improvements
-- Revised decode latency calculation (typically a few ms less than Moonlight reports)
+- Settings are split into Video, Audio, Input and Other tabs, which a controller's shoulder buttons switch between, and show each setting's current value.
+- A bitrate recommendation instead of a forced change, aware of PyroWave's needs.
+- An error correction (FEC) setting chooses how much FEC the host sends: the host's setting, off, or a custom percentage, and a video send rate setting does the same for how fast it sends each frame's packets (both need [a compatible host](https://github.com/MoreOrLessSoftware/Sunshine#error-correction)).
+- An option to ask the host to encode with exactly the slices the device's decoder wants.
+- Auto-resume a stream after the device sleeps.
+- The device's name is sent as the device name when pairing.
+- The running app's box art is bordered in the accent color.
 
 ## Downloads
-[Download APK from releases](https://github.com/MoreOrLessSoftware/moonlight-android/releases)
+
+[Download the APK from releases](https://github.com/MoreOrLessSoftware/moonlight-android/releases)
 
 ## Building
-* Install Android Studio and the Android NDK
-* Run ‘git submodule update --init --recursive’ from within moonlight-android/
-* In moonlight-android/, create a file called ‘local.properties’. Add an ‘ndk.dir=’ property to the local.properties file and set it equal to your NDK directory.
-* Build the APK using Android Studio or gradle
+
+See instructions from the base repository: https://github.com/moonlight-stream/moonlight-android#building
 
 ## Credits
+
 Moonlight X is a fork of the original [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) which is authored by [Cameron Gutman](https://github.com/cgutman) and others.
