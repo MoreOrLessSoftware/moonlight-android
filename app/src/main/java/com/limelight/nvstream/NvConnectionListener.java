@@ -24,4 +24,7 @@ public interface NvConnectionListener {
     void setMotionEventState(short controllerNumber, byte motionType, short reportRateHz);
 
     void setControllerLED(short controllerNumber, byte r, byte g, byte b);
+
+    // One bit per player indicator (bit 0 = player 1 .. bit 3 = player 4)
+    void setControllerPlayerLEDs(short controllerNumber, byte solidMask, byte flashingMask);
 }

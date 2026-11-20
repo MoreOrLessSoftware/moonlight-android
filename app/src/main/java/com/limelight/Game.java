@@ -2944,6 +2944,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     @Override
+    public void setControllerPlayerLEDs(short controllerNumber, byte solidMask, byte flashingMask) {
+        controllerHandler.handleSetControllerPlayerLEDs(controllerNumber, solidMask, flashingMask);
+    }
+
+    @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
         if (!surfaceCreated) {
             throw new IllegalStateException("Surface changed before creation!");

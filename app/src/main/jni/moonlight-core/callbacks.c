@@ -49,6 +49,7 @@ static jmethodID BridgeClSetHdrModeMethod;
 static jmethodID BridgeClRumbleTriggersMethod;
 static jmethodID BridgeClSetMotionEventStateMethod;
 static jmethodID BridgeClSetControllerLEDMethod;
+static jmethodID BridgeClSetControllerPlayerLEDsMethod;
 static jbyteArray DecodedFrameBuffer;
 static jshortArray DecodedAudioBuffer;
 
@@ -120,6 +121,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeClRumbleTriggersMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClRumbleTriggers", "(SSS)V");
     BridgeClSetMotionEventStateMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetMotionEventState", "(SBS)V");
     BridgeClSetControllerLEDMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetControllerLED", "(SBBB)V");
+    BridgeClSetControllerPlayerLEDsMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetControllerPlayerLEDs", "(SBB)V");
 }
 
 // Whether this stream's video threads have been raised yet (RaiseVideoThreadPriorities())
@@ -562,6 +564,18 @@ void BridgeClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, u
     }
 }
 
+void BridgeClSetControllerPlayerLEDs(uint16_t controllerNumber, uint8_t solidMask, uint8_t flashingMask, uint8_t ds5Leds) {
+    JNIEnv* env = GetThreadEnv();
+
+    // Android lights can only show a player number, so the exact DualSense pattern isn't passed on.
+    // These jbyte casts are necessary to satisfy CheckJNI
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClSetControllerPlayerLEDsMethod, controllerNumber, (jbyte)solidMask, (jbyte)flashingMask);
+    if ((*env)->ExceptionCheck(env)) {
+        // We will crash here
+        (*JVM)->DetachCurrentThread(JVM);
+    }
+}
+
 void BridgeClLogMessage(const char* format, ...) {
     va_list va;
     va_start(va, format);
@@ -599,6 +613,7 @@ static CONNECTION_LISTENER_CALLBACKS BridgeConnListenerCallbacks = {
         .rumbleTriggers = BridgeClRumbleTriggers,
         .setMotionEventState = BridgeClSetMotionEventState,
         .setControllerLED = BridgeClSetControllerLED,
+        .setControllerPlayerLEDs = BridgeClSetControllerPlayerLEDs,
 };
 
 static bool

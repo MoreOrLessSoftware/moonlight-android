@@ -361,6 +361,12 @@ public class MoonBridge {
         }
     }
 
+    public static void bridgeClSetControllerPlayerLEDs(short controllerNumber, byte solidMask, byte flashingMask) {
+        if (connectionListener != null) {
+            connectionListener.setControllerPlayerLEDs(controllerNumber, solidMask, flashingMask);
+        }
+    }
+
     public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer,
                                    NvConnectionListener connectionListener, int supportedVideoFormats) {
         MoonBridge.videoRenderer = videoRenderer;

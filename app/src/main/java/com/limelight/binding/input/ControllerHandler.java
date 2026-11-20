@@ -894,6 +894,14 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 context.hasRgbLed = false;
             }
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            for (Light light : dev.getLightsManager().getLights()) {
+                if (light.getType() == Light.LIGHT_TYPE_PLAYER_ID) {
+                    context.hasPlayerIdLight = true;
+                    break;
+                }
+            }
+        }
 
         // Detect if the gamepad has Mode and Select buttons according to the Android key layouts.
         // We do this first because other codepaths below may override these defaults.
@@ -2423,6 +2431,31 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
     }
 
+    public void handleSetControllerPlayerLEDs(short controllerNumber, byte solidMask, byte flashingMask) {
+        if (stopped || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+
+        // Android's player light shows a single player number, and can't flash on its own,
+        // so a flashing player shows as lit. Masks with several players are left alone.
+        int mask = (solidMask | flashingMask) & 0xF;
+        if (mask == 0 || (mask & (mask - 1)) != 0) {
+            return;
+        }
+        int playerId = Integer.numberOfTrailingZeros(mask) + 1;
+
+        for (int i = 0; i < inputDeviceContexts.size(); i++) {
+            InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+
+            if (deviceContext.controllerNumber == controllerNumber && deviceContext.hasPlayerIdLight) {
+                deviceContext.playerId = playerId;
+
+                backgroundThreadHandler.removeCallbacks(deviceContext.setLedStateRunnable);
+                backgroundThreadHandler.post(deviceContext.setLedStateRunnable);
+            }
+        }
+    }
+
     /**
      * Start the overlay menu hold detection timers.
      */
@@ -3289,6 +3322,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         public LightsManager.LightsSession lightsSession;
         public int ledArgbValue;
 
+        // The player light, and the player number the host asked for (0 = none yet)
+        public boolean hasPlayerIdLight;
+        public int playerId;
+
         // These are BatteryState values, not Moonlight values
         public int lastReportedBatteryStatus;
         public float lastReportedBatteryCapacity;
@@ -3372,17 +3409,24 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             public void run() {
                 LightState lightState = new LightState.Builder().setColor(ledArgbValue).build();
 
-                // Set the RGB value for each RGB-controllable LED on the device
-                boolean hasRgbLight = false;
+                // Every light this session controls goes in each request: the RGB value for each
+                // RGB-controllable LED (once the host has set one) and the player number
+                boolean hasRequestedLight = false;
                 LightsRequest.Builder lightsRequestBuilder = new LightsRequest.Builder();
                 for (Light light : inputDevice.getLightsManager().getLights()) {
-                    if (light.hasRgbControl()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && light.getType() == Light.LIGHT_TYPE_PLAYER_ID) {
+                        if (playerId != 0) {
+                            lightsRequestBuilder.addLight(light, new LightState.Builder().setPlayerId(playerId).build());
+                            hasRequestedLight = true;
+                        }
+                    }
+                    else if (hasRgbLed && ledArgbValue != 0 && light.hasRgbControl()) {
                         lightsRequestBuilder.addLight(light, lightState);
-                        hasRgbLight = true;
+                        hasRequestedLight = true;
                     }
                 }
 
-                if (hasRgbLight) {
+                if (hasRequestedLight) {
                     // Create a new light session if one doesn't already exist
                     if (lightsSession == null) {
                         lightsSession = inputDevice.getLightsManager().openSession();
@@ -3558,6 +3602,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 oldContext.lightsSession = null;
             }
             this.ledArgbValue = oldContext.ledArgbValue;
+            this.playerId = oldContext.playerId;
             this.gyroReportRateHz = oldContext.gyroReportRateHz;
             this.accelReportRateHz = oldContext.accelReportRateHz;
 
