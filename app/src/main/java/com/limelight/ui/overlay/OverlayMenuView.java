@@ -102,6 +102,22 @@ public class OverlayMenuView extends LinearLayout {
     private String messageLabel;
     private final Runnable messageTimeout = this::clearMessage;
 
+    // How long a host command runs before its button shows a spinner, so one that's done at once
+    // doesn't flicker
+    private static final int BUSY_DELAY_MS = 150;
+    // The button of the host command running (or whose reload is awaited), whether its spinner
+    // is showing yet, and whether the command ran and the menu waits for the reloaded commands
+    private int busyAction = -1;
+    private boolean busyShown = false;
+    private boolean awaitingReload = false;
+    private final Runnable showBusy = () -> {
+        OverlayMenuButton button = buttonForAction(busyAction);
+        if (button != null) {
+            button.setBusy(true);
+            busyShown = true;
+        }
+    };
+
     // Disconnect and Quit Session are showing in place of the main buttons. Quitting closes the
     // game on the host, losing anything unsaved, so getting to it takes this extra step.
     private boolean disconnectPage = false;
@@ -198,6 +214,7 @@ public class OverlayMenuView extends LinearLayout {
         group = -1;
         disconnectPage = false;
         runningHostAction = -1;
+        clearBusy();
         removeCallbacks(messageTimeout);
         messageAction = -1;
         buildButtons();
@@ -452,6 +469,13 @@ public class OverlayMenuView extends LinearLayout {
         clearMessage();
         runningHostAction = -1;
         buildButtons();
+        // The new button of a command still busy keeps its spinner
+        if (busyShown) {
+            OverlayMenuButton busyButton = buttonForAction(busyAction);
+            if (busyButton != null) {
+                busyButton.setBusy(true);
+            }
+        }
 
         List<Integer> actions = region == Region.VERTICAL ? verticalActions : horizontalActions;
         int index = actions.indexOf(selected);
@@ -471,15 +495,56 @@ public class OverlayMenuView extends LinearLayout {
         int action = runningHostAction;
         runningHostAction = -1;
         if (getVisibility() != VISIBLE) {
+            clearBusy();
             return;
         }
         if (ok) {
             if (closeMenu) {
+                clearBusy();
                 closeMenu();
+            } else {
+                // The listener reloads the commands, as one may now show what it does next; the
+                // spinner turns until they arrive (hostCommandsReloaded()), so the old label
+                // doesn't flash back first
+                awaitingReload = true;
             }
-        } else if (action >= 0) {
-            showMessage(action, message);
+        } else {
+            clearBusy();
+            if (action >= 0) {
+                showMessage(action, message);
+            }
         }
+    }
+
+    /**
+     * The commands reloaded after a command that kept the menu open have arrived (or failed to):
+     * its spinner stops.
+     */
+    public void hostCommandsReloaded() {
+        if (awaitingReload) {
+            clearBusy();
+        }
+    }
+
+    // Marks a host command's button busy: a moment later, unless it's done by then, a spinner
+    // shows in place of its icon
+    private void startBusy(int action) {
+        clearBusy();
+        busyAction = action;
+        postDelayed(showBusy, BUSY_DELAY_MS);
+    }
+
+    private void clearBusy() {
+        removeCallbacks(showBusy);
+        if (busyShown) {
+            OverlayMenuButton button = buttonForAction(busyAction);
+            if (button != null) {
+                button.setBusy(false);
+            }
+        }
+        busyAction = -1;
+        busyShown = false;
+        awaitingReload = false;
     }
 
     private void showMessage(int action, String message) {
@@ -990,8 +1055,10 @@ public class OverlayMenuView extends LinearLayout {
     private void runHostCommand(HostCommands.Command command, int action) {
         clearMessage();
         if (actionListener != null) {
-            // The menu stays open until the host answers, so a failure can show on the button
+            // The menu stays open until the host answers, so a failure can show on the button.
+            // Until then, its button shows a spinner.
             runningHostAction = action;
+            startBusy(action);
             actionListener.onHostCommand(command);
         }
     }
@@ -1073,6 +1140,7 @@ public class OverlayMenuView extends LinearLayout {
         group = -1;
         disconnectPage = false;
         runningHostAction = -1;
+        clearBusy();
         removeCallbacks(messageTimeout);
         messageAction = -1;
         if (onComplete != null) {

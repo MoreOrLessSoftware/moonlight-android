@@ -10,6 +10,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 /**
@@ -24,6 +25,10 @@ public class OverlayMenuButton extends LinearLayout {
 
     private ImageView iconView;
     private TextView labelView;
+    // The spinner shown in place of the icon while the button's command runs (setBusy()), made
+    // the first time it's needed
+    private ProgressBar busyView;
+    private boolean iconHidden = false;
     private GradientDrawable background;
     private boolean isSelected = false;
     private int strokeWidth;
@@ -149,6 +154,10 @@ public class OverlayMenuButton extends LinearLayout {
             iconView.setImageTintList(ColorStateList.valueOf(0xFFFFFFFF)); // White icon
             labelView.setTextColor(Color.WHITE);
         }
+        // The spinner is colored like the icon it stands in for
+        if (busyView != null) {
+            busyView.setIndeterminateTintList(ColorStateList.valueOf(isSelected ? 0xFF000000 : 0xFFFFFFFF));
+        }
     }
 
     /**
@@ -170,9 +179,41 @@ public class OverlayMenuButton extends LinearLayout {
     }
 
     public void hideIcon() {
+        iconHidden = true;
         iconView.setVisibility(GONE);
+        setLabelGap(false);
+    }
+
+    /**
+     * Shows a spinner in place of the icon while the button's command runs, or the icon again
+     */
+    public void setBusy(boolean busy) {
+        if (busy == (busyView != null && busyView.getVisibility() == VISIBLE)) {
+            return;
+        }
+        if (busy && busyView == null) {
+            float density = getContext().getResources().getDisplayMetrics().density;
+            int iconSize = (int) (ICON_SIZE_DP * density);
+            busyView = new ProgressBar(getContext(), null, android.R.attr.progressBarStyleSmall);
+            busyView.setIndeterminate(true);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(iconSize, iconSize);
+            params.gravity = Gravity.CENTER_VERTICAL;
+            busyView.setLayoutParams(params);
+            // Where the icon is, before the label
+            addView(busyView, indexOfChild(iconView) + 1);
+            updateAppearance();
+        }
+        busyView.setVisibility(busy ? VISIBLE : GONE);
+        iconView.setVisibility(busy || iconHidden ? GONE : VISIBLE);
+        // A button without an icon needs the gap before its label while the spinner shows
+        if (iconHidden) {
+            setLabelGap(busy);
+        }
+    }
+
+    private void setLabelGap(boolean gap) {
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) labelView.getLayoutParams();
-        params.leftMargin = 0;
+        params.leftMargin = gap ? (int) (8 * getContext().getResources().getDisplayMetrics().density) : 0;
         labelView.setLayoutParams(params);
     }
 

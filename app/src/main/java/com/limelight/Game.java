@@ -3479,6 +3479,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 } else if (result != null) {
                     overlayMenuView.setHostCommands(result);
                 }
+                // However it went, a command waiting on this reload stops its spinner
+                overlayMenuView.hostCommandsReloaded();
             });
         });
     }
@@ -3511,7 +3513,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             final boolean succeeded = ok;
             final String failure = message;
-            runOnUiThread(() -> overlayMenuView.hostCommandFinished(succeeded, command.closeMenu, failure));
+            runOnUiThread(() -> {
+                overlayMenuView.hostCommandFinished(succeeded, command.closeMenu, failure);
+                // The menu stays open, so reload its commands: one may now show what it does next,
+                // such as Resume after Suspend. The host answers once that has changed.
+                if (succeeded && !command.closeMenu) {
+                    fetchHostCommands();
+                }
+            });
         });
     }
 
